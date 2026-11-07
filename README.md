@@ -1,4 +1,4 @@
-# EduPDF Studio
+# SknEDUpdf-studio
 
 Éditeur PDF **hors-ligne** pour enseignants (Windows), dans l'esprit de PDFelement :
 créer, modifier, organiser, scanner, rendre le texte des scans modifiable (OCR), protéger, signer,
@@ -26,25 +26,26 @@ Couleurs : bleu marine **#001871** et or **#F1B434** d'Enko Education ; leur dé
 | **Cloud** | **Enregistrer et ouvrir dans OneDrive (personnel et établissement), Google Drive, Dropbox, iCloud Drive, Box, Nextcloud** ou tout dossier synchronisé ; installation guidée de Google Drive / OneDrive / Dropbox |
 | **Assistant IA** | Résumer, créer un QCM, une fiche d'exercices, simplifier (différenciation), corriger les fautes, traduire, grille d'évaluation, plan de séance, ou toute demande libre — sur la page, la sélection ou tout le document ; réponse insérable dans le document ou exportable en Word. Fournisseurs : **Claude** (lit directement le PDF, y compris les scans et schémas), **ChatGPT**, **Gemini**, **Mistral** (avec votre clé API) ou **Ollama** (IA locale gratuite, hors-ligne) ; **abonnements ChatGPT Plus / Claude Pro / Gemini / Copilot** utilisables via le navigateur |
 | **Administration** | Console administrateur : fonctions autorisées par défaut, par utilisateur et par poste (13 fonctions, blocage complet), message aux utilisateurs, journal d'activité, **notifications Windows et sur téléphone** (ntfy) |
+| **Interface** | Onglet **Accueil** avec barre latérale de l'enseignant (démarrer, modèles Seyès / petits carreaux / évaluation / fiche d'exercices, fichiers récents, outils) ; **plusieurs documents en onglets** dans la même fenêtre (Ctrl+T, Ctrl+W, Ctrl+Tab) ; **ruban masquable automatiquement** (Ctrl+F1, ou double-clic sur un onglet ; masqué d'office sur les petits écrans) ; **barre d'accès rapide** personnalisable (clic droit sur un bouton du ruban) ; **diaporama plein écran** (F5, Maj+F5 depuis la page courante ; flèches, clic, molette, numéro + Entrée, B écran noir, W écran blanc, L pointeur laser, Échap) |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
 ### Formats ouverts
 
 - **PDF** (y compris protégés, restreints ou endommagés) • **XPS / OXPS** (converti en images fidèles)
 - **Office** : `doc, docx, docm, dot(x), odt, ott, rtf, wpd, wps, ppt, pptx, pptm, pps(x), pot(x), odp, otp, xls, xlsx, xlsm, xlsb, ods, ots, odg, otg, vsd(x), pub` — via LibreOffice (mise en page identique) ;
-  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). EduPDF propose d'**installer LibreOffice automatiquement**. Les fichiers Office **protégés par mot de passe** s'ouvrent avec leur mot de passe.
+  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). SknEDUpdf-studio propose d'**installer LibreOffice automatiquement**. Les fichiers Office **protégés par mot de passe** s'ouvrent avec leur mot de passe.
 - **Livres et BD** : `epub, mobi, fb2, cbz` • **Images** : `heic, heif` (photos d'iPhone), `png, jpg, jfif, bmp, gif, webp, avif, ico, tif/tiff (multipage), jxr, psd, pnm`
 - **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
 - Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
 ## Assistant IA : clé API ou abonnement ?
 
-- **Clé API** (Claude, ChatGPT, Gemini, Mistral) : l'IA travaille **dans EduPDF** (réponse en direct, insertion dans le document).
+- **Clé API** (Claude, ChatGPT, Gemini, Mistral) : l'IA travaille **dans SknEDUpdf-studio** (réponse en direct, insertion dans le document).
   La clé se crée sur le site du fournisseur (facturation à l'usage) et se colle dans « Réglages IA ». Elle est chiffrée par Windows
   et n'est jamais affichée. Claude reçoit les pages en PDF : il lit aussi les images, schémas et pages scannées.
 - **Abonnement grand public** (ChatGPT Plus, Claude Pro, Gemini Advanced, Copilot Pro, Le Chat Pro) : ces offres **ne donnent pas
   accès à une API**. Le bouton « Mon abonnement » copie votre demande avec le texte du document et ouvre votre IA dans le
-  navigateur (où vous êtes connecté) : collez, envoyez, puis « Coller la réponse » pour la ramener dans EduPDF.
+  navigateur (où vous êtes connecté) : collez, envoyez, puis « Coller la réponse » pour la ramener dans SknEDUpdf-studio.
 - **Ollama** : IA installée sur le PC, gratuite et hors-ligne ; aucun texte ne quitte l'ordinateur.
 - L'administrateur peut désactiver l'assistant IA (fonction « Assistant IA » de la console).
 ## Administration (gestion des accès)
@@ -61,7 +62,7 @@ Aide › **Administration** :
    (`eleve1`), par poste (`SALLE-B12\*`) ou pour un compte précis (`SALLE-B12\eleve1`), et de bloquer un utilisateur.
 4. **Notifications** : choisissez les événements (action bloquée, utilisateur bloqué, règles falsifiées, mot de passe
    administrateur erroné, poste inscrit / retiré, PDF protégé déverrouillé…). Elles s'affichent sur votre PC
-   (EduPDF reste près de l'horloge, et démarre avec Windows si vous le souhaitez) et, si vous le voulez, sur votre
+   (SknEDUpdf-studio reste près de l'horloge, et démarre avec Windows si vous le souhaitez) et, si vous le voulez, sur votre
    téléphone avec l'application gratuite **ntfy**.
 
 Sécurité : les règles sont **signées numériquement** (Ed25519) ; un utilisateur ne peut ni les modifier ni retirer son poste
@@ -74,7 +75,7 @@ sans le mot de passe administrateur. La clé de l'administrateur est chiffrée p
 | Antivirus | Installateur analysé sans détection par Kaspersky (7 164 éléments) et Microsoft Defender. |
 | Contrôle intelligent des applications (Windows 11) | Installateur et application autorisés : l'exécutable Electron est laissé intact. |
 | SmartScreen | Avertissement « Windows a protégé votre ordinateur » au premier lancement d'un fichier téléchargé, tant que l'installateur n'est pas signé : « Informations complémentaires › Exécuter quand même ». |
-| Mises à jour | Testé de bout en bout : la 1.3.0 installée a trouvé, téléchargé (mise à jour différentielle) et installé la 1.4.0 à la fermeture. Journal : `%APPDATA%\EduPDF Studio\logs\mises-a-jour.log`. Chaque version passe l'audit de sécurité et l'auto-test complet avant publication. |
+| Mises à jour | Testé de bout en bout : la 1.3.0 installée a trouvé, téléchargé (mise à jour différentielle) et installé la 1.4.0 à la fermeture. Journal : `%APPDATA%\SknEDUpdf-studio\logs\mises-a-jour.log`. Chaque version passe l'audit de sécurité et l'auto-test complet avant publication. |
 | Écrans | Testé de 800×600 à 2560×1440 et avec mise à l'échelle Windows 125 % : fenêtre adaptée à l'écran au démarrage (agrandie sur les petits écrans, taille mémorisée), ruban sur une ligne défilant à la molette, panneau Propriétés repliable sur petit écran. |
 | Comptes Windows | Noms d'utilisateur accentués et avec espaces pris en charge. |
 | Code source | Aucun secret dans l'historique ; 0 vulnérabilité connue dans les dépendances (`npm audit`) ; CodeQL, Dependabot et détection de secrets à l'envoi. Voir [SECURITY.md](SECURITY.md). |
@@ -117,7 +118,7 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 - Sécurité : PDF.js n'exécute jamais de code venant d'un PDF, l'interface est isolée (sandbox) et ne peut écrire que dans les fichiers que vous avez choisis.
 - Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais les phrases mêlant droite-à-gauche et gauche-à-droite peuvent être mal ordonnées.
 - Le texte écrit en oblique ou à la verticale dans un PDF n'est pas modifiable directement (utilisez « Masquer » puis « Ajouter du texte »).
-- Cloud : EduPDF utilise l'application officielle du service (OneDrive, Google Drive pour ordinateur, Dropbox…) qui synchronise le dossier ; vos identifiants ne passent jamais par EduPDF.
-- Administration : un utilisateur qui est **administrateur Windows** de son PC pourrait supprimer les fichiers d'EduPDF ; réservez les droits d'administration Windows aux adultes responsables.
+- Cloud : SknEDUpdf-studio utilise l'application officielle du service (OneDrive, Google Drive pour ordinateur, Dropbox…) qui synchronise le dossier ; vos identifiants ne passent jamais par SknEDUpdf-studio.
+- Administration : un utilisateur qui est **administrateur Windows** de son PC pourrait supprimer les fichiers de SknEDUpdf-studio ; réservez les droits d'administration Windows aux adultes responsables.
 - Windows « Contrôle intelligent des applications » peut bloquer l'**installateur** tant qu'il n'est pas signé par un certificat d'éditeur (payant).
 - Scanner : pilotes WIA (la quasi-totalité des scanners récents). Les scanners uniquement TWAIN ne sont pas pris en charge.

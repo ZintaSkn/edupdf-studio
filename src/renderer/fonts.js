@@ -1,4 +1,4 @@
-/* EduPDF Studio — polices : reconnaissance de la police d'origine et réécriture Unicode (tous alphabets) */
+/* SknEDUpdf-studio — polices : reconnaissance de la police d'origine et réécriture Unicode (tous alphabets) */
 'use strict';
 
 // Fichiers de police Windows : [normal, gras, italique, gras italique]

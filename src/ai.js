@@ -1,10 +1,10 @@
-// EduPDF Studio — assistant IA (l'utilisateur choisit son fournisseur et utilise SA clé ou SON abonnement).
+// SknEDUpdf-studio — assistant IA (l'utilisateur choisit son fournisseur et utilise SA clé ou SON abonnement).
 //
 // • Claude (Anthropic)          : SDK officiel @anthropic-ai/sdk, streaming, lecture directe du PDF (texte, images, mise en page)
 // • ChatGPT (OpenAI), Gemini (Google), Mistral : API « chat completions » compatibles, streaming
 // • Ollama                      : IA locale, gratuite, hors-ligne (aucune donnée ne quitte le PC)
 // • Abonnement (ChatGPT Plus, Claude Pro, Gemini, Copilot…) : les abonnements grand public n'offrent pas d'API ;
-//   EduPDF prépare la demande, la copie et ouvre le site de l'IA dans le navigateur (géré côté interface).
+//   SknEDUpdf-studio prépare la demande, la copie et ouvre le site de l'IA dans le navigateur (géré côté interface).
 //
 // Les clés API sont chiffrées par Windows (DPAPI via safeStorage) et ne repartent jamais vers l'interface.
 const fs = require('fs');

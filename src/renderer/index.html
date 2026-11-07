@@ -4,14 +4,16 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:;" />
-  <title>EduPDF Studio</title>
+  <title>SknEDUpdf-studio</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <nav id="tabs">
-      <span class="brand">EduPDF <b>Studio</b></span>
-      <button data-tab="fichier" class="on">Fichier</button>
+      <span class="brand">SknEDUpdf<b>-studio</b></span>
+      <div id="qat" title="Barre d'accès rapide (clic droit sur un bouton du ruban pour l'y ajouter)"></div>
+      <button data-tab="accueil" class="on">🏠 Accueil</button>
+      <button data-tab="fichier">Fichier</button>
       <button data-tab="creer">Créer</button>
       <button data-tab="modifier">Modifier</button>
       <button data-tab="pages">Pages</button>
@@ -20,10 +22,28 @@
       <button data-tab="outils">Protéger &amp; Comparer</button>
       <button data-tab="ia">✨ Assistant IA</button>
       <button data-tab="aide">Aide</button>
+      <span class="spacer"></span>
+      <button id="ribbonMode" title="Afficher / masquer automatiquement le ruban (Ctrl+F1)">▴</button>
     </nav>
     <div id="policyBar" hidden></div>
     <div id="ribbon">
-      <div class="panel on" data-panel="fichier">
+      <div class="panel on" data-panel="accueil">
+        <button data-act="new"><i>📄</i>Nouveau</button>
+        <button data-act="open"><i>📂</i>Ouvrir</button>
+        <button data-act="save"><i>💾</i>Enregistrer</button>
+        <button data-act="print"><i>🖨</i>Imprimer</button>
+        <span class="sep"></span>
+        <button data-tool="edit" class="tool"><i>✏️</i>Modifier<br>le texte</button>
+        <button data-tool="text" class="tool"><i>🔤</i>Ajouter<br>du texte</button>
+        <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
+        <button data-act="ocrPage"><i>🔍</i>OCR</button>
+        <button data-act="aiPanel"><i>✨</i>Assistant IA</button>
+        <span class="sep"></span>
+        <button data-act="slideshow"><i>🖥</i>Diaporama<br>(F5)</button>
+        <button data-act="slideshowHere"><i>▶️</i>Depuis cette<br>page (Maj+F5)</button>
+        <button data-act="homeSide"><i>🏠</i>Panneau<br>Accueil</button>
+      </div>
+      <div class="panel" data-panel="fichier">
         <button data-act="new"><i>📄</i>Nouveau</button>
         <button data-act="open"><i>📂</i>Ouvrir</button>
         <button data-act="save"><i>💾</i>Enregistrer</button>
@@ -133,10 +153,15 @@
         <button data-act="about"><i>ℹ️</i>À propos</button>
       </div>
     </div>
+    <div id="docTabs"></div>
   </header>
 
   <main>
-    <aside id="thumbs"></aside>
+    <aside id="leftBar">
+      <div id="sideSwitch"><button data-side="home" class="on">🏠 Accueil</button><button data-side="pages">📑 Pages</button></div>
+      <div id="homeSide"></div>
+      <div id="thumbs" hidden></div>
+    </aside>
     <section id="viewWrap">
       <div id="findBar" hidden>
         <input id="findText" placeholder="Rechercher…" autocomplete="off">
@@ -149,7 +174,7 @@
         <button id="findClose" class="small" title="Fermer (Échap)">✕</button>
       </div>
       <div id="welcome">
-        <h1>EduPDF Studio</h1>
+        <h1>SknEDUpdf-studio</h1>
         <p>Créez, modifiez, organisez et numérisez vos documents de cours — sans connexion.</p>
         <div class="cards">
           <button data-act="open"><i>📂</i>Ouvrir un fichier<small>PDF, Word, PowerPoint, Excel, images…</small></button>
@@ -208,8 +233,10 @@
     <div id="aiOut" tabindex="0"></div>
     <div class="row wrap"><button id="aiCopy" class="small">Copier</button><button id="aiInsert" class="small">Insérer dans le document</button><button id="aiWordBtn" class="small">Exporter en Word</button><button id="aiPaste" class="small" title="Coller une réponse obtenue avec votre abonnement">Coller la réponse</button></div>
   </aside>
-  <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé EduPDF Studio pour <b id="blockedWho"></b>.</p>
+  <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé SknEDUpdf-studio pour <b id="blockedWho"></b>.</p>
     <p>Contactez votre administrateur si vous pensez qu'il s'agit d'une erreur.</p><button data-act="admin">Administration…</button></div></div>
+  <div id="show" hidden><canvas id="showCanvas"></canvas><div id="showInfo"></div><div id="laser" hidden></div></div>
+  <div id="ctxMenu" hidden></div>
   <div id="busy" hidden><div><span class="spin"></span><span id="busyMsg">Traitement…</span></div></div>
   <div id="modal" hidden><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><div id="mBtns"></div></div></div>
 

@@ -1,4 +1,4 @@
-// EduPDF Studio — processus principal (Electron)
+// SknEDUpdf-studio — processus principal (Electron)
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -10,6 +10,10 @@ let pendingOpen = [];
 let dirty = false;
 ipcMain.on('set-dirty', (_e, v) => { dirty = !!v; });
 
+// Nouveau nom (SknEDUpdf-studio) : les réglages restent dans le dossier d'origine, pour que les postes déjà installés
+// conservent clés IA, administration, fichiers récents et préférences après la mise à jour.
+app.setName('SknEDUpdf-studio');
+app.setPath('userData', path.join(app.getPath('appData'), 'EduPDF Studio'));
 // Auto-test : profil et dossier « machine » isolés (aucun effet sur la configuration réelle du PC)
 if (process.env.EDUPDF_SELFTEST) { app.setPath('userData', path.join(process.env.EDUPDF_SELFTEST, 'userdata')); process.env.EDUPDF_MACHINE_DIR = path.join(process.env.EDUPDF_SELFTEST, 'machine'); }
 const mu = require('./mu');
@@ -251,7 +255,7 @@ function fitWindowToScreen(w) {
 function createWindow() {
   win = new BrowserWindow({
     width: 1400, height: 900, minWidth: 760, minHeight: 520, show: false,
-    title: 'EduPDF Studio',
+    title: 'SknEDUpdf-studio',
     icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -272,7 +276,7 @@ function createWindow() {
     if (!dirty) return;
     const c = dialog.showMessageBoxSync(win, {
       type: 'warning', buttons: ['Quitter sans enregistrer', 'Annuler'], defaultId: 1, cancelId: 1,
-      title: 'EduPDF Studio', message: 'Le document a des modifications non enregistrées.'
+      title: 'SknEDUpdf-studio', message: 'Le document a des modifications non enregistrées.'
     });
     if (c === 1) e.preventDefault();
   });
@@ -346,7 +350,7 @@ ipcMain.handle('load-paths', (_e, paths) => loadMany(paths));
 async function loadMany(paths) {
   const out = [];
   for (const p of paths) {
-    try { const f = await loadFile(p); if (f.kind === 'pdf' && f.path) allow(f.path); admin.logEvent('file_open', { file: path.basename(p) }); out.push(f); }
+    try { const f = await loadFile(p); if (f.kind === 'pdf' && f.path) allow(f.path); addRecent(p); admin.logEvent('file_open', { file: path.basename(p) }); out.push(f); }
     catch (err) { out.push({ name: path.basename(p), error: err.message }); }
   }
   return out;
@@ -365,7 +369,7 @@ ipcMain.handle('dialog-save', async (_e, { bytes, defaultName, filters, filePath
   }
   try { fs.writeFileSync(target, Buffer.from(bytes)); }
   catch (e) { throw new Error(e.code === 'EBUSY' || e.code === 'EPERM' ? 'Le fichier est ouvert dans un autre logiciel ou en lecture seule. Fermez-le ou choisissez « Enregistrer sous ».' : e.message); }
-  allow(target);
+  allow(target); addRecent(target);
   admin.logEvent('save', { file: path.basename(target) });
   return target;
 });
@@ -442,7 +446,7 @@ ipcMain.handle('pdf-to-office', async (_e, { bytes, format, defaultName }) => {
 ipcMain.handle('export-sheet', async (_e, { sheets, defaultName, format }) => {
   admin.guard('convert', 'Convertir en tableur');
   const ExcelJS = require('exceljs');
-  const wb = new ExcelJS.Workbook(); wb.creator = 'EduPDF Studio';
+  const wb = new ExcelJS.Workbook(); wb.creator = 'SknEDUpdf-studio';
   sheets.forEach((s, i) => {
     const ws = wb.addWorksheet((s.name || `Page ${i + 1}`).slice(0, 31).replace(/[\\/?*[\]:]/g, '-'));
     s.rows.forEach((r) => ws.addRow(r));
@@ -500,6 +504,21 @@ ipcMain.handle('office-targets', () => Object.fromEntries(Object.entries(OFFICE_
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 const readSettings = () => { try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { return {}; } };
 const writeSettings = (s) => fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
+// ---------- Fichiers récents (barre latérale Accueil) ----------
+function addRecent(file) {
+  try {
+    const s = readSettings(); const full = path.resolve(file);
+    s.recent = [{ path: full, name: path.basename(full), ts: Date.now() }, ...(s.recent || []).filter((r) => r.path.toLowerCase() !== full.toLowerCase())].slice(0, 15);
+    writeSettings(s);
+  } catch { /* liste facultative */ }
+}
+ipcMain.handle('recent-list', () => (readSettings().recent || []).filter((r) => fs.existsSync(r.path)).map((r) => ({ ...r, dir: path.dirname(r.path) })));
+ipcMain.handle('recent-clear', () => { const s = readSettings(); s.recent = []; writeSettings(s); return true; });
+ipcMain.handle('recent-open', (_e, { file }) => {
+  const known = (readSettings().recent || []).some((r) => r.path === file);
+  if (!known) throw new Error('Fichier inconnu.');
+  return loadMany([file]);
+});
 ipcMain.handle('cloud-list', () => ({ clouds: cloud.detect(readSettings().clouds || []), install: cloud.INSTALL }));
 ipcMain.handle('cloud-save', async (_e, { cloudPath, bytes, defaultName }) => {
   admin.guard('cloud', 'Enregistrer dans le cloud');
@@ -729,7 +748,7 @@ function setupAutoUpdate() {
   if (!app.isPackaged) return;
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
-  // Journal des mises à jour (diagnostic) : %APPDATA%\EduPDF Studio\logs\mises-a-jour.log, limité à 1 Mo
+  // Journal des mises à jour (diagnostic) : %APPDATA%\SknEDUpdf-studio\logs\mises-a-jour.log, limité à 1 Mo
   const logFile = path.join(app.getPath('userData'), 'logs', 'mises-a-jour.log');
   const write = (lvl) => (m) => { try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1048576) fs.renameSync(logFile, logFile + '.1'); fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${lvl} ${m}\n`); } catch { /* */ } };
   autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };

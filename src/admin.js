@@ -1,4 +1,4 @@
-// EduPDF Studio — administration : droits d'accès par utilisateur / poste, journal d'activité, notifications.
+// SknEDUpdf-studio — administration : droits d'accès par utilisateur / poste, journal d'activité, notifications.
 //
 // Fonctionnement sans serveur : l'administrateur choisit un « dossier de gestion » (dossier local partagé entre
 // les comptes Windows du PC, partage réseau de l'établissement ou dossier cloud partagé OneDrive / Google Drive).
@@ -27,7 +27,7 @@ const FEATURES = {
   ai: 'Assistant IA (envoie le texte du document au fournisseur choisi)'
 };
 const EVENTS = {
-  app_start: 'Ouverture d\'EduPDF', file_open: 'Fichier ouvert', save: 'Fichier enregistré', export: 'Export / conversion',
+  app_start: 'Ouverture d\'SknEDUpdf-studio', file_open: 'Fichier ouvert', save: 'Fichier enregistré', export: 'Export / conversion',
   print: 'Impression', cloud: 'Enregistrement dans le cloud', unlock: 'PDF protégé déverrouillé', protect: 'Protection par mot de passe',
   sign: 'Signature', blocked: 'Action bloquée par les règles', user_blocked: 'Utilisateur bloqué : tentative d\'ouverture',
   policy_tampered: 'Règles modifiées sans autorisation', admin_fail: 'Mot de passe administrateur erroné',
@@ -136,7 +136,7 @@ function saveNotify(n) {
 function enrollment() { return readJson(path.join(MACHINE_DIR, 'managed.json')) || readJson(P.userEnroll); }
 function enroll({ folder, password, scope }) {
   const key = readJson(path.join(folder, 'admin-key.json')); const raw = readPolicyRaw(folder);
-  if (!key || !raw) throw new Error('Ce dossier ne contient pas de gestion EduPDF (admin-key.json / policy.json introuvables).');
+  if (!key || !raw) throw new Error('Ce dossier ne contient pas de gestion SknEDUpdf-studio (admin-key.json / policy.json introuvables).');
   if (!verifyPolicy(raw, key.pub)) throw new Error('Règles invalides (signature incorrecte).');
   if (!checkPw(password, raw.payload.pwHash)) throw new Error('Mot de passe administrateur incorrect.');
   const e = { folder, pub: key.pub, enrolledAt: new Date().toISOString(), scope: scope === 'user' ? 'user' : 'machine' };
@@ -231,7 +231,7 @@ function notify(title, body) {
     n.on('click', () => openConsole()); n.show();
   }
   if (cfg.notify.ntfy) { // notification sur le téléphone (application gratuite « ntfy »)
-    fetch(`https://ntfy.sh/${cfg.notify.ntfy}`, { method: 'POST', body: `\n${body}`, headers: { Title: 'EduPDF Studio', Tags: 'bell' } }).catch(() => {});
+    fetch(`https://ntfy.sh/${cfg.notify.ntfy}`, { method: 'POST', body: `\n${body}`, headers: { Title: 'SknEDUpdf-studio', Tags: 'bell' } }).catch(() => {});
   }
 }
 function pollEvents() {
@@ -256,8 +256,8 @@ function pollEvents() {
   cfg.cursor = cursor; cfg.lastPoll = new Date().toISOString(); if (changed || fresh.length || !cfg.lastPollSaved || Date.now() - Date.parse(cfg.lastPollSaved) > 600000) { cfg.lastPollSaved = cfg.lastPoll; writeJson(P.admin, cfg); }
   const types = new Set(cfg.notify.types || DEFAULT_NOTIFY);
   const toShow = fresh.filter((e) => types.has(e.type) && !(e.host === host && e.user === user && e.type === 'admin_fail' && consoleWin));
-  for (const e of toShow.slice(0, 5)) notify(`EduPDF — ${EVENTS[e.type] || e.type}`, describe(e));
-  if (toShow.length > 5) notify('EduPDF', `${toShow.length - 5} autre(s) événement(s) — ouvrez la console d'administration.`);
+  for (const e of toShow.slice(0, 5)) notify(`SknEDUpdf-studio — ${EVENTS[e.type] || e.type}`, describe(e));
+  if (toShow.length > 5) notify('SknEDUpdf-studio', `${toShow.length - 5} autre(s) événement(s) — ouvrez la console d'administration.`);
   if (consoleWin && !consoleWin.isDestroyed() && fresh.length) consoleWin.webContents.send('admin-events-changed');
   return fresh;
 }
@@ -274,10 +274,10 @@ function applyStartup() {
 function ensureTray() {
   if (tray || !adminCfg()) return;
   tray = new A.Tray(A.nativeImage.createFromPath(A.iconPath).resize({ width: 16, height: 16 }));
-  tray.setToolTip('EduPDF Studio — surveillance administrateur');
+  tray.setToolTip('SknEDUpdf-studio — surveillance administrateur');
   tray.setContextMenu(A.Menu.buildFromTemplate([
     { label: 'Console d\'administration', click: openConsole },
-    { label: 'Ouvrir EduPDF Studio', click: () => A.openMain() },
+    { label: 'Ouvrir SknEDUpdf-studio', click: () => A.openMain() },
     { type: 'separator' },
     { label: 'Quitter', click: () => { A.app.exit(0); } }
   ]));
@@ -286,7 +286,7 @@ function ensureTray() {
 function openConsole() {
   if (consoleWin && !consoleWin.isDestroyed()) { consoleWin.show(); consoleWin.focus(); return; }
   consoleWin = new A.BrowserWindow({
-    width: 1180, height: 820, title: 'EduPDF — Administration', icon: A.iconPath, autoHideMenuBar: true,
+    width: 1180, height: 820, title: 'SknEDUpdf-studio — Administration', icon: A.iconPath, autoHideMenuBar: true,
     webPreferences: { preload: A.preloadAdmin, contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   consoleWin.setMenu(null);
@@ -320,7 +320,7 @@ function init(deps) {
   h('admin-save', ({ policy }) => savePolicy(policy));
   h('admin-events', ({ limit }) => readAllEvents(limit));
   h('admin-notify-save', (n) => saveNotify(n));
-  h('admin-notify-test', () => { notify('EduPDF — test', 'Les notifications fonctionnent.'); return true; });
+  h('admin-notify-test', () => { notify('SknEDUpdf-studio — test', 'Les notifications fonctionnent.'); return true; });
   h('admin-change-password', ({ oldPw, newPw }) => changePassword(oldPw, newPw));
   h('admin-show-folder', () => { const c = adminCfg(); if (c) A.shell.openPath(c.folder); return true; });
   if (adminCfg()) { startWatcher(); ensureTray(); }

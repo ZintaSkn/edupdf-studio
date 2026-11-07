@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('api', {
   exportPptxImages: (slides, defaultName) => ipcRenderer.invoke('export-pptx-images', { slides, defaultName }),
   convertOfficeFile: (target) => ipcRenderer.invoke('convert-office-file', { target }),
   officeTargets: () => ipcRenderer.invoke('office-targets'),
+  // fichiers récents
+  recentList: () => ipcRenderer.invoke('recent-list'),
+  recentClear: () => ipcRenderer.invoke('recent-clear'),
+  recentOpen: (file) => ipcRenderer.invoke('recent-open', { file }),
   // cloud
   cloudList: () => ipcRenderer.invoke('cloud-list'),
   cloudSave: (cloudPath, bytes, defaultName) => ipcRenderer.invoke('cloud-save', { cloudPath, bytes, defaultName }),

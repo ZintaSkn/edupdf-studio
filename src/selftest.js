@@ -311,6 +311,34 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         log('OK   admin-console', await cw.webContents.executeJavaScript(`document.querySelectorAll('#journalTbl tr').length + ' lignes de journal'`));
       } catch (e) { log('FAIL admin-console', e.message); results.cons = { error: e.message }; }
 
+      await step('onglets+accueil+diaporama', `(async () => {
+        const T = window.__edupdf; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        T.S.dirty = false; T.actions.close();
+        out.titre = document.title; out.marque = q('#tabs .brand').textContent;
+        out.accueilVisible = !q('#homeSide').hidden && q('#homeSide').textContent.includes('Modèles pour la classe');
+        // modèle Seyès dans l'onglet courant, puis un 2e document dans un nouvel onglet
+        q('[data-tpl=seyes]').click(); for (let i = 0; i < 40 && !T.S.pages.length; i++) await wait(100);
+        out.modele = T.S.fileName + ' / ' + T.S.pages.length + ' p.';
+        T.newTab(); await T.insertPdf(await T.textToPdf('Deuxième document')); T.S.dirty = true; T.refresh();
+        out.onglets = document.querySelectorAll('#docTabs .dtab').length;
+        T.switchDoc(0); out.retourOnglet1 = T.S.fileName + ' / ' + T.S.pages.length + ' p.';
+        T.switchDoc(1); out.onglet2Modifie = T.S.dirty && !!q('#docTabs .dtab.on b');
+        // ruban masqué automatiquement
+        T.toggleRibbon(); out.rubanAuto = document.body.classList.contains('ribbon-auto') && getComputedStyle(q('#ribbon')).display === 'none';
+        q('[data-tab=pages]').click(); out.rubanAffiche = getComputedStyle(q('#ribbon')).display !== 'none';
+        T.toggleRibbon();
+        // barre d'accès rapide
+        out.accesRapide = [...document.querySelectorAll('#qat [data-qat]')].map((b) => b.dataset.qat);
+        // diaporama
+        await T.startShow(false); await wait(700);
+        out.diapoOuvert = !q('#show').hidden && q('#showCanvas').width > 100;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await wait(300);
+        out.diapoFerme = q('#show').hidden;
+        T.S.dirty = false; T.closeTab(1); out.ongletsApresFermeture = document.querySelectorAll('#docTabs .dtab').length;
+        return out;
+      })()`);
+
       await step('thumbs', `(async () => {
         const T = window.__edupdf; T.refresh(); await new Promise(r => setTimeout(r, 2500));
         return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };

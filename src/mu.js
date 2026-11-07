@@ -1,4 +1,4 @@
-// EduPDF Studio — MuPDF (WebAssembly) : PDF protégés, réparation, chiffrement, formats XPS / EPUB / CBZ / FB2 / MOBI / TIFF / SVG
+// SknEDUpdf-studio — MuPDF (WebAssembly) : PDF protégés, réparation, chiffrement, formats XPS / EPUB / CBZ / FB2 / MOBI / TIFF / SVG
 const path = require('path');
 const { pathToFileURL } = require('url');
 

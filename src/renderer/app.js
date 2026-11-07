@@ -1,4 +1,4 @@
-/* EduPDF Studio — interface et moteur d'édition */
+/* SknEDUpdf-studio — interface et moteur d'édition */
 'use strict';
 const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
 
@@ -16,8 +16,10 @@ const S = {
 };
 const hist = { undo: [], redo: [] };
 let uidc = 1;
-const thumbCache = new Map();
-const textCache = new Map();
+let thumbCache = new Map();
+let textCache = new Map();
+// Plusieurs documents dans la même fenêtre (onglets) : chaque onglet garde son propre état
+const DOCS = []; let curDoc = 0;
 
 const curPage = () => S.pages[S.cur];
 const color = () => $('#color').value;
@@ -27,8 +29,8 @@ const size = () => Math.max(4, +$('#size').value || 14);
 function msg(t) { $('#msg').textContent = t; }
 function busy(t) { $('#busyMsg').textContent = t; $('#busy').hidden = false; }
 function done(t) { $('#busy').hidden = true; if (t) msg(t); }
-function setDirty(v) { S.dirty = v; window.api.setDirty(v); updateTitle(); }
-function updateTitle() { document.title = `${S.dirty ? '● ' : ''}${S.protect ? '🔒 ' : ''}${S.fileName} — EduPDF Studio`; }
+function setDirty(v) { S.dirty = v; window.api.setDirty(v || DOCS.some((d, i) => i !== curDoc && d.dirty)); updateTitle(); }
+function updateTitle() { if (typeof renderDocTabs === 'function' && DOCS.length) renderDocTabs(); document.title = `${S.dirty ? '● ' : ''}${S.protect ? '🔒 ' : ''}${S.fileName} — SknEDUpdf-studio`; }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function rgbHex(r, g, b) { return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join(''); }
 
@@ -175,7 +177,7 @@ async function handleLoaded(files, at) {
     try {
       if (f.error) {
         if (f.error === 'LIBREOFFICE_MISSING') { await officeMissing(f.name); continue; }
-        if (f.error === 'OFFICE_LOCKED') { alert(`« ${f.name} » est protégé par un mot de passe Office.\n\nOuvrez-le une fois dans Word / PowerPoint / Excel (ou LibreOffice) avec son mot de passe, puis « Enregistrer sous » sans mot de passe ou « Imprimer › Microsoft Print to PDF » : EduPDF pourra alors l'ouvrir et le modifier.`); continue; }
+        if (f.error === 'OFFICE_LOCKED') { alert(`« ${f.name} » est protégé par un mot de passe Office.\n\nOuvrez-le une fois dans Word / PowerPoint / Excel (ou LibreOffice) avec son mot de passe, puis « Enregistrer sous » sans mot de passe ou « Imprimer › Microsoft Print to PDF » : SknEDUpdf-studio pourra alors l'ouvrir et le modifier.`); continue; }
         alert(`Impossible d'ouvrir ${f.name} :\n${f.error}`); continue;
       }
       if (f.kind === 'image') { images.push(f.bytes); continue; }
@@ -205,7 +207,7 @@ async function handleLoaded(files, at) {
   if (!added) { if (notes.length) msg(notes.join(' • ')); return 0; }
   S.cur = wasEmpty ? 0 : at; S.sel = new Set([S.cur]);
   setDirty(!(wasEmpty && files.length === 1 && files[0].kind === 'pdf' && !files[0].note && !files[0].locked));
-  refresh();
+  refresh(); showSide('pages');
   msg(notes.length ? notes.join(' • ') : `${added} page(s) ajoutée(s).`);
   if (scanned && confirm('Ce document a été converti en copie numérisée fidèle.\nRendre son texte modifiable (OCR) maintenant ?')) await runOcr(scanned);
   return added;
@@ -231,7 +233,7 @@ async function askPassword(name, wrong) {
   return modal('Document protégé', `<p>« ${esc(name)} » est protégé par un mot de passe d'ouverture.</p>
     ${wrong ? '<p class="err">Mot de passe incorrect, réessayez.</p>' : ''}
     <input type="password" id="pw" placeholder="Mot de passe" autocomplete="off">
-    <p class="muted">Sans le mot de passe, le contenu chiffré ne peut pas être lu (ni par EduPDF, ni par un autre logiciel).</p>`,
+    <p class="muted">Sans le mot de passe, le contenu chiffré ne peut pas être lu (ni par SknEDUpdf-studio, ni par un autre logiciel).</p>`,
   [['Annuler', null], ['Ouvrir', () => $('#pw').value, true]]);
 }
 /** Déverrouille un PDF : déchiffrement complet (structure intacte), sinon copie numérisée fidèle. */
@@ -262,12 +264,12 @@ function snapshotIfDoc() { if (S.pages.length) snapshot(); }
 async function officeMissing(name) {
   const wasBusy = !$('#busy').hidden; $('#busy').hidden = true;
   const c = await modal('Conversion Office', `<p>« ${esc(name)} » est un fichier Office (Word, PowerPoint, Excel…).</p>
-    <p>Pour le convertir avec sa mise en page exacte, EduPDF utilise <b>LibreOffice</b> (gratuit, hors-ligne), qui n'est pas encore installé sur ce PC.</p>
+    <p>Pour le convertir avec sa mise en page exacte, SknEDUpdf-studio utilise <b>LibreOffice</b> (gratuit, hors-ligne), qui n'est pas encore installé sur ce PC.</p>
     <p class="muted">L'installation automatique télécharge LibreOffice (≈ 350 Mo) depuis le catalogue officiel Microsoft winget.</p>`,
   [['Annuler', null], ['Page de téléchargement', 'web'], ['Installer automatiquement', 'auto', true]]);
   if (c === 'web') window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
   if (c === 'auto') {
-    busy('Installation de LibreOffice… (plusieurs minutes, ne fermez pas EduPDF)');
+    busy('Installation de LibreOffice… (plusieurs minutes, ne fermez pas SknEDUpdf-studio)');
     const r = await window.api.installOffice(); done();
     if (r.ok) alert('LibreOffice est installé. Rouvrez votre fichier Office : il sera converti avec sa mise en page d\'origine.');
     else if (confirm(`L'installation automatique n'a pas abouti.\n${r.log}\n\nOuvrir la page de téléchargement ?`)) window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
@@ -280,8 +282,7 @@ async function openFiles(insert) {
   try {
     const files = await window.api.openDialog();
     if (!files.length) return done();
-    if (!insert && S.pages.length && !confirmDiscard()) return done();
-    if (!insert) resetDoc();
+    if (!insert) { if (S.pages.length) newTab(); else resetDoc(); }
     await handleLoaded(files, insert ? S.cur + 1 : 0);
     done();
   } catch (e) { done(); alert(errMsg(e)); }
@@ -458,7 +459,7 @@ async function buildPdf(list = S.pages) {
         const [x, y] = o.at; const c = hexRgb(o.color || '#ffd400');
         const annot = out.context.obj({
           Type: 'Annot', Subtype: 'Text', Rect: [x, y - 20, x + 20, y], Name: 'Comment', F: 4, Open: false,
-          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || 'EduPDF'),
+          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || 'SknEDUpdf-studio'),
           M: PDFLib.PDFString.fromDate(new Date())
         });
         cp.node.addAnnot(out.context.register(annot));
@@ -1312,7 +1313,7 @@ async function protectDialog() {
   S.protect = r; setDirty(true); msg('Protection définie : elle sera appliquée à l\'enregistrement (Ctrl+S).');
 }
 function unprotect() {
-  if (!S.protect) return alert('Ce document n\'a pas de mot de passe défini dans EduPDF. Les PDF protégés que vous ouvrez sont déverrouillés automatiquement (avec leur mot de passe s\'il y en a un).');
+  if (!S.protect) return alert('Ce document n\'a pas de mot de passe défini dans SknEDUpdf-studio. Les PDF protégés que vous ouvrez sont déverrouillés automatiquement (avec leur mot de passe s\'il y en a un).');
   S.protect = null; setDirty(true); msg('Mot de passe retiré : le document sera enregistré sans protection.');
 }
 
@@ -1609,7 +1610,7 @@ async function convertOfficeFileDialog() {
   if (!k) return;
   busy('Conversion… (LibreOffice)');
   try { const r = await window.api.convertOfficeFile(k); done(r ? `Fichier converti : ${r}` : ''); }
-  catch (e) { done(); alert(/OFFICE_LOCKED/.test(errMsg(e)) ? 'Ce fichier est protégé par mot de passe : ouvrez-le d\'abord dans EduPDF (Fichier › Ouvrir), puis exportez-le.' : 'Conversion impossible : ' + errMsg(e)); }
+  catch (e) { done(); alert(/OFFICE_LOCKED/.test(errMsg(e)) ? 'Ce fichier est protégé par mot de passe : ouvrez-le d\'abord dans SknEDUpdf-studio (Fichier › Ouvrir), puis exportez-le.' : 'Conversion impossible : ' + errMsg(e)); }
 }
 
 // ---------------- Cloud ----------------
@@ -1621,7 +1622,7 @@ async function cloudDialog(mode) {
   const rows = clouds.map((c, i) => `<div class="cloudrow"><button class="cloudbtn" data-c="${i}">${icons[c.id] || '☁️'} <b>${esc(c.name)}</b><small>${esc(c.path)}</small></button>${c.custom ? `<button class="small" data-rm="${i}" title="Retirer">✕</button>` : ''}</div>`).join('');
   const missing = Object.entries(install).filter(([id]) => !clouds.some((c) => c.id.startsWith(id)));
   const html = `${clouds.length ? `<p>${mode === 'save' ? 'Enregistrer le document dans :' : 'Ouvrir un fichier depuis :'}</p>${rows}` : '<p><b>Aucun service cloud détecté sur ce PC.</b></p>'}
-    <p class="muted">EduPDF enregistre dans le dossier synchronisé de l'application officielle (OneDrive, Google Drive pour ordinateur, Dropbox…), qui envoie le fichier dans votre cloud. Vos identifiants ne sont jamais demandés par EduPDF.</p>
+    <p class="muted">SknEDUpdf-studio enregistre dans le dossier synchronisé de l'application officielle (OneDrive, Google Drive pour ordinateur, Dropbox…), qui envoie le fichier dans votre cloud. Vos identifiants ne sont jamais demandés par SknEDUpdf-studio.</p>
     ${missing.length ? `<p>Installer un service : ${missing.map(([id, v]) => `<button class="small" data-inst="${id}">${esc(v.name)}</button>`).join(' ')}</p>` : ''}
     <p><button class="small" id="cloudAdd">➕ Ajouter un autre dossier synchronisé (Nextcloud, réseau de l'établissement…)</button></p>`;
   let chosen = null;
@@ -1647,8 +1648,8 @@ async function cloudDialog(mode) {
     } catch (e) { done(); alert('Enregistrement impossible : ' + errMsg(e)); }
   } else {
     const files = await window.api.cloudOpen(chosen.path); if (!files.length) return;
-    if (S.pages.length && !confirmDiscard()) return;
-    resetDoc(); busy('Ouverture…'); await handleLoaded(files, 0); done();
+    if (S.pages.length) newTab(); else resetDoc();
+    busy('Ouverture…'); await handleLoaded(files, 0); done();
   }
 }
 
@@ -1730,7 +1731,7 @@ document.addEventListener('click', async (e) => {
   const d = await window.api.adminPickFolder(); if (d) $('#afold').textContent = d;
 });
 // ---------------- Assistant IA ----------------
-const AI_SYSTEM = "Tu es l'assistant pédagogique d'EduPDF Studio, au service d'enseignants francophones. Réponds en français (sauf demande de traduction), de façon claire et structurée, en texte simple (titres courts, listes avec tirets, pas de tableaux Markdown), prêt à être collé dans un document de cours. Appuie-toi sur le document fourni ; si une information n'y figure pas, dis-le au lieu d'inventer.";
+const AI_SYSTEM = "Tu es l'assistant pédagogique de SknEDUpdf-studio, au service d'enseignants francophones. Réponds en français (sauf demande de traduction), de façon claire et structurée, en texte simple (titres courts, listes avec tirets, pas de tableaux Markdown), prêt à être collé dans un document de cours. Appuie-toi sur le document fourni ; si une information n'y figure pas, dis-le au lieu d'inventer.";
 const AI_PRESETS = {
   resume: ['Résumer', 'Fais un résumé structuré de ce document : idées principales, notions clés à retenir, vocabulaire important.'],
   qcm: ['QCM', 'Crée un QCM de 10 questions sur ce document (4 propositions, une seule bonne réponse), de difficulté progressive, puis le corrigé commenté à la fin.'],
@@ -1809,7 +1810,7 @@ async function aiSettings() {
     <p class="muted" id="aiHelp"></p>
     <label class="ck" id="aiPdfRow"><input type="checkbox" id="aiPdf" ${st.sendPdf ? 'checked' : ''}> Envoyer les pages en PDF (Claude lit aussi les images, schémas et pages scannées)</label>
     <p class="muted">La clé est chiffrée par Windows sur ce PC et n'est jamais affichée ni partagée. Le texte des pages choisies est envoyé au fournisseur à chaque demande (sauf Ollama, 100 % local).</p>
-    <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : EduPDF prépare la demande et ouvre votre IA dans le navigateur.</p>`;
+    <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : SknEDUpdf-studio prépare la demande et ouvre votre IA dans le navigateur.</p>`;
   const pr = modal('Réglages de l\'assistant IA', html, [['Annuler', null], ['Enregistrer', () => ({ provider: $('#aiProv').value, model: $('#aiModel').value, key: $('#aiKey').value, sendPdf: $('#aiPdf').checked }), true]]);
   const upd = async () => {
     const k = $('#aiProv').value; const p = st.providers[k];
@@ -1863,11 +1864,12 @@ async function aiWord() {
 
 // ---------------- Actions ----------------
 const actions = {
-  async new() { if (S.pages.length && !confirmDiscard()) return; resetDoc(); await insertBlank(); setDirty(false); },
+  async new() { if (S.pages.length) newTab(); else resetDoc(); await insertBlank(); setDirty(false); showSide('pages'); },
   open: () => openFiles(false),
   insertFiles: () => (S.pages.length ? openFiles(true) : openFiles(false)),
   save: () => save(false), saveAs: () => save(true),
-  close() { if (!confirmDiscard()) return; resetDoc(); refresh(); },
+  close() { closeTab(curDoc); },
+  slideshow: () => startShow(false), slideshowHere: () => startShow(true), homeSide: () => showSide('home'), toggleRibbon: () => toggleRibbon(),
   blank: insertBlank,
   async fromImages() {
     const files = (await window.api.openDialog({ imagesOnly: true })).filter((f) => !f.error);
@@ -1900,7 +1902,7 @@ const actions = {
     if (await window.api.officeStatus()) alert('LibreOffice est installé : la conversion Word / PowerPoint / Excel → PDF est disponible hors-ligne.');
     else officeMissing('Word / PowerPoint / Excel');
   },
-  async about() { alert(`EduPDF Studio ${await window.api.version()}\n\nÉditeur PDF hors-ligne pour l'enseignement.\nLogiciel libre et perpétuel (AGPL-3.0) — aucun abonnement.\nOCR : Tesseract • Rendu : PDF.js • Édition : pdf-lib • Protection et formats : MuPDF`); }
+  async about() { alert(`SknEDUpdf-studio ${await window.api.version()}\n\nÉditeur PDF hors-ligne pour l'enseignement.\nLogiciel libre et perpétuel (AGPL-3.0) — aucun abonnement.\nOCR : Tesseract • Rendu : PDF.js • Édition : pdf-lib • Protection et formats : MuPDF`); }
 };
 
 document.addEventListener('click', (e) => {
@@ -1913,13 +1915,20 @@ document.addEventListener('click', (e) => {
 function switchTab(name) {
   $$('#tabs [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   $$('.panel').forEach((p) => p.classList.toggle('on', p.dataset.panel === name));
+  if (name === 'accueil') showSide('home');
+  if (document.body.classList.contains('ribbon-auto')) document.body.classList.add('ribbon-show');
 }
 $('#copyOcr').onclick = () => { navigator.clipboard.writeText($('#ocrText').value); msg('Texte copié.'); };
 
 document.addEventListener('keydown', (e) => {
   if (e.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
-  if (e.ctrlKey && k === 's') { e.preventDefault(); save(e.shiftKey); }
+  if (e.key === 'F5') { e.preventDefault(); startShow(e.shiftKey); }
+  else if (e.ctrlKey && e.key === 'F1') { e.preventDefault(); toggleRibbon(); }
+  else if (e.ctrlKey && k === 't') { e.preventDefault(); newTab(); }
+  else if (e.ctrlKey && k === 'w') { e.preventDefault(); closeTab(curDoc); }
+  else if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); if (DOCS.length > 1) switchDoc((curDoc + (e.shiftKey ? DOCS.length - 1 : 1)) % DOCS.length); }
+  else if (e.ctrlKey && k === 's') { e.preventDefault(); save(e.shiftKey); }
   else if (e.ctrlKey && k === 'o') { e.preventDefault(); actions.open(); }
   else if (e.ctrlKey && k === 'p') { e.preventDefault(); printDoc(); }
   else if (e.ctrlKey && (k === 'f' || k === 'h')) { e.preventDefault(); toggleFind(true); }
@@ -1942,13 +1951,15 @@ document.addEventListener('drop', async (e) => {
   e.preventDefault();
   const paths = [...e.dataTransfer.files].map((f) => window.api.pathForFile(f)).filter(Boolean);
   busy('Ouverture…'); const files = await window.api.loadPaths(paths);
-  await handleLoaded(files, S.pages.length ? S.cur + 1 : 0); done();
+  if (e.ctrlKey && S.pages.length) await handleLoaded(files, S.cur + 1); // Ctrl : insérer dans le document ouvert
+  else { if (S.pages.length) newTab(); await handleLoaded(files, 0); }
+  done();
 });
 
 window.api.onOpenPaths(async (paths) => {
   busy('Ouverture…'); const files = await window.api.loadPaths(paths);
-  if (S.pages.length && confirmDiscard()) resetDoc();
-  await handleLoaded(files, S.pages.length ? S.cur + 1 : 0); done();
+  if (S.pages.length) newTab();
+  await handleLoaded(files, 0); done();
 });
 
 // Mises à jour automatiques
@@ -2005,5 +2016,258 @@ $('#sideToggle').onclick = () => document.body.classList.toggle('side-open');
 $$('.panel').forEach((p) => p.addEventListener('wheel', (e) => { if (p.scrollWidth > p.clientWidth && !e.ctrlKey) { e.preventDefault(); p.scrollLeft += e.deltaY || e.deltaX; } }, { passive: false }));
 window.addEventListener('resize', () => { if (innerWidth > 1000) document.body.classList.remove('side-open'); });
 
+// ================= Onglets de documents (plusieurs fichiers dans la même fenêtre) =================
+function docState() {
+  return { sources: S.sources, pages: S.pages, cur: S.cur, sel: S.sel, zoom: S.zoom, filePath: S.filePath, fileName: S.fileName, dirty: S.dirty,
+    selItem: S.selItem, protect: S.protect, watermark: S.watermark, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
+}
+const emptyDoc = () => ({ sources: [], pages: [], cur: 0, sel: new Set(), zoom: 'fit', filePath: null, fileName: 'Document.pdf', dirty: false,
+  selItem: -1, protect: null, watermark: null, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
+function loadDocState(d) {
+  Object.assign(S, { sources: d.sources, pages: d.pages, cur: d.cur, sel: d.sel, zoom: d.zoom, filePath: d.filePath, fileName: d.fileName, dirty: d.dirty,
+    selItem: d.selItem, protect: d.protect, watermark: d.watermark });
+  hist.undo = d.undo; hist.redo = d.redo; thumbCache = d.thumbs; textCache = d.texts;
+  FIND.hits = []; drawFindLayer();
+}
+function initDocs() { DOCS.length = 0; DOCS.push(docState()); curDoc = 0; renderDocTabs(); }
+function switchDoc(i) {
+  if (i === curDoc || !DOCS[i]) return;
+  DOCS[curDoc] = docState(); curDoc = i; loadDocState(DOCS[i]);
+  setDirty(S.dirty); refresh(); showSide(S.pages.length ? 'pages' : 'home');
+}
+function newTab() {
+  DOCS[curDoc] = docState(); DOCS.push(emptyDoc()); curDoc = DOCS.length - 1; loadDocState(DOCS[curDoc]);
+  setDirty(false); refresh(); showSide('home');
+}
+function closeTab(i) {
+  const d = i === curDoc ? docState() : DOCS[i];
+  if (d.dirty && !confirm(`« ${d.fileName} » a des modifications non enregistrées. Fermer quand même ?`)) return;
+  if (i === curDoc) DOCS[curDoc] = docState();
+  DOCS.splice(i, 1);
+  if (!DOCS.length) DOCS.push(emptyDoc());
+  curDoc = Math.min(i, DOCS.length - 1); loadDocState(DOCS[curDoc]);
+  setDirty(S.dirty); refresh(); showSide(S.pages.length ? 'pages' : 'home');
+}
+function renderDocTabs() {
+  const bar = $('#docTabs'); if (!bar) return;
+  bar.innerHTML = DOCS.map((d, i) => {
+    const st = i === curDoc ? { n: S.fileName, dirty: S.dirty, pages: S.pages.length, lock: !!S.protect } : { n: d.fileName, dirty: d.dirty, pages: d.pages.length, lock: !!d.protect };
+    const name = st.pages ? st.n : 'Nouvel onglet';
+    return `<div class="dtab${i === curDoc ? ' on' : ''}" data-doc="${i}" title="${esc(name)}">${st.lock ? '🔒' : '📄'}<span>${esc(name)}</span>${st.dirty ? '<b title="Modifications non enregistrées">●</b>' : ''}<button data-close="${i}" title="Fermer l'onglet (Ctrl+W)">×</button></div>`;
+  }).join('') + '<button class="dnew" title="Nouvel onglet (Ctrl+T)">+</button>';
+}
+$('#docTabs').addEventListener('click', (e) => {
+  const c = e.target.closest('[data-close]'); if (c) { e.stopPropagation(); return closeTab(+c.dataset.close); }
+  if (e.target.closest('.dnew')) return newTab();
+  const t = e.target.closest('[data-doc]'); if (t) switchDoc(+t.dataset.doc);
+});
+$('#docTabs').addEventListener('auxclick', (e) => { const t = e.target.closest('[data-doc]'); if (t && e.button === 1) closeTab(+t.dataset.doc); });
+
+// ================= Barre latérale gauche : Accueil (essentiel de l'enseignant) / Pages =================
+let sideMode = 'home';
+function showSide(mode) {
+  sideMode = mode;
+  $('#homeSide').hidden = mode !== 'home'; $('#thumbs').hidden = mode !== 'pages';
+  $$('#sideSwitch [data-side]').forEach((b) => b.classList.toggle('on', b.dataset.side === mode));
+  if (mode === 'home') renderRecent();
+}
+$('#sideSwitch').addEventListener('click', (e) => { const b = e.target.closest('[data-side]'); if (b) showSide(b.dataset.side); });
+function initHome() {
+  $('#homeSide').innerHTML = `
+    <section><h4>Démarrer</h4>
+      <button data-act="new">📄 Nouveau document</button>
+      <button data-act="open">📂 Ouvrir un fichier…</button>
+      <button data-act="cloudOpen">🌐 Ouvrir depuis le cloud</button>
+      <button data-act="scan">🖨 Scanner un document</button>
+      <button data-act="fromImages">🖼 Photos → PDF</button></section>
+    <section><h4>Modèles pour la classe</h4>
+      <button data-tpl="seyes">📒 Feuille Seyès (grands carreaux)</button>
+      <button data-tpl="carreaux">🔲 Petits carreaux 5 mm</button>
+      <button data-tpl="evaluation">📝 Évaluation (en-tête élève, barème)</button>
+      <button data-tpl="exercices">✏️ Fiche d'exercices</button></section>
+    <section><h4>Fichiers récents</h4><div id="recentList"><p class="muted">Aucun fichier récent.</p></div></section>
+    <section><h4>Outils de l'enseignant</h4>
+      <button data-ai="qcm">✅ Créer un QCM (IA)</button>
+      <button data-act="ocrPage">🔍 Rendre un scan modifiable (OCR)</button>
+      <button data-act="slideshow">🖥 Projeter en diaporama (F5)</button>
+      <button data-act="compare">⚖️ Comparer deux versions</button>
+      <button data-tool="sign">✍️ Signer</button></section>
+    <section class="tips"><h4>Raccourcis</h4>
+      <p><kbd>Ctrl</kbd>+<kbd>T</kbd> nouvel onglet · <kbd>Ctrl</kbd>+<kbd>W</kbd> fermer · <kbd>Ctrl</kbd>+<kbd>Tab</kbd> onglet suivant</p>
+      <p><kbd>F5</kbd> diaporama · <kbd>Ctrl</kbd>+<kbd>F1</kbd> masquer le ruban · clic droit sur un bouton : barre d'accès rapide</p></section>`;
+  showSide('home');
+}
+async function renderRecent() {
+  let list = []; try { list = await window.api.recentList(); } catch { list = []; }
+  const box = $('#recentList'); if (!box) return;
+  box.innerHTML = list.length ? list.slice(0, 8).map((r, i) => `<button class="recent" data-recent="${i}" title="${esc(r.path)}"><b>${esc(r.name)}</b><small>${esc(r.dir)}</small></button>`).join('') + '<button class="link" id="recentClear">Effacer la liste</button>'
+    : '<p class="muted">Les fichiers ouverts et enregistrés apparaîtront ici.</p>';
+  box.querySelectorAll('[data-recent]').forEach((b) => { b.onclick = async () => {
+    const r = list[+b.dataset.recent]; busy('Ouverture…');
+    try { const files = await window.api.recentOpen(r.path); if (S.pages.length) newTab(); else resetDoc(); await handleLoaded(files, 0); } catch (e) { alert(errMsg(e)); }
+    done();
+  }; });
+  const c = $('#recentClear'); if (c) c.onclick = async () => { await window.api.recentClear(); renderRecent(); };
+}
+// Modèles : feuilles d'école prêtes à remplir ou à imprimer
+async function templatePdf(kind) {
+  const d = await PDFDocument.create(); const pg = d.addPage(A4); const emb = fontEmbedder(d);
+  const mm = 72 / 25.4; const [W, H] = A4; const blue = rgb(0, 24 / 255, 113 / 255);
+  const line = (x1, y1, x2, y2, c, t = 0.4) => pg.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, color: c, thickness: t });
+  const text = (s, x, y, size = 11, bold = false, color = blue) => drawUnicode(pg, emb, s, { x, y, size, font: { family: 'Arial', bold }, color });
+  d.setTitle({ seyes: 'Feuille Seyès', carreaux: 'Petits carreaux', evaluation: 'Évaluation', exercices: 'Fiche d\'exercices' }[kind]);
+  if (kind === 'seyes') {
+    const top = H - 20 * mm, bottom = 12 * mm, left = 10 * mm, right = W - 10 * mm;
+    for (let i = 0, y = top; y > bottom; i++, y -= 2 * mm) line(left, y, right, y, i % 4 === 0 ? rgb(0.55, 0.55, 0.85) : rgb(0.8, 0.8, 0.95), i % 4 === 0 ? 0.5 : 0.3);
+    for (let x = left; x <= right; x += 8 * mm) line(x, top, x, bottom, rgb(0.8, 0.8, 0.95), 0.3);
+    line(left + 30 * mm, top + 6 * mm, left + 30 * mm, bottom, rgb(0.85, 0.2, 0.25), 0.8);
+  } else if (kind === 'carreaux') {
+    for (let x = 10 * mm; x <= W - 10 * mm; x += 5 * mm) line(x, 12 * mm, x, H - 12 * mm, rgb(0.78, 0.82, 0.92), 0.3);
+    for (let y = 12 * mm; y <= H - 12 * mm; y += 5 * mm) line(10 * mm, y, W - 10 * mm, y, rgb(0.78, 0.82, 0.92), 0.3);
+  } else {
+    const m = 15 * mm;
+    pg.drawRectangle({ x: m, y: H - m - 34 * mm, width: W - 2 * m, height: 34 * mm, borderColor: blue, borderWidth: 1 });
+    await text('Nom :', m + 4 * mm, H - m - 9 * mm, 11, true); await text('Prénom :', m + 4 * mm, H - m - 17 * mm, 11, true);
+    await text('Classe :', m + 4 * mm, H - m - 25 * mm, 11, true); await text('Date :', W / 2 - 10 * mm, H - m - 9 * mm, 11, true);
+    if (kind === 'evaluation') {
+      pg.drawRectangle({ x: W - m - 42 * mm, y: H - m - 30 * mm, width: 38 * mm, height: 26 * mm, borderColor: rgb(0.95, 0.71, 0.2), borderWidth: 1.5 });
+      await text('Note', W - m - 38 * mm, H - m - 10 * mm, 10, true); await text('/ 20', W - m - 16 * mm, H - m - 26 * mm, 14, true);
+      await text('Appréciation :', W / 2 - 10 * mm, H - m - 17 * mm, 11, true);
+    }
+    await text(kind === 'evaluation' ? 'Évaluation — titre :' : 'Fiche d\'exercices — thème :', m, H - m - 46 * mm, 15, true);
+    let y = H - m - 58 * mm;
+    for (let n = 1; n <= (kind === 'evaluation' ? 4 : 5) && y > 30 * mm; n++) {
+      await text(kind === 'evaluation' ? `Exercice ${n}  ( ……… / ……… pts )` : `Exercice ${n}`, m, y, 12, true); y -= 8 * mm;
+      for (let l = 0; l < (kind === 'evaluation' ? 6 : 5) && y > 20 * mm; l++, y -= 8 * mm) line(m, y, W - m, y, rgb(0.75, 0.78, 0.88), 0.4);
+      y -= 4 * mm;
+    }
+  }
+  return d.save();
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-tpl]'); if (!b) return;
+  busy('Création du modèle…');
+  try { const bytes = await templatePdf(b.dataset.tpl); if (S.pages.length) newTab(); else resetDoc(); await insertPdf(bytes, 0); S.fileName = b.textContent.replace(/^\S+\s/, '').replace(/[()]/g, '').trim() + '.pdf'; S.cur = 0; S.sel = new Set([0]); setDirty(true); refresh(); showSide('pages'); done('Modèle créé : complétez-le avec « Ajouter du texte », puis enregistrez ou imprimez.'); }
+  catch (err) { done(); alert(errMsg(err)); }
+});
+
+// ================= Ruban : épinglé ou masqué automatiquement =================
+const RIB = { mode: 'pinned', hideT: null };
+function applyRibbonMode() {
+  document.body.classList.toggle('ribbon-auto', RIB.mode === 'auto'); document.body.classList.remove('ribbon-show');
+  $('#ribbonMode').textContent = RIB.mode === 'auto' ? '▾' : '▴';
+  $('#ribbonMode').title = RIB.mode === 'auto' ? 'Ruban masqué automatiquement — cliquer pour l\'épingler (Ctrl+F1)' : 'Masquer automatiquement le ruban (Ctrl+F1)';
+}
+function toggleRibbon() { RIB.mode = RIB.mode === 'auto' ? 'pinned' : 'auto'; store.set('edupdf.ribbon', RIB.mode); applyRibbonMode(); }
+function initRibbonMode() {
+  RIB.mode = store.get('edupdf.ribbon') || (innerHeight < 640 ? 'auto' : 'pinned'); // petits écrans : masqué automatiquement
+  applyRibbonMode();
+  $('#ribbonMode').onclick = toggleRibbon;
+  $('#tabs').addEventListener('dblclick', (e) => { if (e.target.closest('[data-tab]')) toggleRibbon(); });
+  const hide = () => document.body.classList.remove('ribbon-show');
+  document.addEventListener('pointerdown', (e) => { if (RIB.mode === 'auto' && !e.target.closest('header') && !e.target.closest('#ctxMenu')) hide(); });
+  $('#ribbon').addEventListener('click', (e) => { if (RIB.mode === 'auto' && e.target.closest('[data-act],[data-tool],[data-ai]')) setTimeout(hide, 150); });
+  $('header').addEventListener('mouseleave', () => { if (RIB.mode === 'auto') RIB.hideT = setTimeout(hide, 900); });
+  $('header').addEventListener('mouseenter', () => clearTimeout(RIB.hideT));
+}
+
+// ================= Barre d'accès rapide (personnalisable) =================
+const QAT_DEFAULT = ['save', 'undo', 'redo', 'print', 'slideshow'];
+let QAT = QAT_DEFAULT.slice();
+try { const q = JSON.parse(store.get('edupdf.qat') || 'null'); if (Array.isArray(q)) QAT = q; } catch { /* défaut */ }
+function qatSource(id) {
+  const [kind, name] = id.startsWith('tool:') ? ['tool', id.slice(5)] : ['act', id];
+  return { kind, name, el: document.querySelector(`#ribbon [data-${kind}="${name}"]`) };
+}
+function renderQat() {
+  $('#qat').innerHTML = QAT.map((id) => {
+    const { kind, name, el } = qatSource(id); if (!el) return '';
+    const icon = (el.querySelector('i') || {}).textContent || '•'; const label = el.textContent.replace(icon, '').replace(/\s+/g, ' ').trim();
+    return `<button data-${kind}="${name}" data-qat="${id}" title="${esc(label)}">${icon}</button>`;
+  }).join('') + '<button id="qatMore" title="Personnaliser la barre d\'accès rapide">▾</button>';
+  store.set('edupdf.qat', JSON.stringify(QAT)); applyPolicy();
+}
+function ctxMenu(x, y, entries) {
+  const m = $('#ctxMenu'); m.innerHTML = entries.map((e, i) => (e === '-' ? '<hr>' : `<button data-i="${i}">${e[0]}</button>`)).join('');
+  m.hidden = false; m.style.left = Math.min(x, innerWidth - 270) + 'px'; m.style.top = Math.min(y, innerHeight - m.offsetHeight - 8) + 'px';
+  m.onclick = (ev) => { const b = ev.target.closest('[data-i]'); if (!b) return; m.hidden = true; entries[+b.dataset.i][1](); };
+}
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#ctxMenu')) $('#ctxMenu').hidden = true; });
+document.addEventListener('contextmenu', (e) => {
+  const q = e.target.closest('#qat [data-qat]');
+  if (q) { e.preventDefault(); return ctxMenu(e.clientX, e.clientY, [['✖ Retirer de la barre d\'accès rapide', () => { QAT = QAT.filter((x) => x !== q.dataset.qat); renderQat(); }]]); }
+  const b = e.target.closest('#ribbon [data-act], #ribbon [data-tool]');
+  if (!b) return;
+  e.preventDefault();
+  const id = b.dataset.act || 'tool:' + b.dataset.tool;
+  ctxMenu(e.clientX, e.clientY, QAT.includes(id)
+    ? [['✖ Retirer de la barre d\'accès rapide', () => { QAT = QAT.filter((x) => x !== id); renderQat(); }]]
+    : [['★ Ajouter à la barre d\'accès rapide', () => { QAT.push(id); renderQat(); }]]);
+});
+document.addEventListener('click', (e) => {
+  if (e.target.id !== 'qatMore') return;
+  const r = e.target.getBoundingClientRect();
+  const entries = QAT.map((id) => { const { el } = qatSource(id); const label = el ? el.textContent.replace(/\s+/g, ' ').trim() : id; return [`✖ Retirer : ${esc(label)}`, () => { QAT = QAT.filter((x) => x !== id); renderQat(); }]; });
+  ctxMenu(r.left, r.bottom + 4, [...entries, '-', ['↺ Rétablir la barre par défaut', () => { QAT = QAT_DEFAULT.slice(); renderQat(); }], ['ℹ️ Astuce : clic droit sur un bouton du ruban pour l\'ajouter', () => {}]]);
+});
+
+// ================= Diaporama plein écran =================
+const SHOW = { on: false, i: 0, token: 0, digits: '', idleT: null, laser: false };
+async function startShow(fromCurrent) {
+  if (!S.pages.length) return alert('Ouvrez d\'abord un document à projeter.');
+  SHOW.on = true; SHOW.i = fromCurrent ? S.cur : 0; SHOW.digits = '';
+  const el = $('#show'); el.hidden = false; el.className = '';
+  try { await el.requestFullscreen({ navigationUI: 'hide' }); } catch { /* plein écran refusé : affichage dans la fenêtre */ }
+  await renderShow();
+}
+async function renderShow() {
+  const tok = ++SHOW.token; const p = S.pages[SHOW.i]; const pg = await getPdfPage(p);
+  const R = (pg.rotate + p.rot + 360) % 360; const v1 = pg.getViewport({ scale: 1, rotation: R });
+  const W = window.innerWidth, H = window.innerHeight; const k = Math.min(W / v1.width, H / v1.height); const dpr = window.devicePixelRatio || 1;
+  const vp = pg.getViewport({ scale: k * dpr, rotation: R });
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  c.style.width = Math.round(vp.width / dpr) + 'px'; c.style.height = Math.round(vp.height / dpr) + 'px';
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise; await paintItems(ctx, vp, p);
+  if (tok !== SHOW.token || !SHOW.on) return;
+  c.id = 'showCanvas'; $('#showCanvas').replaceWith(c);
+  const info = $('#showInfo'); info.textContent = `${SHOW.i + 1} / ${S.pages.length}`; info.classList.add('vis');
+  clearTimeout(info._t); info._t = setTimeout(() => info.classList.remove('vis'), 1500);
+}
+function showGo(i) { const n = Math.max(0, Math.min(S.pages.length - 1, i)); if (n !== SHOW.i) { SHOW.i = n; renderShow(); } }
+function endShow() {
+  if (!SHOW.on) return; SHOW.on = false; $('#show').hidden = true; $('#laser').hidden = true; SHOW.laser = false;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  S.cur = SHOW.i; S.sel = new Set([S.cur]); refresh();
+}
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && SHOW.on) endShow(); else if (SHOW.on) renderShow(); });
+window.addEventListener('keydown', (e) => {
+  if (!SHOW.on) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const k = e.key; const el = $('#show');
+  if (/^[0-9]$/.test(k)) { SHOW.digits += k; return; }
+  if (k === 'Enter' && SHOW.digits) { showGo(+SHOW.digits - 1); SHOW.digits = ''; return; }
+  SHOW.digits = '';
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n', 'N'].includes(k)) { el.className = ''; showGo(SHOW.i + 1); }
+  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p', 'P'].includes(k)) { el.className = ''; showGo(SHOW.i - 1); }
+  else if (k === 'Home') showGo(0);
+  else if (k === 'End') showGo(S.pages.length - 1);
+  else if (k === 'b' || k === 'B' || k === '.') el.className = el.className === 'black' ? '' : 'black';
+  else if (k === 'w' || k === 'W' || k === ',') el.className = el.className === 'white' ? '' : 'white';
+  else if (k === 'l' || k === 'L') { SHOW.laser = !SHOW.laser; $('#laser').hidden = !SHOW.laser; el.classList.toggle('laser', SHOW.laser); }
+  else if (k === 'Escape' || k === 'F5') endShow();
+}, true);
+$('#show').addEventListener('click', () => showGo(SHOW.i + 1));
+$('#show').addEventListener('contextmenu', (e) => { e.preventDefault(); showGo(SHOW.i - 1); });
+$('#show').addEventListener('wheel', (e) => { showGo(SHOW.i + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+$('#show').addEventListener('mousemove', (e) => {
+  const el = $('#show'); el.classList.remove('idle'); clearTimeout(SHOW.idleT); SHOW.idleT = setTimeout(() => el.classList.add('idle'), 2500);
+  if (SHOW.laser) Object.assign($('#laser').style, { left: e.clientX + 'px', top: e.clientY + 'px' });
+});
+window.addEventListener('resize', () => { if (SHOW.on) renderShow(); });
+
+// Démarrage de l'interface : onglets de documents, Accueil, ruban, accès rapide
+initDocs(); initHome(); initRibbonMode(); renderQat(); switchTab('accueil');
+
 // Accès pour les tests
-window.__edupdf = { aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };
+window.__edupdf = { newTab, switchDoc, closeTab, toggleRibbon, startShow, aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

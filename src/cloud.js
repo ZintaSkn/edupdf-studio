@@ -1,6 +1,6 @@
-// EduPDF Studio — services cloud (OneDrive, Google Drive, Dropbox, iCloud, Box, dossiers personnalisés)
+// SknEDUpdf-studio — services cloud (OneDrive, Google Drive, Dropbox, iCloud, Box, dossiers personnalisés)
 // Principe : on enregistre dans le dossier synchronisé de l'application officielle du service ;
-// elle envoie le fichier dans le cloud (et le rend disponible sur les autres appareils), sans mot de passe à confier à EduPDF.
+// elle envoie le fichier dans le cloud (et le rend disponible sur les autres appareils), sans mot de passe à confier à SknEDUpdf-studio.
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -54,9 +54,9 @@ const INSTALL = {
   dropbox: { id: 'Dropbox.Dropbox', name: 'Dropbox', web: 'https://www.dropbox.com/fr/install' }
 };
 
-/** Dossier « EduPDF » dans le cloud choisi (créé si besoin). */
+/** Dossier « SknEDUpdf-studio » dans le cloud choisi (créé si besoin). */
 function targetDir(cloudPath) {
-  const d = path.join(cloudPath, 'EduPDF');
+  const d = path.join(cloudPath, 'SknEDUpdf-studio');
   try { fs.mkdirSync(d, { recursive: true }); return d; } catch { return cloudPath; }
 }
 

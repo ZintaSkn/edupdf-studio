@@ -1,4 +1,4 @@
-/* EduPDF Studio — console d'administration */
+/* SknEDUpdf-studio — console d'administration */
 'use strict';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -46,7 +46,7 @@ function renderUsers() {
       <td><input type="checkbox" data-blocked ${u.blocked ? 'checked' : ''}></td>
       ${feats.map((f) => { const v = u.features && typeof u.features[f] === 'boolean' ? (u.features[f] ? 'y' : 'n') : ''; return `<td><select data-uf="${f}"><option value="">Défaut</option><option value="y" ${v === 'y' ? 'selected' : ''}>✔</option><option value="n" ${v === 'n' ? 'selected' : ''}>✖</option></select></td>`; }).join('')}</tr>`;
   });
-  $('#usersTbl').innerHTML = head + (rows.join('') || `<tr><td colspan="${feats.length + 3}" class="muted">Aucun utilisateur connu pour l'instant : ajoutez-en un, ou attendez qu'un poste inscrit ouvre EduPDF.</td></tr>`);
+  $('#usersTbl').innerHTML = head + (rows.join('') || `<tr><td colspan="${feats.length + 3}" class="muted">Aucun utilisateur connu pour l'instant : ajoutez-en un, ou attendez qu'un poste inscrit ouvre SknEDUpdf-studio.</td></tr>`);
 }
 $('#addUser').onclick = () => {
   const k = $('#newUser').value.trim().toLowerCase(); if (!k) return;

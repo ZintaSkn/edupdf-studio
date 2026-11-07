@@ -1,8 +1,8 @@
 {
   "name": "edupdf-studio",
-  "productName": "EduPDF Studio",
-  "version": "1.6.0",
-  "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
+  "productName": "SknEDUpdf-studio",
+  "version": "1.7.0",
+  "description": "SknEDUpdf-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
   "license": "AGPL-3.0-or-later",
@@ -43,7 +43,7 @@
   },
   "build": {
     "appId": "com.edupdf.studio",
-    "productName": "EduPDF Studio",
+    "productName": "SknEDUpdf-studio",
     "directories": {
       "output": "dist"
     },
@@ -104,7 +104,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "shortcutName": "SknEDUpdf-studio"
     },
     "publish": [
       {
