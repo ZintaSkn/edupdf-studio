@@ -49,7 +49,7 @@
       "createDesktopShortcut": true
     },
     "publish": [
-      { "provider": "github", "owner": "ksehibi", "repo": "edupdf-studio" }
+      { "provider": "github", "owner": "ksehibi", "repo": "edupdf-studio", "releaseType": "release" }
     ]
   }
 }
