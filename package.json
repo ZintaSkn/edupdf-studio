@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "EduPDF Studio",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
   "main": "src/main.js",
   "author": "EduPDF",
