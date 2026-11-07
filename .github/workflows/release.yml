@@ -12,8 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm ci || npm install
+          node-version: 22
+      # --omit=optional : évite « canvas » (dépendance facultative de pdf.js, inutile ici)
+      - run: npm ci --omit=optional
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
