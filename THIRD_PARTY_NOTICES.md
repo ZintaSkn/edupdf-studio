@@ -2,7 +2,7 @@
 
 SknEDU-studio est distribué sous licence AGPL-3.0-or-later (voir LICENSE). Il intègre les composants libres
 suivants, chacun sous sa propre licence. Données de langue OCR : tessdata (Apache-2.0).
-Code source complet : https://github.com/ksehibi/edupdf-studio
+Code source complet : https://github.com/ZintaSkn/edupdf-studio
 
 | Composant | Version | Licence |
 |---|---|---|

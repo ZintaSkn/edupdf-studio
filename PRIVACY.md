@@ -19,4 +19,4 @@ sont jamais envoyées ailleurs qu'au fournisseur choisi. Les documents ouverts r
 Composants tiers : les services ci-dessus appliquent leur propre politique de confidentialité lorsque
 l'utilisateur choisit de les utiliser.
 
-Contact : ouvrez une demande sur https://github.com/ksehibi/edupdf-studio/issues
+Contact : ouvrez une demande sur https://github.com/ZintaSkn/edupdf-studio/issues

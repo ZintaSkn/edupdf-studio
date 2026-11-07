@@ -2217,7 +2217,7 @@ window.api.onOpenPaths(async (paths) => {
 window.api.onUpdate(({ status, info }) => {
   const el = $('#update');
   const t = { checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
-  if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ksehibi/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
+  if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ZintaSkn/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
   if (status === 'ready') {
     el.innerHTML = `Version ${info} prête — <button id="doUpd">Redémarrer et installer</button>`;
     $('#doUpd').onclick = () => { if (confirmDiscard()) { window.api.setDirty(false); window.api.installUpdate(); } };
@@ -2597,8 +2597,8 @@ async function aboutDialog() {
     Le code source complet est publié. Le nom et le logo « SknEDU-studio » sont des marques réservées (voir la politique de marque).</p>
     <p class="muted">Rendu PDF.js · Édition pdf-lib · Protection et formats MuPDF · OCR Tesseract · IA : Claude, ChatGPT, Gemini, Mistral, Ollama.</p>`,
   [['Licences des composants', 'notices'], ['Code source', 'source'], ['Politique de marque', 'tm'], ['Fermer', null, true]]);
-  if (r === 'source') window.api.openExternal('https://github.com/ksehibi/edupdf-studio');
-  if (r === 'tm') window.api.openExternal('https://github.com/ksehibi/edupdf-studio/blob/main/TRADEMARK.md');
+  if (r === 'source') window.api.openExternal('https://github.com/ZintaSkn/edupdf-studio');
+  if (r === 'tm') window.api.openExternal('https://github.com/ZintaSkn/edupdf-studio/blob/main/TRADEMARK.md');
   if (r === 'notices') { const n = await window.api.notices(); await modal('Composants tiers et licences', `<pre class="notices">${esc(n)}</pre>`, [['Fermer', null, true]]); }
 }
 // Démarrage de l'interface : onglets de documents, Accueil, ruban, accès rapide

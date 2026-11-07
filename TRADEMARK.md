@@ -9,7 +9,7 @@ sont réservés à leur titulaire (ksehibi). La licence AGPL ne donne aucun droi
 ## Ce qui est permis sans autorisation
 
 - Utiliser et redistribuer **sans modification** les versions officielles publiées sur
-  https://github.com/ksehibi/edupdf-studio/releases, sous leur nom d'origine.
+  https://github.com/ZintaSkn/edupdf-studio/releases, sous leur nom d'origine.
 - Mentionner le nom pour décrire un fait exact (« compatible avec SknEDU-studio », « basé sur le code de
   SknEDU-studio »), sans laisser croire à un partenariat ou à une approbation.
 

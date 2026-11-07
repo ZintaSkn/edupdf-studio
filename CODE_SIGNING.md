@@ -20,9 +20,9 @@ Les empreintes SHA-256 des fichiers sont publiées avec chaque version (`SHA256S
 
 | Rôle | Membres | Responsabilité |
 |---|---|---|
-| Auteurs (committers) | [@ksehibi](https://github.com/ksehibi) | Modifier le code source du dépôt |
-| Relecteurs (reviewers) | [@ksehibi](https://github.com/ksehibi) | Relire toute contribution extérieure (pull request) avant fusion ; la branche `main` ne peut être ni supprimée ni réécrite |
-| Approbateurs (approvers) | [@ksehibi](https://github.com/ksehibi) | Approuver chaque demande de signature dans SignPath |
+| Auteurs (committers) | [@ZintaSkn](https://github.com/ZintaSkn) | Modifier le code source du dépôt |
+| Relecteurs (reviewers) | [@ZintaSkn](https://github.com/ZintaSkn) | Relire toute contribution extérieure (pull request) avant fusion ; la branche `main` ne peut être ni supprimée ni réécrite |
+| Approbateurs (approvers) | [@ZintaSkn](https://github.com/ZintaSkn) | Approuver chaque demande de signature dans SignPath |
 
 Tous les membres utilisent l'authentification à plusieurs facteurs sur GitHub et sur SignPath.
 

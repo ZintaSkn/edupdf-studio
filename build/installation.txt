@@ -2,7 +2,7 @@
 
 LICENCE
 SknEDU-studio est un logiciel libre distribué sous licence GNU Affero General Public License version 3 (AGPL-3.0).
-Code source : https://github.com/ksehibi/edupdf-studio
+Code source : https://github.com/ZintaSkn/edupdf-studio
 Les composants tiers et leurs licences sont listés dans THIRD_PARTY_NOTICES.md (Aide › Mentions légales).
 
 CONFIDENTIALITÉ
@@ -22,4 +22,4 @@ MODIFICATIONS DU SYSTÈME
 L'installation ajoute l'application, ses raccourcis (Bureau, menu Démarrer) et l'association des fichiers PDF.
 Tout est retiré par la désinstallation (Paramètres › Applications). Vos documents ne sont jamais supprimés.
 
-Politique complète : PRIVACY.md et CODE_SIGNING.md sur https://github.com/ksehibi/edupdf-studio
+Politique complète : PRIVACY.md et CODE_SIGNING.md sur https://github.com/ZintaSkn/edupdf-studio

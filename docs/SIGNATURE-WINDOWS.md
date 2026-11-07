@@ -41,12 +41,12 @@ Ne collez jamais le jeton API dans un fichier du dépôt ni dans une discussion 
 ## Informations pour la demande SignPath Foundation
 
 - **Nom du projet** : SknEDU-studio
-- **Dépôt** : https://github.com/ksehibi/edupdf-studio
+- **Dépôt** : https://github.com/ZintaSkn/edupdf-studio
 - **Licence** : GNU AGPL-3.0 (tous les composants : licences libres approuvées OSI, voir THIRD_PARTY_NOTICES.md)
 - **Description** : éditeur PDF hors ligne pour les enseignants (créer, modifier, organiser, scanner, OCR,
   convertir, corriger des copies), sous Windows, macOS et Linux.
-- **Page de téléchargement** : https://github.com/ksehibi/edupdf-studio/releases
-- **Politique de signature** : https://github.com/ksehibi/edupdf-studio/blob/main/CODE_SIGNING.md
+- **Page de téléchargement** : https://github.com/ZintaSkn/edupdf-studio/releases
+- **Politique de signature** : https://github.com/ZintaSkn/edupdf-studio/blob/main/CODE_SIGNING.md
 - **Construction** : GitHub Actions (serveurs hébergés par GitHub), workflow public `release.yml`,
   auto-test complet et audit des dépendances avant chaque version.
 - **Fichiers à signer** : `SknEDU-studio.exe`, son désinstalleur et l'installateur NSIS.

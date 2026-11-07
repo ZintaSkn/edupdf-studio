@@ -1,6 +1,6 @@
 # Historique des versions — SknEDU-studio
 
-Toutes les versions sont publiées sur https://github.com/ksehibi/edupdf-studio/releases et installées
+Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio/releases et installées
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 

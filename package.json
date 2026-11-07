@@ -134,7 +134,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "ksehibi",
+        "owner": "ZintaSkn",
         "repo": "edupdf-studio",
         "releaseType": "release"
       }
