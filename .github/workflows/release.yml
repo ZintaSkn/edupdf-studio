@@ -16,6 +16,8 @@ jobs:
           node-version: 22
       # --omit=optional : évite « canvas » (dépendance facultative de pdf.js, inutile ici)
       - run: npm ci --omit=optional
+      # binaire Electron pour l'auto-test (scripts d'installation bloqués par défaut par les npm récents)
+      - run: node node_modules/electron/install.js
       # Aucune faille élevée ou critique tolérée dans les dépendances de l'application
       - run: npm audit --omit=dev --audit-level=high
       # Auto-test complet (édition, polices, PDF protégés, OCR, formulaires, conversions, IA, administration, affichage)
