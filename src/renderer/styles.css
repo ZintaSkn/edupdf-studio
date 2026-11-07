@@ -91,3 +91,33 @@ footer button { background: #12a150; color: #fff; border: 0; border-radius: 4px;
 #busy > div { background: #fff; padding: 18px 26px; border-radius: 10px; display: flex; gap: 12px; align-items: center; box-shadow: 0 8px 30px rgba(0,0,0,.25); font-size: 14px; }
 .spin { width: 18px; height: 18px; border: 3px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: s 0.8s linear infinite; }
 @keyframes s { to { transform: rotate(360deg); } }
+
+/* ---- Formulaires ---- */
+#formLayer { position: absolute; inset: 0; pointer-events: none; }
+#formLayer .fw { position: absolute; pointer-events: auto; box-sizing: border-box; margin: 0; padding: 0 3px; border: 1px solid rgba(47,111,237,.55); background: rgba(225,236,255,.82); font-family: Arial, sans-serif; color: #000; resize: none; }
+#formLayer input[type=checkbox].fw, #formLayer input[type=radio].fw { padding: 0; accent-color: #1f3b73; }
+#pageBox:not(.t-select) #formLayer .fw { pointer-events: none; }
+.ov.field { border: 1.5px dashed #2f6fed; background: rgba(47,111,237,.08); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 11px; color: #2f6fed; }
+.ov.field.check span { font-size: 120%; }
+#pageBox.t-sign #overlayLayer, #pageBox.t-ftext #overlayLayer, #pageBox.t-fcheck #overlayLayer { cursor: crosshair; }
+
+/* ---- Boîte de dialogue ---- */
+#modal { position: fixed; inset: 0; background: rgba(20,30,50,.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
+#modal[hidden] { display: none; }
+.mbox { background: #fff; border-radius: 10px; padding: 18px 22px; width: min(640px, 92vw); max-height: 86vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.3); font-size: 13px; }
+.mbox h3 { margin: 0 0 10px; color: #1f3b73; font-size: 17px; }
+.mbox input[type=password], .mbox input[type=text] { width: 100%; box-sizing: border-box; padding: 7px 9px; margin: 4px 0 8px; border: 1px solid #c4cbd8; border-radius: 6px; font-size: 14px; }
+.mbox label.blk { display: block; margin-top: 6px; }
+.mbox label.ck { display: inline-flex; gap: 6px; align-items: center; margin: 2px 14px 2px 0; }
+.mbox .row { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+#mBtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+#mBtns button { padding: 7px 16px; border-radius: 6px; border: 1px solid #c4cbd8; background: #fff; font-size: 13px; cursor: pointer; }
+#mBtns button.primary { background: #1f3b73; border-color: #1f3b73; color: #fff; }
+.err { color: var(--danger); font-weight: 600; }
+#sigPad { width: 100%; height: auto; border: 1px dashed #9aa6bb; border-radius: 8px; background: #fbfcff; touch-action: none; cursor: crosshair; }
+.changes { padding-left: 18px; max-height: 46vh; overflow: auto; }
+.changes li { margin: 3px 0; }
+.changes .link { border: none; background: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+.c-Ajouté { color: #128a3e; } .c-Modifié { color: #c46a00; } .c-Supprimé { color: var(--danger); }
+.legend span { padding: 1px 6px; border-radius: 3px; margin-right: 6px; }
+#side select { max-width: 150px; }

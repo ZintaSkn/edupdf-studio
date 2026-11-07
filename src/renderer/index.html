@@ -17,6 +17,7 @@
       <button data-tab="pages">Pages</button>
       <button data-tab="ocr">OCR</button>
       <button data-tab="convertir">Convertir</button>
+      <button data-tab="outils">Protéger &amp; Comparer</button>
       <button data-tab="aide">Aide</button>
     </nav>
     <div id="ribbon">
@@ -42,6 +43,9 @@
         <button data-tool="whiteout" class="tool"><i>▭</i>Masquer (blanc)</button>
         <button data-tool="box" class="tool"><i>⬚</i>Cadre</button>
         <button data-tool="ink" class="tool"><i>✒️</i>Stylo</button>
+        <button data-tool="sign" class="tool"><i>✍️</i>Signature</button>
+        <button data-tool="ftext" class="tool"><i>▤</i>Champ texte</button>
+        <button data-tool="fcheck" class="tool"><i>☑</i>Case à cocher</button>
         <span class="sep"></span>
         <button data-act="undo"><i>↶</i>Annuler</button>
         <button data-act="redo"><i>↷</i>Rétablir</button>
@@ -70,6 +74,14 @@
         <button data-act="ocrPage"><i>🔍</i>OCR page courante</button>
         <button data-act="ocrAll"><i>📚</i>OCR tout le document</button>
         <button data-act="editAfterOcr"><i>✏️</i>Modifier le texte reconnu</button>
+        <button data-act="scanCopy"><i>🗂</i>Copie numérisée<br>éditable (sélection)</button>
+      </div>
+      <div class="panel" data-panel="outils">
+        <button data-act="protect"><i>🔒</i>Protéger par<br>mot de passe</button>
+        <button data-act="unprotect"><i>🔓</i>Retirer le<br>mot de passe</button>
+        <button data-act="signPad"><i>✍️</i>Ma signature</button>
+        <button data-act="compare"><i>⚖️</i>Comparer avec<br>un autre fichier</button>
+        <button data-act="clearCompare"><i>🧽</i>Effacer les marques<br>de comparaison</button>
       </div>
       <div class="panel" data-panel="convertir">
         <button data-act="toWord"><i>📘</i>PDF → Word (.docx)</button>
@@ -102,12 +114,15 @@
       <div id="pageBox" hidden>
         <canvas id="canvas"></canvas>
         <div id="overlayLayer"></div>
+        <div id="formLayer"></div>
         <div id="textLayer"></div>
       </div>
     </section>
     <aside id="side">
       <h3>Propriétés</h3>
       <label class="row">Couleur <input type="color" id="color" value="#000000"></label>
+      <label class="row">Police <select id="fontFam"></select></label>
+      <div class="row"><label><input type="checkbox" id="fontB"> <b>Gras</b></label><label><input type="checkbox" id="fontI"> <i>Italique</i></label></div>
       <label class="row">Taille du texte <input type="number" id="size" value="14" min="4" max="144"></label>
       <label class="row">Épaisseur stylo <input type="number" id="width" value="2" min="1" max="20"></label>
       <p class="muted" id="selInfo">Aucun élément sélectionné</p>
@@ -135,9 +150,12 @@
     <span id="ver"></span>
   </footer>
   <div id="busy" hidden><div><span class="spin"></span><span id="busyMsg">Traitement…</span></div></div>
+  <div id="modal" hidden><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><div id="mBtns"></div></div></div>
 
   <script src="../../node_modules/pdfjs-dist/build/pdf.min.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="../../node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
+  <script src="fonts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

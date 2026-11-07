@@ -12,7 +12,8 @@ const S = {
   sources: [],          // { bytes, doc (pdf.js), cache:{} }
   pages: [],            // { uid, src, idx, rot, items:[], ocr:null, edited:[] }
   cur: 0, sel: new Set(), tool: 'select', zoom: 'fit', scale: 1, vp: null,
-  filePath: null, fileName: 'Document.pdf', dirty: false, selItem: -1, renderToken: 0
+  filePath: null, fileName: 'Document.pdf', dirty: false, selItem: -1, renderToken: 0,
+  protect: null         // { userPassword, ownerPassword, permissions } appliqué à l'enregistrement
 };
 const hist = { undo: [], redo: [] };
 let uidc = 1;
@@ -28,7 +29,30 @@ function msg(t) { $('#msg').textContent = t; }
 function busy(t) { $('#busyMsg').textContent = t; $('#busy').hidden = false; }
 function done(t) { $('#busy').hidden = true; if (t) msg(t); }
 function setDirty(v) { S.dirty = v; window.api.setDirty(v); updateTitle(); }
-function updateTitle() { document.title = `${S.dirty ? '● ' : ''}${S.fileName} — EduPDF Studio`; }
+function updateTitle() { document.title = `${S.dirty ? '● ' : ''}${S.protect ? '🔒 ' : ''}${S.fileName} — EduPDF Studio`; }
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+function rgbHex(r, g, b) { return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join(''); }
+
+// ---------------- Boîte de dialogue ----------------
+function modal(title, html, buttons) {
+  return new Promise((resolve) => {
+    $('#mTitle').textContent = title; $('#mBody').innerHTML = html;
+    const bar = $('#mBtns'); bar.innerHTML = '';
+    const close = (v) => { $('#modal').hidden = true; $('#modal').onkeydown = null; resolve(v); };
+    buttons.forEach(([label, val, primary]) => {
+      const b = document.createElement('button'); b.textContent = label; if (primary) b.className = 'primary';
+      b.onclick = () => { const v = typeof val === 'function' ? val() : val; if (v !== false) close(v); };
+      bar.appendChild(b);
+    });
+    $('#modal').onkeydown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') close(null);
+      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { const p = bar.querySelector('.primary'); if (p) { e.preventDefault(); p.click(); } }
+    };
+    $('#modal').hidden = false;
+    const f = $('#mBody input, #mBody select'); if (f) f.focus();
+  });
+}
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
 function dataUrlToBytes(u) { const b = atob(u.split(',')[1]); const a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 function bytesToDataUrl(bytes, mime = 'application/octet-stream') {
@@ -40,16 +64,7 @@ function viewRect(vp, rect) { const [a, b, c, d] = normRect(vp.convertToViewport
 function viewToPdfRect(vp, l, t, w, h) { return normRect([...vp.convertToPdfPoint(l, t), ...vp.convertToPdfPoint(l + w, t + h)]); }
 const baseName = () => S.fileName.replace(/\.pdf$/i, '');
 
-const encOk = new Map();
-function clean(font, s) {
-  s = String(s).replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/\t/g, '    ').replace(/ /g, ' ');
-  let out = '';
-  for (const ch of s) {
-    if (!encOk.has(ch)) { try { font.encodeText(ch); encOk.set(ch, true); } catch { encOk.set(ch, false); } }
-    out += encOk.get(ch) ? ch : '?';
-  }
-  return out;
-}
+
 
 // ---------------- Historique ----------------
 function snapshot() { hist.undo.push(JSON.stringify({ pages: S.pages, cur: S.cur })); if (hist.undo.length > 60) hist.undo.shift(); hist.redo = []; setDirty(true); }
@@ -104,17 +119,34 @@ async function imagesToPdf(list) {
 }
 
 async function textToPdf(text) {
-  const d = await PDFDocument.create(); const font = await d.embedFont(StandardFonts.Helvetica);
+  const d = await PDFDocument.create(); const emb = fontEmbedder(d); const font = { family: 'Calibri' };
   const fs = 11, lh = 15, m = 56, maxW = A4[0] - 2 * m;
   let pg = d.addPage(A4), y = A4[1] - m;
-  const put = (line) => { if (y < m) { pg = d.addPage(A4); y = A4[1] - m; } pg.drawText(line, { x: m, y, size: fs, font }); y -= lh; };
+  const put = async (line) => { if (y < m) { pg = d.addPage(A4); y = A4[1] - m; } if (line) await drawUnicode(pg, emb, line, { x: m, y, size: fs, font }); y -= lh; };
   for (const raw of text.replace(/\r/g, '').split('\n')) {
-    const words = clean(font, raw).split(' '); let line = '';
+    const words = raw.replace(/\t/g, '    ').split(' '); let line = '';
     for (const w of words) {
       const t = line ? line + ' ' + w : w;
-      if (font.widthOfTextAtSize(t, fs) > maxW && line) { put(line); line = w; } else line = t;
+      if (line && await measureText(t, font, fs) > maxW) { await put(line); line = w; } else line = t;
     }
-    put(line);
+    await put(line);
+  }
+  return d.save();
+}
+
+/** Copie « numérisée » : chaque page devient une image fidèle (rendu identique), prête pour l'OCR. */
+async function rasterPdf(pdfjsDoc, pageNums) {
+  const d = await PDFDocument.create();
+  for (const n of pageNums) {
+    const pg = await pdfjsDoc.getPage(n);
+    const v1 = pg.getViewport({ scale: 1 });
+    const sc = Math.min(2.5, 3000 / Math.max(v1.width, v1.height));
+    const vp = pg.getViewport({ scale: sc });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    const img = await d.embedJpg(dataUrlToBytes(c.toDataURL('image/jpeg', 0.92)));
+    d.addPage([v1.width, v1.height]).drawImage(img, { x: 0, y: 0, width: v1.width, height: v1.height });
   }
   return d.save();
 }
@@ -126,31 +158,88 @@ async function handleLoaded(files, at) {
   let added = 0;
   if (at === undefined) at = S.pages.length;
   snapshotIfDoc();
+  const notes = []; let scanned = null;
   for (const f of files) {
     try {
       if (f.error) {
-        if (f.error === 'LIBREOFFICE_MISSING') { officeMissing(f.name); continue; }
+        if (f.error === 'LIBREOFFICE_MISSING') { await officeMissing(f.name); continue; }
+        if (f.error === 'OFFICE_LOCKED') { alert(`« ${f.name} » est protégé par un mot de passe Office.\n\nOuvrez-le une fois dans Word / PowerPoint / Excel (ou LibreOffice) avec son mot de passe, puis « Enregistrer sous » sans mot de passe ou « Imprimer › Microsoft Print to PDF » : EduPDF pourra alors l'ouvrir et le modifier.`); continue; }
         alert(`Impossible d'ouvrir ${f.name} :\n${f.error}`); continue;
       }
       if (f.kind === 'image') { images.push(f.bytes); continue; }
-      const bytes = f.kind === 'text' ? await textToPdf(f.text) : f.bytes;
+      let bytes = f.kind === 'text' ? await textToPdf(f.text) : f.bytes;
+      let isScan = false;
+      if (f.locked) {
+        const u = await unlockFile(f);
+        if (!u) { notes.push(`${f.name} non ouvert (mot de passe requis)`); continue; }
+        bytes = u.bytes; isScan = u.scanned;
+        if (wasEmpty && files.length === 1 && !isScan) S.protect = { userPassword: u.password, ownerPassword: '', permissions: { print: true, modify: true, copy: true, annotate: true } };
+        notes.push(isScan ? `${f.name} : copie numérisée fidèle créée` : `${f.name} déverrouillé` + (S.protect ? ' (il sera réenregistré avec le même mot de passe — onglet Protéger & Comparer pour changer)' : ''));
+      }
+      if (f.note === 'unrestricted') notes.push(`${f.name} : restrictions de modification levées, le document est entièrement modifiable`);
+      if (f.note === 'repaired') notes.push(`${f.name} : fichier endommagé réparé`);
+      if (f.note === 'approx') notes.push(`${f.name} : converti sans LibreOffice (mise en page approximative — installez LibreOffice pour un rendu identique)`);
       const list = await insertPdf(bytes, at + added); added += list.length;
-      if (wasEmpty && files.length === 1) { S.filePath = f.path; S.fileName = f.name.replace(/\.[^.]+$/, '') + '.pdf'; }
+      if (isScan) scanned = (scanned || []).concat(list);
+      if (wasEmpty && files.length === 1) { S.filePath = f.kind === 'pdf' && !f.locked && !f.note ? f.path : null; S.fileName = f.name.replace(/\.[^.]+$/, '') + '.pdf'; }
     } catch (e) { alert(`Erreur avec ${f.name} : ${e.message}`); }
   }
   if (images.length) { const list = await insertPdf(await imagesToPdf(images), at + added); added += list.length; }
-  if (!added) return 0;
+  if (!added) { if (notes.length) msg(notes.join(' • ')); return 0; }
   S.cur = wasEmpty ? 0 : at; S.sel = new Set([S.cur]);
-  setDirty(!(wasEmpty && files.length === 1 && files[0].kind === 'pdf'));
+  setDirty(!(wasEmpty && files.length === 1 && files[0].kind === 'pdf' && !files[0].note && !files[0].locked));
   refresh();
-  msg(`${added} page(s) ajoutée(s).`);
+  msg(notes.length ? notes.join(' • ') : `${added} page(s) ajoutée(s).`);
+  if (scanned && confirm('Ce document a été converti en copie numérisée fidèle.\nRendre son texte modifiable (OCR) maintenant ?')) await runOcr(scanned);
   return added;
+}
+
+async function askPassword(name, wrong) {
+  return modal('Document protégé', `<p>« ${esc(name)} » est protégé par un mot de passe d'ouverture.</p>
+    ${wrong ? '<p class="err">Mot de passe incorrect, réessayez.</p>' : ''}
+    <input type="password" id="pw" placeholder="Mot de passe" autocomplete="off">
+    <p class="muted">Sans le mot de passe, le contenu chiffré ne peut pas être lu (ni par EduPDF, ni par un autre logiciel).</p>`,
+  [['Annuler', null], ['Ouvrir', () => $('#pw').value, true]]);
+}
+/** Déverrouille un PDF : déchiffrement complet (structure intacte), sinon copie numérisée fidèle. */
+async function unlockFile(f) {
+  const wasBusy = !$('#busy').hidden; $('#busy').hidden = true;
+  try {
+    let wrong = false;
+    for (;;) {
+      const pw = await askPassword(f.name, wrong);
+      if (pw === null) return null;
+      busy('Déverrouillage…');
+      let r = null;
+      try { r = await window.api.unlockPdf(f.bytes, pw); } catch { r = null; }
+      if (r && r.ok) return { bytes: r.bytes, password: pw, scanned: false };
+      if (!r) { // déchiffrement impossible : PDF.js lit le document et on en fait une copie numérisée
+        try {
+          const d = await pdfjsLib.getDocument({ data: new Uint8Array(f.bytes), password: pw }).promise;
+          busy('Création d\'une copie numérisée fidèle…');
+          return { bytes: await rasterPdf(d, Array.from({ length: d.numPages }, (_, i) => i + 1)), password: pw, scanned: true };
+        } catch (e) { if (!(e && e.name === 'PasswordException')) throw e; }
+      }
+      $('#busy').hidden = true; wrong = true;
+    }
+  } finally { $('#busy').hidden = !wasBusy; }
 }
 function snapshotIfDoc() { if (S.pages.length) snapshot(); }
 
-function officeMissing(name) {
-  if (confirm(`« ${name} » est un fichier Office.\n\nPour convertir Word, PowerPoint et Excel, EduPDF utilise LibreOffice (gratuit, hors-ligne).\nIl n'est pas installé sur ce PC.\n\nOuvrir la page de téléchargement de LibreOffice ?`))
-    window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
+async function officeMissing(name) {
+  const wasBusy = !$('#busy').hidden; $('#busy').hidden = true;
+  const c = await modal('Conversion Office', `<p>« ${esc(name)} » est un fichier Office (Word, PowerPoint, Excel…).</p>
+    <p>Pour le convertir avec sa mise en page exacte, EduPDF utilise <b>LibreOffice</b> (gratuit, hors-ligne), qui n'est pas encore installé sur ce PC.</p>
+    <p class="muted">L'installation automatique télécharge LibreOffice (≈ 350 Mo) depuis le catalogue officiel Microsoft winget.</p>`,
+  [['Annuler', null], ['Page de téléchargement', 'web'], ['Installer automatiquement', 'auto', true]]);
+  if (c === 'web') window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
+  if (c === 'auto') {
+    busy('Installation de LibreOffice… (plusieurs minutes, ne fermez pas EduPDF)');
+    const r = await window.api.installOffice(); done();
+    if (r.ok) alert('LibreOffice est installé. Rouvrez votre fichier Office : il sera converti avec sa mise en page d\'origine.');
+    else if (confirm(`L'installation automatique n'a pas abouti.\n${r.log}\n\nOuvrir la page de téléchargement ?`)) window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
+  }
+  $('#busy').hidden = !wasBusy;
 }
 
 async function openFiles(insert) {
@@ -166,7 +255,7 @@ async function openFiles(insert) {
 }
 function confirmDiscard() { return !S.dirty || confirm('Des modifications ne sont pas enregistrées. Continuer quand même ?'); }
 function resetDoc() {
-  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1;
+  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null;
   hist.undo = []; hist.redo = []; thumbCache.clear(); textCache.clear(); setDirty(false);
 }
 
@@ -180,12 +269,55 @@ async function rotatedPng(dataUrl, R) {
   return dataUrlToBytes(c.toDataURL('image/png'));
 }
 
+// ---- Formulaires : valeurs saisies écrites dans les champs d'origine ----
+function applyForms(lib, forms) {
+  const { PDFName, PDFHexString, PDFRef, PDFDict } = PDFLib;
+  const N = (s) => PDFName.of(s);
+  for (const [id, f] of Object.entries(forms || {})) {
+    const m = /^(\d+)R(\d*)$/.exec(id); if (!m) continue;
+    const w = lib.context.lookup(PDFRef.of(+m[1], +(m[2] || 0)));
+    if (!(w instanceof PDFDict)) continue;
+    let field = w;
+    while (!field.get(N('T')) && field.get(N('Parent')) instanceof PDFRef) field = lib.context.lookup(field.get(N('Parent')));
+    if (f.t === 'tx' || f.t === 'ch') { field.set(N('V'), PDFHexString.fromText(String(f.v))); w.delete(N('AP')); }
+    else if (f.t === 'cb') { const n = N(f.v ? f.on : 'Off'); field.set(N('V'), n); w.set(N('AS'), n); }
+    else if (f.t === 'rb') { if (f.v) field.set(N('V'), N(f.on)); w.set(N('AS'), N(f.v ? f.on : 'Off')); }
+  }
+}
+/** Après copie des pages, reconstitue le formulaire (AcroForm) pour garder les champs interactifs. */
+function rebuildAcroForm(out, libs) {
+  const { PDFName, PDFDict, PDFRef, PDFBool, PDFObjectCopier } = PDFLib;
+  const N = (s) => PDFName.of(s); const ctx = out.context;
+  const fields = []; const seen = new Set();
+  for (const pg of out.getPages()) {
+    const annots = pg.node.Annots(); if (!annots) continue;
+    for (let i = 0; i < annots.size(); i++) {
+      let ref = annots.get(i); if (!(ref instanceof PDFRef)) continue;
+      let d = ctx.lookup(ref);
+      if (!(d instanceof PDFDict) || d.get(N('Subtype')) !== N('Widget')) continue;
+      while (d.get(N('Parent')) instanceof PDFRef) { ref = d.get(N('Parent')); d = ctx.lookup(ref); }
+      if (!seen.has(ref.toString())) { seen.add(ref.toString()); fields.push(ref); }
+    }
+  }
+  if (!fields.length) return;
+  const acro = ctx.obj({});
+  acro.set(N('Fields'), ctx.obj(fields)); acro.set(N('NeedAppearances'), PDFBool.True);
+  const src = Object.values(libs).map((l) => l.catalog.lookup(N('AcroForm'))).find((a) => a instanceof PDFDict);
+  if (src) {
+    const lib = Object.values(libs).find((l) => l.catalog.lookup(N('AcroForm')) === src);
+    const copier = PDFObjectCopier.for(lib.context, ctx);
+    for (const k of ['DR', 'DA', 'Q']) { const v = src.get(N(k)); if (v) acro.set(N(k), copier.copy(v)); }
+  }
+  out.catalog.set(N('AcroForm'), ctx.register(acro));
+}
+
 async function buildPdf(list = S.pages) {
   const out = await PDFDocument.create();
-  const font = await out.embedFont(StandardFonts.Helvetica);
-  const libs = {};
+  const emb = fontEmbedder(out);
+  const libs = {}; const newFields = [];
   for (const p of list) {
-    if (!libs[p.src]) libs[p.src] = await PDFDocument.load(S.sources[p.src].bytes, { ignoreEncryption: true });
+    if (!libs[p.src]) libs[p.src] = await PDFDocument.load(S.sources[p.src].bytes, { ignoreEncryption: true, updateMetadata: false });
+    if (p.forms && Object.keys(p.forms).length) applyForms(libs[p.src], p.forms);
     const [cp] = await out.copyPages(libs[p.src], [p.idx]);
     const pg = await getPdfPage(p);
     const R = (pg.rotate + p.rot + 360) % 360;
@@ -194,21 +326,23 @@ async function buildPdf(list = S.pages) {
     const vp = pg.getViewport({ scale: 1, rotation: R });
     const textAt = (vx, vy, txt, sz, opts = {}) => {
       const [x, y] = vp.convertToPdfPoint(vx, vy);
-      cp.drawText(clean(font, txt), { x, y, size: sz, font, rotate: degrees(R), ...opts });
+      return drawUnicode(cp, emb, txt, { x, y, size: sz, rotate: R, ...opts });
     };
     // Couche de texte invisible (OCR) : rend la page cherchable et copiable
     if (p.ocr) for (const w of p.ocr.words) {
-      const r = viewRect(vp, w.rect); const t = clean(font, w.text); const w1 = font.widthOfTextAtSize(t, 1);
+      const r = viewRect(vp, w.rect); const w1 = await measureText(w.text, null, 1);
       if (!w1 || r.h <= 0) continue;
       const sz = Math.max(1, Math.min(r.h * 1.1, r.w / w1));
-      textAt(r.l, r.t + r.h * 0.8, t, sz, { opacity: 0 });
+      await textAt(r.l, r.t + r.h * 0.8, w.text, sz, { opacity: 0 });
     }
     for (const o of p.items) {
       if (o.type === 'rect') {
         const [x1, y1, x2, y2] = normRect(o.rect); const box = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
         if (o.kind === 'highlight') cp.drawRectangle({ ...box, color: hexRgb(o.color || '#ffe600'), opacity: 0.38, blendMode: 'Multiply' });
-        else if (o.kind === 'whiteout') cp.drawRectangle({ ...box, color: rgb(1, 1, 1) });
+        else if (o.kind === 'whiteout') cp.drawRectangle({ ...box, color: o.color && o.color.length === 7 ? hexRgb(o.color) : rgb(1, 1, 1) });
         else cp.drawRectangle({ ...box, borderColor: hexRgb(o.color), borderWidth: o.width || 2 });
+      } else if (o.type === 'field') {
+        newFields.push({ o, cp, R });
       } else if (o.type === 'image') {
         const [x1, y1, x2, y2] = normRect(o.rect);
         const img = await out.embedPng(await rotatedPng(o.src, R));
@@ -220,18 +354,38 @@ async function buildPdf(list = S.pages) {
         }
       } else if (o.type === 'text') {
         const [vx, vy] = vp.convertToViewportPoint(...o.at);
-        o.text.split('\n').forEach((line, i) => { if (line) textAt(vx, vy + o.size * (0.85 + i * 1.2), line, o.size, { color: hexRgb(o.color) }); });
+        const lines = o.text.split('\n');
+        for (let i = 0; i < lines.length; i++) if (lines[i]) await textAt(vx, vy + o.size * (0.85 + i * 1.2), lines[i], o.size, { color: hexRgb(o.color), font: o.font });
       }
     }
   }
-  return out.save();
+  try { rebuildAcroForm(out, libs); } catch (e) { console.warn('formulaire', e); }
+  if (newFields.length) {
+    const form = out.getForm(); const used = new Set();
+    for (const { o, cp, R } of newFields) {
+      const [x1, y1, x2, y2] = normRect(o.rect);
+      let name = (o.name || 'champ').replace(/[.\s]/g, '_'); let k = 1;
+      while (used.has(name)) name = `${o.name || 'champ'}_${++k}`;
+      used.add(name);
+      const opt = { x: x1, y: y1, width: x2 - x1, height: y2 - y1, borderColor: rgb(0.45, 0.45, 0.5), borderWidth: 1, rotate: degrees(R) };
+      try {
+        if (o.kind === 'check') form.createCheckBox(name).addToPage(cp, opt);
+        else {
+          const f = form.createTextField(name); if (y2 - y1 > 36) f.enableMultiline();
+          f.addToPage(cp, { ...opt, backgroundColor: rgb(0.94, 0.96, 1) });
+        }
+      } catch (e) { console.warn('champ', name, e); }
+    }
+  }
+  return out.save({ updateFieldAppearances: false });
 }
 
 async function save(asNew) {
   if (!S.pages.length) return;
   busy('Enregistrement…');
   try {
-    const bytes = await buildPdf();
+    let bytes = await buildPdf();
+    if (S.protect) bytes = await window.api.encryptPdf(bytes, S.protect);
     const p = await window.api.save({ bytes, defaultName: S.fileName, filters: [{ name: 'PDF', extensions: ['pdf'] }], filePath: asNew ? null : S.filePath });
     if (p) { S.filePath = p; S.fileName = p.split(/[\\/]/).pop(); setDirty(false); done(`Enregistré : ${p}`); } else done();
   } catch (e) { done(); alert('Échec de l\'enregistrement : ' + e.message); }
@@ -243,7 +397,8 @@ async function renderPage() {
   const token = ++S.renderToken;
   $('#welcome').hidden = !!p; $('#pageBox').hidden = !p;
   $('#pageLbl').textContent = p ? `${S.cur + 1} / ${S.pages.length}` : '–';
-  if (!p) return;
+  if (!p) { ['#formLayer', '#overlayLayer', '#textLayer'].forEach((s) => { $(s).innerHTML = ''; }); return; }
+  $('#formLayer').innerHTML = '';
   const pg = await getPdfPage(p);
   const R = (pg.rotate + p.rot + 360) % 360;
   const base = pg.getViewport({ scale: 1, rotation: R });
@@ -254,12 +409,13 @@ async function renderPage() {
   const c = document.createElement('canvas');
   c.width = Math.floor(vp.width * dpr); c.height = Math.floor(vp.height * dpr);
   c.style.width = vp.width + 'px'; c.style.height = vp.height + 'px';
-  await pg.render({ canvasContext: c.getContext('2d'), viewport: pg.getViewport({ scale: S.scale * dpr, rotation: R }) }).promise;
+  await pg.render({ canvasContext: c.getContext('2d'), viewport: pg.getViewport({ scale: S.scale * dpr, rotation: R }), annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS }).promise;
   if (token !== S.renderToken) return;
   c.id = 'canvas'; $('#canvas').replaceWith(c);
   S.vp = vp;
   const box = $('#pageBox'); box.style.width = vp.width + 'px'; box.style.height = vp.height + 'px';
   drawItems();
+  await drawFormLayer(pg, p);
   await drawTextLayer();
   $('#ocrText').value = p.ocr ? p.ocr.text : '';
 }
@@ -274,13 +430,18 @@ function drawItems() {
       const r = viewRect(vp, o.rect); Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
       el.classList.add(o.type === 'image' ? 'image' : o.kind);
       if (o.kind === 'box') el.style.borderColor = o.color, el.style.borderWidth = (o.width || 2) * S.scale + 'px';
+      if (o.kind === 'whiteout' && o.color && o.color.length === 7) el.style.background = o.color;
       if (o.kind === 'highlight' && o.color) el.style.background = o.color + '61';
       if (o.type === 'image') { const im = document.createElement('img'); im.src = o.src; el.appendChild(im); }
       const h = document.createElement('div'); h.className = 'handle'; el.appendChild(h);
+    } else if (o.type === 'field') {
+      const r = viewRect(vp, o.rect); Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
+      el.classList.add('field', o.kind); el.innerHTML = `<span>${o.kind === 'check' ? '☐' : esc(o.name || 'champ')}</span><div class="handle"></div>`;
     } else if (o.type === 'text') {
       const [x, y] = vp.convertToViewportPoint(...o.at);
       el.classList.add('text'); el.textContent = o.text;
-      Object.assign(el.style, { left: x + 'px', top: y + 'px', fontSize: o.size * S.scale + 'px', color: o.color });
+      Object.assign(el.style, { left: x + 'px', top: y + 'px', fontSize: o.size * S.scale + 'px', color: o.color, fontFamily: cssFont(o.font),
+        fontWeight: o.font && o.font.bold ? 'bold' : 'normal', fontStyle: o.font && o.font.italic ? 'italic' : 'normal' });
     } else if (o.type === 'ink') {
       const pts = o.points.map((q) => vp.convertToViewportPoint(...q));
       const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
@@ -292,7 +453,82 @@ function drawItems() {
     layer.appendChild(el);
   });
   const o = p.items[S.selItem];
-  $('#selInfo').textContent = o ? `Élément sélectionné : ${({ text: 'texte', rect: 'forme', image: 'image', ink: 'tracé' })[o.type]} — Suppr pour l'effacer` : 'Aucun élément sélectionné';
+  $('#selInfo').textContent = o ? `Élément sélectionné : ${({ text: 'texte', rect: 'forme', image: 'image', ink: 'tracé', field: 'champ de formulaire' })[o.type]} — Suppr pour l'effacer` : 'Aucun élément sélectionné';
+  if (o && o.type === 'text') {
+    const f = o.font || { family: 'Arial' };
+    $('#fontFam').value = FONT_FAMILIES[f.family] ? f.family : 'Arial'; $('#fontB').checked = !!f.bold; $('#fontI').checked = !!f.italic;
+    $('#size').value = o.size; $('#color').value = o.color && o.color.length === 7 ? o.color : '#000000';
+  }
+}
+
+// ---------------- Formulaires existants (champs à remplir) ----------------
+async function drawFormLayer(pg, p) {
+  const layer = $('#formLayer'); layer.innerHTML = '';
+  let annots = [];
+  try { annots = await pg.getAnnotations({ intent: 'display' }); } catch { annots = []; }
+  p.forms = p.forms || {};
+  const radios = annots.filter((a) => a.fieldType === 'Btn' && a.radioButton);
+  for (const a of annots) {
+    if (a.subtype !== 'Widget' || a.hidden || !a.rect) continue;
+    const r = viewRect(S.vp, a.rect); const cur = p.forms[a.id]; let el;
+    const set = (val) => { snapshot(); p.forms[a.id] = val; };
+    if (a.fieldType === 'Tx') {
+      el = document.createElement(a.multiLine ? 'textarea' : 'input');
+      el.value = cur ? cur.v : (a.fieldValue || '');
+      if (a.maxLen) el.maxLength = a.maxLen;
+      el.style.fontSize = Math.max(8, Math.min(r.h * 0.62, 14 * S.scale)) + 'px';
+      el.onchange = () => set({ t: 'tx', v: el.value });
+    } else if (a.fieldType === 'Btn' && a.checkBox) {
+      el = document.createElement('input'); el.type = 'checkbox';
+      el.checked = cur ? cur.v : (!!a.fieldValue && a.fieldValue !== 'Off');
+      el.onchange = () => set({ t: 'cb', v: el.checked, on: a.exportValue || 'Yes' });
+    } else if (a.fieldType === 'Btn' && a.radioButton) {
+      el = document.createElement('input'); el.type = 'radio'; el.name = `rb_${p.uid}_${a.fieldName}`;
+      el.checked = cur ? cur.v : a.fieldValue === a.buttonValue;
+      el.onchange = () => {
+        snapshot();
+        radios.filter((b) => b.fieldName === a.fieldName).forEach((b) => { p.forms[b.id] = { t: 'rb', v: b.id === a.id, on: b.buttonValue }; });
+      };
+    } else if (a.fieldType === 'Ch') {
+      el = document.createElement('select');
+      (a.options || []).forEach((o) => { const op = document.createElement('option'); op.value = o.exportValue; op.textContent = o.displayValue; el.appendChild(op); });
+      const v = cur ? cur.v : (Array.isArray(a.fieldValue) ? a.fieldValue[0] : a.fieldValue);
+      if (v !== undefined) el.value = v;
+      el.onchange = () => set({ t: 'ch', v: el.value });
+    } else continue;
+    if (a.readOnly) el.disabled = true;
+    el.className = 'fw'; el.title = a.alternativeText || a.fieldName || '';
+    Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
+    el.addEventListener('keydown', (e) => e.stopPropagation());
+    layer.appendChild(el);
+  }
+}
+
+// Couleurs du texte et du fond sous une zone de la page (pour une correction invisible)
+function sampleColors(r) {
+  const c = $('#canvas'); const k = c.width / parseFloat(c.style.width || c.width);
+  const x = Math.max(0, Math.floor(r.l * k)), y = Math.max(0, Math.floor(r.t * k));
+  const w = Math.min(c.width - x, Math.ceil(r.w * k)), h = Math.min(c.height - y, Math.ceil(r.h * k));
+  if (w < 1 || h < 1) return { fg: '#000000', bg: '#ffffff' };
+  const d = c.getContext('2d').getImageData(x, y, w, h).data;
+  const hist = new Map();
+  for (let i = 0; i < d.length; i += 4) {
+    const key = ((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3);
+    const e = hist.get(key) || [0, 0, 0, 0]; e[0]++; e[1] += d[i]; e[2] += d[i + 1]; e[3] += d[i + 2]; hist.set(key, e);
+  }
+  let best = null; for (const e of hist.values()) if (!best || e[0] > best[0]) best = e;
+  const bg = [best[1] / best[0], best[2] / best[0], best[3] / best[0]];
+  const far = [];
+  for (let i = 0; i < d.length; i += 4) {
+    const dist = Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]);
+    if (dist > 90) far.push([dist, d[i], d[i + 1], d[i + 2]]);
+  }
+  let fg = [0, 0, 0];
+  if (far.length) {
+    far.sort((a, b) => b[0] - a[0]); const top = far.slice(0, Math.max(1, Math.ceil(far.length * 0.3)));
+    fg = [0, 1, 2].map((j) => top.reduce((s, q) => s + q[j + 1], 0) / top.length);
+  }
+  return { fg: rgbHex(...fg), bg: rgbHex(...bg) };
 }
 
 async function getTextItems(p) {
@@ -302,7 +538,8 @@ async function getTextItems(p) {
     textCache.set(key, tc.items.map((it, i) => {
       const [a, b, c, d, e, f] = it.transform; const h = Math.hypot(c, d);
       if (!it.str.trim() || Math.abs(b) > 0.01 || a < 0) return null;
-      return { key: 'n' + i, text: it.str, size: h, rect: [e, f - 0.22 * h, e + it.width, f + 0.9 * h] };
+      const st = tc.styles[it.fontName] || {};
+      return { key: 'n' + i, text: it.str, size: h, base: [e, f], fontName: it.fontName, fallback: st.fontFamily, rect: [e, f - 0.22 * h, e + it.width, f + 0.9 * h] };
     }).filter(Boolean));
   }
   const list = [...textCache.get(key)];
@@ -310,15 +547,26 @@ async function getTextItems(p) {
   return list.filter((t) => !p.edited.includes(t.key));
 }
 
+/** Police d'origine d'un morceau de texte (connue après le rendu de la page par PDF.js). */
+function fontOfItem(pg, t) {
+  if (t.ocr) return { family: 'Arial', bold: false, italic: false };
+  let o = null;
+  try { if (t.fontName && pg.commonObjs.has(t.fontName)) o = pg.commonObjs.get(t.fontName); } catch { o = null; }
+  const fb = (o && o.fallbackName) || (t.fallback === 'serif' ? 'serif' : t.fallback === 'monospace' ? 'monospace' : 'sans-serif');
+  return matchFont({ name: o && o.name, bold: o && o.bold, italic: o && o.italic, black: o && o.black, fallbackName: fb });
+}
+
 async function drawTextLayer() {
   const layer = $('#textLayer'); layer.innerHTML = '';
   const p = curPage(); if (!p || S.tool !== 'edit') return;
-  const vp = S.vp;
+  const vp = S.vp; const pg = await getPdfPage(p);
   for (const t of await getTextItems(p)) {
     const r = viewRect(vp, t.rect);
+    t.font = fontOfItem(pg, t);
     const sp = document.createElement('span'); sp.className = 'tl' + (t.ocr ? ' ocr' : ''); sp.textContent = t.text;
     const fs = (t.size || (Math.abs(t.rect[3] - t.rect[1]) * 0.8)) * S.scale;
-    Object.assign(sp.style, { left: r.l + 'px', top: r.t + 'px', minWidth: r.w + 'px', height: r.h + 'px', fontSize: fs + 'px', paddingTop: Math.max(0, r.h - fs) / 2 + 'px' });
+    Object.assign(sp.style, { left: r.l + 'px', top: r.t + 'px', minWidth: r.w + 'px', height: r.h + 'px', fontSize: fs + 'px', paddingTop: Math.max(0, r.h - fs) / 2 + 'px',
+      fontFamily: cssFont(t.font), fontWeight: t.font.bold ? 'bold' : 'normal', fontStyle: t.font.italic ? 'italic' : 'normal' });
     sp.onclick = () => startTextEdit(sp, t, r, fs / S.scale);
     layer.appendChild(sp);
   }
@@ -326,6 +574,7 @@ async function drawTextLayer() {
 
 function startTextEdit(sp, t, r, fsPdf) {
   if (sp.isContentEditable) return;
+  const colors = sampleColors({ l: r.l, t: r.t, w: r.w, h: r.h }); // avant que le cadre d'édition ne masque la zone
   sp.contentEditable = 'true'; sp.classList.add('editing'); sp.focus();
   document.getSelection().selectAllChildren(sp);
   const finish = (commit) => {
@@ -335,8 +584,11 @@ function startTextEdit(sp, t, r, fsPdf) {
       snapshot();
       const p = curPage();
       const pad = 1.5;
-      p.items.push({ type: 'rect', kind: 'whiteout', rect: viewToPdfRect(S.vp, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
-      if (txt.trim()) p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(r.l, r.t + (r.h - fsPdf * S.scale) / 2), size: Math.round(fsPdf * 10) / 10, color: color(), text: txt });
+      p.items.push({ type: 'rect', kind: 'whiteout', color: colors.bg, rect: viewToPdfRect(S.vp, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
+      let at;
+      if (t.base) { const [bx, by] = S.vp.convertToViewportPoint(...t.base); at = S.vp.convertToPdfPoint(bx, by - 0.85 * fsPdf * S.scale); }
+      else at = S.vp.convertToPdfPoint(r.l, r.t + (r.h - fsPdf * S.scale) / 2);
+      if (txt.trim()) p.items.push({ type: 'text', at, size: Math.round(fsPdf * 10) / 10, color: colors.fg, font: t.font || { family: 'Arial' }, text: txt });
       p.edited.push(t.key);
       drawItems(); drawTextLayer(); msg('Texte modifié.');
     } else { sp.contentEditable = 'false'; sp.classList.remove('editing'); sp.textContent = t.text; }
@@ -413,9 +665,11 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
     drag = { mode: e.target.classList.contains('handle') ? 'resize' : 'move', o, start: pos, orig: JSON.parse(JSON.stringify(o)), moved: false, snap: JSON.stringify({ pages: S.pages, cur: S.cur }) };
   } else if (S.tool === 'text') {
     snapshot();
-    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0], pos[1] - size() * S.scale * 0.6), size: size(), color: color(), text: '' });
+    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0], pos[1] - size() * S.scale * 0.6), size: size(), color: color(), font: curFont(), text: '' });
     S.selItem = p.items.length - 1; drawItems();
     editTextItem(S.selItem); e.preventDefault(); return;
+  } else if (S.tool === 'sign') {
+    e.preventDefault(); placeSignature(pos); return;
   } else if (S.tool === 'ink') {
     drag = { mode: 'ink', pts: [pos] };
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -458,9 +712,17 @@ $('#overlayLayer').addEventListener('pointerup', async (e) => {
   } else if (d.mode === 'rubber') {
     d.rb.remove();
     let [l, t, w, h] = [Math.min(pos[0], d.start[0]), Math.min(pos[1], d.start[1]), Math.abs(pos[0] - d.start[0]), Math.abs(pos[1] - d.start[1])];
-    if (w < 5 || h < 5) { if (S.tool !== 'image') return; w = 160; h = 120; }
+    if (w < 5 || h < 5) {
+      if (S.tool === 'image') { w = 160; h = 120; }
+      else if (S.tool === 'ftext') { w = 180 * S.scale; h = 22 * S.scale; }
+      else if (S.tool === 'fcheck') { w = h = 14 * S.scale; }
+      else return;
+    }
     const rect = viewToPdfRect(S.vp, l, t, w, h);
-    if (S.tool === 'image') {
+    if (S.tool === 'ftext' || S.tool === 'fcheck') {
+      const n = S.pages.reduce((s, q) => s + q.items.filter((o) => o.type === 'field').length, 0) + 1;
+      snapshot(); p.items.push({ type: 'field', kind: S.tool === 'fcheck' ? 'check' : 'text', rect, name: `${S.tool === 'fcheck' ? 'case' : 'champ'}_${n}` });
+    } else if (S.tool === 'image') {
       const files = await window.api.openDialog({ imagesOnly: true });
       if (!files.length || files[0].error) return;
       const src = await bytesToDataUrl(files[0].bytes, 'image/png');
@@ -470,7 +732,7 @@ $('#overlayLayer').addEventListener('pointerup', async (e) => {
       const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0);
       snapshot(); p.items.push({ type: 'image', rect: rr, src: c.toDataURL('image/png') });
     } else {
-      snapshot(); p.items.push({ type: 'rect', kind: S.tool, rect, color: S.tool === 'highlight' ? '#ffe600' : color(), width: +$('#width').value || 2 });
+      snapshot(); p.items.push({ type: 'rect', kind: S.tool, rect, color: S.tool === 'highlight' ? '#ffe600' : S.tool === 'whiteout' ? '#ffffff' : color(), width: +$('#width').value || 2 });
     }
     S.selItem = p.items.length - 1; drawItems();
   }
@@ -504,20 +766,85 @@ function setTool(t) {
     edit: 'Cliquez sur un texte de la page pour le corriger (Entrée pour valider, Échap pour annuler).',
     text: 'Cliquez à l\'endroit où ajouter du texte.', image: 'Tracez un cadre puis choisissez une image.',
     highlight: 'Tracez un rectangle pour surligner.', whiteout: 'Tracez un rectangle pour masquer (effacer) une zone.',
-    box: 'Tracez un cadre.', ink: 'Dessinez à main levée (annotations, corrections).'
+    box: 'Tracez un cadre.', ink: 'Dessinez à main levée (annotations, corrections).',
+    sign: 'Cliquez à l\'endroit où placer votre signature (Outils › Ma signature pour la modifier).',
+    ftext: 'Tracez la zone d\'un champ texte à remplir (les élèves pourront écrire dedans).',
+    fcheck: 'Cliquez ou tracez pour ajouter une case à cocher.'
   };
   msg(tips[t] || '');
 }
 
+const curFont = () => ({ family: $('#fontFam').value, bold: $('#fontB').checked, italic: $('#fontI').checked });
+
 // Propriétés appliquées à l'élément sélectionné
-['color', 'size', 'width'].forEach((id) => $('#' + id).addEventListener('change', () => {
+['color', 'size', 'width', 'fontFam', 'fontB', 'fontI'].forEach((id) => $('#' + id).addEventListener('change', () => {
   const o = curPage() && curPage().items[S.selItem]; if (!o) return;
   snapshot();
   if (id === 'color' && o.type !== 'image' && o.kind !== 'whiteout') o.color = color();
   if (id === 'size' && o.type === 'text') o.size = size();
   if (id === 'width' && (o.type === 'ink' || o.kind === 'box')) o.width = +$('#width').value;
+  if (/^font/.test(id) && o.type === 'text') o.font = curFont();
   drawItems();
 }));
+
+// ---------------- Signature manuscrite ----------------
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* stockage indisponible */ } }
+};
+async function signaturePad() {
+  const html = `<p class="muted">Signez avec la souris, le pavé tactile ou un stylet, ou importez une image de votre signature.</p>
+    <canvas id="sigPad" width="560" height="200"></canvas>
+    <div class="row"><button id="sigClear" class="small">Effacer</button><button id="sigImport" class="small">Importer une image…</button>
+    <label><input type="checkbox" id="sigDate" ${store.get('edupdf.signDate') === '1' ? 'checked' : ''}> Ajouter la date sous la signature</label></div>`;
+  const p = modal('Ma signature', html, [['Annuler', null], ['Enregistrer', () => {
+    const c = $('#sigPad'); const ctx = c.getContext('2d'); const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 10) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    if (x1 < 0) { alert('Signez d\'abord dans le cadre.'); return false; }
+    const o = document.createElement('canvas'); o.width = x1 - x0 + 9; o.height = y1 - y0 + 9;
+    o.getContext('2d').drawImage(c, x0 - 4, y0 - 4, o.width, o.height, 0, 0, o.width, o.height);
+    store.set('edupdf.signDate', $('#sigDate').checked ? '1' : '0');
+    return o.toDataURL('image/png');
+  }, true]]);
+  const c = $('#sigPad'); const ctx = c.getContext('2d');
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b1f5c';
+  const old = store.get('edupdf.signature');
+  if (old) loadImg(old).then((im) => { const k = Math.min(1, c.width / im.width, c.height / im.height); ctx.drawImage(im, (c.width - im.width * k) / 2, (c.height - im.height * k) / 2, im.width * k, im.height * k); });
+  let last = null;
+  const pt = (e) => { const b = c.getBoundingClientRect(); return [(e.clientX - b.left) * c.width / b.width, (e.clientY - b.top) * c.height / b.height]; };
+  c.onpointerdown = (e) => { c.setPointerCapture(e.pointerId); last = pt(e); };
+  c.onpointermove = (e) => { if (!last) return; const q = pt(e); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...q); ctx.stroke(); last = q; };
+  c.onpointerup = () => { last = null; };
+  $('#sigClear').onclick = () => ctx.clearRect(0, 0, c.width, c.height);
+  $('#sigImport').onclick = async () => {
+    const f = (await window.api.openDialog({ imagesOnly: true })).find((x) => !x.error); if (!f) return;
+    const im = await loadImg(await bytesToDataUrl(f.bytes, 'image/png'));
+    // fond clair rendu transparent
+    const t = document.createElement('canvas'); t.width = im.width; t.height = im.height; const tc = t.getContext('2d'); tc.drawImage(im, 0, 0);
+    const id = tc.getImageData(0, 0, t.width, t.height);
+    for (let i = 0; i < id.data.length; i += 4) if (id.data[i] + id.data[i + 1] + id.data[i + 2] > 600) id.data[i + 3] = 0;
+    tc.putImageData(id, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
+    const k = Math.min(c.width / t.width, c.height / t.height); ctx.drawImage(t, (c.width - t.width * k) / 2, (c.height - t.height * k) / 2, t.width * k, t.height * k);
+  };
+  const res = await p;
+  if (res) { store.set('edupdf.signature', res); msg('Signature enregistrée sur ce PC.'); }
+  return res;
+}
+async function placeSignature(pos) {
+  let sig = store.get('edupdf.signature');
+  if (!sig) sig = await signaturePad();
+  if (!sig) return;
+  const im = await loadImg(sig); const p = curPage();
+  const w = 150 * S.scale, h = w * im.height / im.width;
+  snapshot();
+  p.items.push({ type: 'image', rect: viewToPdfRect(S.vp, pos[0] - w / 2, pos[1] - h / 2, w, h), src: sig });
+  if (store.get('edupdf.signDate') === '1') {
+    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0] - w / 2, pos[1] + h / 2 + 2 * S.scale), size: 10, color: '#0b1f5c', font: { family: 'Arial' }, text: 'Le ' + new Date().toLocaleDateString('fr-FR') });
+  }
+  S.selItem = p.items.length - 1; setTool('select'); drawItems(); msg('Signature ajoutée : déplacez-la ou redimensionnez-la si besoin.');
+}
 
 // ---------------- Opérations sur les pages ----------------
 const selected = () => (S.sel.size ? [...S.sel] : [S.cur]).filter((i) => i < S.pages.length).sort((a, b) => a - b);
@@ -671,6 +998,165 @@ async function toImages() {
   const dir = await window.api.saveMany(files); done(dir ? `${files.length} image(s) créée(s) dans ${dir}` : '');
 }
 
+// ---------------- Protection par mot de passe ----------------
+async function protectDialog() {
+  if (!S.pages.length) return;
+  const P = S.protect || { userPassword: '', ownerPassword: '', permissions: { print: true, modify: false, copy: false, annotate: true } };
+  const ck = (k, label) => `<label class="ck"><input type="checkbox" id="perm_${k}" ${P.permissions[k] ? 'checked' : ''}> ${label}</label>`;
+  const r = await modal('Protéger le document', `
+    <label class="blk">Mot de passe pour <b>ouvrir</b> le document (facultatif)
+      <input type="password" id="pwU" value="${esc(P.userPassword)}" autocomplete="new-password"></label>
+    <label class="blk">Confirmer ce mot de passe <input type="password" id="pwU2" value="${esc(P.userPassword)}" autocomplete="new-password"></label>
+    <label class="blk">Mot de passe pour <b>modifier / lever les restrictions</b> (recommandé)
+      <input type="password" id="pwO" value="${esc(P.ownerPassword)}" autocomplete="new-password"></label>
+    <p class="muted">Autorisations accordées sans le mot de passe de modification :</p>
+    ${ck('print', 'Imprimer')}${ck('copy', 'Copier le texte et les images')}${ck('modify', 'Modifier et réorganiser les pages')}${ck('annotate', 'Annoter et remplir les formulaires')}
+    <p class="muted">Chiffrement AES 256 bits, appliqué à chaque enregistrement. Notez bien vos mots de passe : ils ne peuvent pas être récupérés.</p>`,
+  [['Annuler', null], ['Protéger', () => {
+    const u = $('#pwU').value, o = $('#pwO').value;
+    if (u !== $('#pwU2').value) { alert('Les deux mots de passe d\'ouverture ne correspondent pas.'); return false; }
+    if (!u && !o) { alert('Indiquez au moins un mot de passe.'); return false; }
+    return { userPassword: u, ownerPassword: o, permissions: Object.fromEntries(['print', 'copy', 'modify', 'annotate'].map((k) => [k, $('#perm_' + k).checked])) };
+  }, true]]);
+  if (!r) return;
+  S.protect = r; setDirty(true); msg('Protection définie : elle sera appliquée à l\'enregistrement (Ctrl+S).');
+}
+function unprotect() {
+  if (!S.protect) return alert('Ce document n\'a pas de mot de passe défini dans EduPDF. Les PDF protégés que vous ouvrez sont déverrouillés automatiquement (avec leur mot de passe s\'il y en a un).');
+  S.protect = null; setDirty(true); msg('Mot de passe retiré : le document sera enregistré sans protection.');
+}
+
+// ---------------- Copie numérisée éditable (fichiers protégés, polices illisibles) ----------------
+async function scanCopy() {
+  if (!S.pages.length) return;
+  const sel = selected();
+  if (!confirm(`Transformer ${sel.length} page(s) en copie numérisée fidèle puis en reconnaître le texte (OCR) ?\n\nL'apparence reste identique ; le texte devient modifiable avec « Modifier le texte », dans la même couleur et la même taille.`)) return;
+  busy('Création de la copie numérisée…'); snapshot();
+  const created = [];
+  for (const i of sel) {
+    const p = S.pages[i]; const pg = await getPdfPage(p); const R = (pg.rotate + p.rot + 360) % 360;
+    const vOld = pg.getViewport({ scale: 1, rotation: R });
+    const sc = Math.min(2.5, 3000 / Math.max(vOld.width, vOld.height)); const vp = pg.getViewport({ scale: sc, rotation: R });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    const d = await PDFDocument.create(); const img = await d.embedJpg(dataUrlToBytes(c.toDataURL('image/jpeg', 0.92)));
+    d.addPage([vOld.width, vOld.height]).drawImage(img, { x: 0, y: 0, width: vOld.width, height: vOld.height });
+    const src = await addSource(await d.save()); const np = newPage(src, 0);
+    // les ajouts déjà faits suivent la page (coordonnées converties)
+    const map = (q) => { const [vx, vy] = vOld.convertToViewportPoint(q[0], q[1]); return [vx, vOld.height - vy]; };
+    np.items = p.items.map((o) => {
+      const n = JSON.parse(JSON.stringify(o));
+      if (n.rect) n.rect = normRect([...map([o.rect[0], o.rect[1]]), ...map([o.rect[2], o.rect[3]])]);
+      if (n.at) n.at = map(o.at);
+      if (n.points) n.points = o.points.map(map);
+      return n;
+    });
+    S.pages[i] = np; created.push(np);
+  }
+  textCache.clear(); done(); refresh();
+  await runOcr(created);
+}
+
+// ---------------- Comparaison de documents ----------------
+function wordsOf(items, page) {
+  const out = [];
+  for (const t of items) {
+    const [x1, y1, x2, y2] = normRect(t.rect); const len = t.text.length || 1; const re = /\S+/g; let m;
+    while ((m = re.exec(t.text))) out.push({ text: m[0], page, size: t.size || (y2 - y1) * 0.8, rect: [x1 + (x2 - x1) * m.index / len, y1, x1 + (x2 - x1) * (m.index + m[0].length) / len, y2] });
+  }
+  // ordre de lecture : lignes de haut en bas, puis de gauche à droite
+  out.sort((a, b) => b.rect[1] - a.rect[1]);
+  const lines = [];
+  for (const w of out) { const l = lines[lines.length - 1]; if (l && Math.abs(l.y - w.rect[1]) < w.size * 0.5) l.ws.push(w); else lines.push({ y: w.rect[1], ws: [w] }); }
+  return lines.flatMap((l) => l.ws.sort((a, b) => a.rect[0] - b.rect[0]));
+}
+/** Différences mot à mot (algorithme de Myers). */
+function diffWords(a, b) {
+  const n = a.length, m = b.length, max = n + m, off = max + 1;
+  const v = new Int32Array(2 * max + 3); const trace = [];
+  for (let d = 0; d <= max; d++) {
+    if (d > 8000) return null;
+    trace.push(v.slice(off - d - 1, off + d + 2));
+    for (let k = -d; k <= d; k += 2) {
+      let x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v[off + k] = x;
+      if (x >= n && y >= m) {
+        const aMark = new Uint8Array(n), bMark = new Uint8Array(m);
+        let X = n, Y = m;
+        for (let dd = d; dd > 0; dd--) {
+          const w = trace[dd]; const get = (kk) => w[kk + dd + 1]; const kk = X - Y;
+          const pk = (kk === -dd || (kk !== dd && get(kk - 1) < get(kk + 1))) ? kk + 1 : kk - 1;
+          const px = get(pk), py = px - pk;
+          while (X > px && Y > py) { X--; Y--; }
+          if (pk === kk + 1) { Y--; bMark[Y] = 1; } else { X--; aMark[X] = 1; }
+        }
+        return { aMark, bMark };
+      }
+    }
+  }
+  return null;
+}
+async function compareDocs() {
+  if (!S.pages.length) return alert('Ouvrez d\'abord le document à vérifier (par exemple la version la plus récente), puis comparez-le à un autre fichier.');
+  const files = await window.api.openDialog(); const f = files[0]; if (!f) return;
+  if (f.error) return alert(`Impossible d'ouvrir ${f.name} : ${f.error}`);
+  let bytes = f.kind === 'text' ? await textToPdf(f.text) : f.kind === 'image' ? await imagesToPdf([f.bytes]) : f.bytes;
+  if (f.locked) { const u = await unlockFile(f); if (!u) return; bytes = u.bytes; }
+  busy('Comparaison des documents…');
+  try {
+    const norm = (s) => s.toLowerCase().normalize('NFC').replace(/[’']/g, "'").replace(/[.,;:!?«»"()]+$/g, '');
+    const A = [];
+    for (let i = 0; i < S.pages.length; i++) {
+      const p = S.pages[i]; const items = await getTextItems(p);
+      p.items.filter((o) => o.type === 'text' && o.tag !== 'num').forEach((o) => { const [x, y] = o.at; o.text.split('\n').forEach((ln, j) => items.push({ text: ln, size: o.size, rect: [x, y - o.size * (1.05 + j * 1.2), x + ln.length * o.size * 0.5, y - o.size * (0.2 + j * 1.2)] })); });
+      A.push(...wordsOf(items, i));
+    }
+    const docB = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise; const B = [];
+    for (let i = 1; i <= docB.numPages; i++) {
+      const tc = await (await docB.getPage(i)).getTextContent();
+      B.push(...wordsOf(tc.items.filter((it) => it.str.trim()).map((it) => { const h = Math.hypot(it.transform[2], it.transform[3]); return { text: it.str, size: h, rect: [it.transform[4], it.transform[5], it.transform[4] + it.width, it.transform[5] + h] }; }), i - 1));
+    }
+    if (!A.length || !B.length) { done(); return alert(`Aucun texte trouvé dans ${!A.length ? 'le document ouvert' : f.name}.\nS'il s'agit d'un scan, faites d'abord l'OCR (onglet OCR), puis relancez la comparaison.`); }
+    const r = diffWords(A.map((w) => norm(w.text)), B.map((w) => norm(w.text)));
+    if (!r) { done(); return alert('Les documents sont trop différents pour être comparés mot à mot.'); }
+    snapshot();
+    S.pages.forEach((p) => { p.items = p.items.filter((o) => o.tag !== 'cmp'); });
+    const changes = []; let i = 0, j = 0;
+    const mark = (w, color) => S.pages[w.page].items.push({ type: 'rect', kind: 'highlight', tag: 'cmp', color, rect: [w.rect[0] - 0.5, w.rect[1] - w.size * 0.25, w.rect[2] + 0.5, w.rect[1] + w.size * 0.95] });
+    while (i < A.length || j < B.length) {
+      if (j < B.length && r.bMark[j]) {
+        const del = []; while (j < B.length && r.bMark[j]) del.push(B[j++]);
+        const ins = []; while (i < A.length && r.aMark[i]) ins.push(A[i++]);
+        const anchor = ins[0] || A[Math.min(i, A.length - 1)];
+        if (ins.length) { ins.forEach((w) => mark(w, '#ffb347')); changes.push({ page: anchor.page, type: 'Modifié', text: `« ${del.map((w) => w.text).join(' ')} » → « ${ins.map((w) => w.text).join(' ')} »` }); }
+        else {
+          S.pages[anchor.page].items.push({ type: 'rect', kind: 'highlight', tag: 'cmp', color: '#ff4d4d', rect: [anchor.rect[0] - 3, anchor.rect[1] - anchor.size * 0.25, anchor.rect[0] - 0.5, anchor.rect[1] + anchor.size * 0.95] });
+          changes.push({ page: anchor.page, type: 'Supprimé', text: `« ${del.map((w) => w.text).join(' ')} »` });
+        }
+      } else if (i < A.length && r.aMark[i]) {
+        const ins = []; while (i < A.length && r.aMark[i]) ins.push(A[i++]);
+        ins.forEach((w) => mark(w, '#4ade80'));
+        changes.push({ page: ins[0].page, type: 'Ajouté', text: `« ${ins.map((w) => w.text).join(' ')} »` });
+      } else { i++; j++; }
+    }
+    done(); refresh();
+    const list = changes.slice(0, 300).map((c) => `<li><button class="link" data-goto="${c.page}">p. ${c.page + 1}</button> <b class="c-${c.type}">${c.type}</b> ${esc(c.text.slice(0, 220))}</li>`).join('');
+    const pr = modal('Résultat de la comparaison', `<p>Document ouvert comparé à <b>${esc(f.name)}</b> : <b>${changes.length}</b> différence(s).</p>
+      <p class="legend"><span style="background:#4ade80">ajouté</span> <span style="background:#ffb347">modifié</span> <span style="background:#ff4d4d">supprimé (repère)</span></p>
+      ${changes.length ? `<ol class="changes">${list}</ol>` : '<p>Aucune différence de texte : les deux documents sont identiques mot pour mot.</p>'}
+      <p class="muted">Les différences sont surlignées dans le document. Outils › « Effacer les marques » pour les retirer.</p>`, [['Fermer', true, true]]);
+    $$('#mBody [data-goto]').forEach((b) => { b.onclick = () => { S.cur = +b.dataset.goto; S.sel = new Set([S.cur]); refresh(); }; });
+    await pr;
+  } catch (e) { done(); alert('Erreur de comparaison : ' + e.message); }
+}
+function clearCompare() {
+  if (!S.pages.some((p) => p.items.some((o) => o.tag === 'cmp'))) return;
+  snapshot(); S.pages.forEach((p) => { p.items = p.items.filter((o) => o.tag !== 'cmp'); }); drawItems(); msg('Marques de comparaison effacées.');
+}
+
 // ---------------- Actions ----------------
 const actions = {
   async new() { if (S.pages.length && !confirmDiscard()) return; resetDoc(); await insertBlank(); setDirty(false); },
@@ -693,6 +1179,7 @@ const actions = {
   ocrAll: () => runOcr(S.pages.filter((p) => !p.ocr).length ? S.pages.filter((p) => !p.ocr) : S.pages),
   editAfterOcr() { switchTab('modifier'); setTool('edit'); },
   toWord, toText, toImages,
+  protect: protectDialog, unprotect, signPad: signaturePad, compare: compareDocs, clearCompare, scanCopy,
   zoomIn() { S.zoom = Math.min(4, (S.zoom === 'fit' ? S.scale : S.zoom) * 1.2); renderPage(); },
   zoomOut() { S.zoom = Math.max(0.25, (S.zoom === 'fit' ? S.scale : S.zoom) / 1.2); renderPage(); },
   zoomFit() { S.zoom = 'fit'; renderPage(); },
@@ -706,7 +1193,7 @@ const actions = {
     if (await window.api.officeStatus()) alert('LibreOffice est installé : la conversion Word / PowerPoint / Excel → PDF est disponible hors-ligne.');
     else officeMissing('Word / PowerPoint / Excel');
   },
-  async about() { alert(`EduPDF Studio ${await window.api.version()}\n\nÉditeur PDF hors-ligne pour l'enseignement.\nLicence perpétuelle (MIT) — aucun abonnement.\nOCR : Tesseract • Rendu : PDF.js • Édition : pdf-lib`); }
+  async about() { alert(`EduPDF Studio ${await window.api.version()}\n\nÉditeur PDF hors-ligne pour l'enseignement.\nLogiciel libre et perpétuel (AGPL-3.0) — aucun abonnement.\nOCR : Tesseract • Rendu : PDF.js • Édition : pdf-lib • Protection et formats : MuPDF`); }
 };
 
 document.addEventListener('click', (e) => {
@@ -763,7 +1250,9 @@ window.api.onUpdate(({ status, info }) => {
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => S.zoom === 'fit' && renderPage(), 150); });
 
 window.api.version().then((v) => { $('#ver').textContent = 'v' + v; });
+Object.keys(FONT_FAMILIES).forEach((f) => { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = cssFont({ family: f }); $('#fontFam').appendChild(o); });
+$('#fontFam').value = 'Arial';
 setTool('select'); refresh();
 
 // Accès pour les tests
-window.__edupdf = { S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions };
+window.__edupdf = { S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

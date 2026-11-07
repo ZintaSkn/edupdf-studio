@@ -10,20 +10,43 @@ let pendingOpen = [];
 let dirty = false;
 ipcMain.on('set-dirty', (_e, v) => { dirty = !!v; });
 
+const mu = require('./mu');
+
 // ---------- Fichiers acceptés ----------
 const PDF_EXT = ['pdf'];
-const IMG_EXT = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp'];
-const TXT_EXT = ['txt', 'md', 'csv'];
-const OFFICE_EXT = ['doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'pps', 'ppsx', 'odp',
-  'xls', 'xlsx', 'ods', 'odg', 'pub', 'tif', 'tiff', 'html', 'htm', 'epub'];
-const ALL_EXT = [...PDF_EXT, ...IMG_EXT, ...TXT_EXT, ...OFFICE_EXT];
+const IMG_EXT = ['png', 'jpg', 'jpeg', 'jfif', 'jpe', 'bmp', 'gif', 'webp', 'avif', 'ico'];
+// Formats lus par MuPDF (mise en page conservée)
+const MU_EXT = ['epub', 'cbz', 'fb2', 'mobi', 'tif', 'tiff', 'jxr', 'pnm', 'pbm', 'pgm', 'ppm', 'pam', 'psd'];
+// Pages web : rendues par Chromium (mise en page conservée)
+const HTML_EXT = ['html', 'htm', 'xhtml', 'mht', 'mhtml', 'svg'];
+const TXT_EXT = ['txt', 'md', 'csv', 'json', 'xml', 'log', 'tex', 'ini', 'srt', 'vtt'];
+const OFFICE_EXT = ['doc', 'docx', 'docm', 'dot', 'dotx', 'odt', 'ott', 'rtf', 'wpd', 'wps',
+  'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'pot', 'potx', 'odp', 'otp',
+  'xls', 'xlsx', 'xlsm', 'xlsb', 'ods', 'ots', 'odg', 'otg', 'vsd', 'vsdx', 'pub'];
+const ALL_EXT = [...PDF_EXT, ...IMG_EXT, ...MU_EXT, ...HTML_EXT, ...TXT_EXT, ...OFFICE_EXT];
 
 function kindOf(file) {
   const ext = path.extname(file).slice(1).toLowerCase();
   if (PDF_EXT.includes(ext)) return 'pdf';
   if (IMG_EXT.includes(ext)) return 'image';
+  if (MU_EXT.includes(ext)) return 'mu';
+  if (HTML_EXT.includes(ext)) return 'html';
   if (TXT_EXT.includes(ext)) return 'text';
   if (OFFICE_EXT.includes(ext)) return 'office';
+  return 'unknown';
+}
+
+/** Reconnaît un fichier par son contenu (extension absente ou trompeuse). */
+function sniff(buf) {
+  const head = buf.subarray(0, 1024).toString('latin1');
+  if (head.includes('%PDF-')) return 'pdf';
+  if (buf[0] === 0x89 && head.startsWith('\x89PNG')) return 'image';
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image';
+  if (head.startsWith('GIF8') || head.startsWith('BM') || (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP')) return 'image';
+  if (head.startsWith('II*\0') || head.startsWith('MM\0*')) return 'mu';
+  if (/^\s*<(\?xml|svg|!doctype html|html)/i.test(head)) return 'html';
+  const sample = buf.subarray(0, 8192);
+  if (!sample.includes(0)) return 'text';
   return null;
 }
 
@@ -53,16 +76,67 @@ function convertWithOffice(file) {
   });
 }
 
-async function loadFile(file) {
-  const kind = kindOf(file);
-  const name = path.basename(file);
-  if (!kind) throw new Error(`Format non pris en charge : ${name}`);
-  if (kind === 'office') {
-    const bytes = await convertWithOffice(file);
-    return { name: name.replace(/\.[^.]+$/, '.pdf'), path: null, kind: 'pdf', bytes };
+// ---------- Pages web et Word (sans LibreOffice) → PDF via Chromium ----------
+async function htmlToPdf(file) {
+  const w = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } });
+  try {
+    await w.loadFile(file);
+    return await w.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+  } finally { w.destroy(); }
+}
+async function docxToPdfApprox(file) {
+  const mammoth = require('mammoth');
+  const { value } = await mammoth.convertToHtml({ path: file });
+  const tmp = path.join(os.tmpdir(), `edupdf-${Date.now()}.html`);
+  fs.writeFileSync(tmp, `<!doctype html><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.35;margin:0}
+table{border-collapse:collapse}td,th{border:1px solid #999;padding:3px 6px}img{max-width:100%}</style>${value}`);
+  try { return await htmlToPdf(tmp); } finally { fs.rmSync(tmp, { force: true }); }
+}
+
+const isOle = (buf) => buf.length > 8 && buf.readUInt32BE(0) === 0xd0cf11e0;
+const pdfName = (name) => name.replace(/\.[^.]+$/, '') + '.pdf';
+
+/** Prépare un PDF : déchiffre les PDF protégés (restrictions) et demande le mot de passe si nécessaire. */
+async function preparePdf(buf, name, file) {
+  let info;
+  try { info = await mu.inspectPdf(buf); } catch { info = null; }
+  if (!info) { // fichier endommagé : tentative de réparation
+    try { return { name, path: null, kind: 'pdf', bytes: await mu.repairPdf(buf), note: 'repaired' }; } catch { return { name, path: file, kind: 'pdf', bytes: buf }; }
   }
-  if (kind === 'text') return { name, path: null, kind, text: fs.readFileSync(file, 'utf8') };
-  return { name, path: kind === 'pdf' ? file : null, kind, bytes: fs.readFileSync(file) };
+  if (!info.encrypted) return { name, path: file, kind: 'pdf', bytes: buf };
+  if (info.needsPassword) return { name, path: file, kind: 'pdf', locked: true, bytes: buf };
+  return { name, path: file, kind: 'pdf', bytes: await mu.decryptPdf(buf), note: 'unrestricted' };
+}
+
+async function loadFile(file) {
+  const name = path.basename(file);
+  let kind = kindOf(file);
+  if (kind === 'office') {
+    if (!findSoffice()) {
+      if (/\.docx$/i.test(file)) return { name: pdfName(name), path: null, kind: 'pdf', bytes: await docxToPdfApprox(file), note: 'approx' };
+      throw new Error('LIBREOFFICE_MISSING');
+    }
+    try { return { name: pdfName(name), path: null, kind: 'pdf', bytes: await convertWithOffice(file) }; }
+    catch (e) {
+      if (/x$|m$/i.test(path.extname(file)) && isOle(fs.readFileSync(file))) throw new Error('OFFICE_LOCKED');
+      throw e;
+    }
+  }
+  if (kind === 'html') return { name: pdfName(name), path: null, kind: 'pdf', bytes: await htmlToPdf(file) };
+  const buf = fs.readFileSync(file);
+  if (kind === 'unknown') {
+    kind = sniff(buf);
+    if (!kind) { // dernier recours : MuPDF, puis LibreOffice
+      try { return { name: pdfName(name), path: null, kind: 'pdf', bytes: await mu.convertToPdf(buf, name) }; } catch { /* suite */ }
+      if (findSoffice()) return { name: pdfName(name), path: null, kind: 'pdf', bytes: await convertWithOffice(file) };
+      throw new Error(`Format non reconnu : ${name}`);
+    }
+  }
+  if (kind === 'pdf') return preparePdf(buf, name, file);
+  if (kind === 'mu') return { name: pdfName(name), path: null, kind: 'pdf', bytes: await mu.convertToPdf(buf, name) };
+  if (kind === 'html') return { name: pdfName(name), path: null, kind: 'pdf', bytes: await htmlToPdf(file) };
+  if (kind === 'text') return { name, path: null, kind, text: buf.toString('utf8').replace(/^﻿/, '') };
+  return { name, path: null, kind, bytes: buf };
 }
 
 // ---------- Fenêtre ----------
@@ -129,7 +203,10 @@ ipcMain.handle('dialog-open', async (_e, opts = {}) => {
       { name: 'PDF', extensions: PDF_EXT },
       { name: 'Images', extensions: IMG_EXT },
       { name: 'Word / PowerPoint / Excel / OpenOffice', extensions: OFFICE_EXT },
-      { name: 'Texte', extensions: TXT_EXT }
+      { name: 'EPUB, BD (CBZ), FB2, MOBI, TIFF…', extensions: MU_EXT },
+      { name: 'Pages web', extensions: HTML_EXT },
+      { name: 'Texte', extensions: TXT_EXT },
+      { name: 'Tous les fichiers', extensions: ['*'] }
     ];
   const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters });
   if (r.canceled) return [];
@@ -166,6 +243,59 @@ ipcMain.handle('save-many', async (_e, { files }) => {
 });
 
 ipcMain.handle('office-status', () => !!findSoffice());
+ipcMain.handle('install-office', () => new Promise((resolve) => {
+  execFile('winget', ['install', '-e', '--id', 'TheDocumentFoundation.LibreOffice', '--silent',
+    '--accept-package-agreements', '--accept-source-agreements'], { timeout: 1800000, windowsHide: true },
+  (err, so, se) => resolve({ ok: !!findSoffice(), log: String(se || so || (err && err.message) || '').trim().slice(-300) }));
+}));
+
+// ---------- IPC : protection par mot de passe (MuPDF) ----------
+ipcMain.handle('unlock-pdf', async (_e, { bytes, password }) => {
+  const out = await mu.decryptPdf(bytes, password);
+  return out ? { ok: true, bytes: out } : { ok: false };
+});
+ipcMain.handle('encrypt-pdf', (_e, { bytes, opts }) => mu.encryptPdf(bytes, opts));
+
+// ---------- IPC : polices Windows (réécriture fidèle, tous alphabets) ----------
+const FONT_DIRS = [path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts'),
+  path.join(process.env.LOCALAPPDATA || os.homedir(), 'Microsoft', 'Windows', 'Fonts')];
+const fontFiles = new Map();
+/** Extrait une police d'une collection .ttc (pdf-lib n'accepte que des .ttf / .otf). */
+function ttcExtract(buf, index) {
+  if (buf.toString('latin1', 0, 4) !== 'ttcf') return buf;
+  const n = buf.readUInt32BE(8); if (index >= n) index = 0;
+  const off = buf.readUInt32BE(12 + 4 * index);
+  const numTables = buf.readUInt16BE(off + 4);
+  const head = 12 + 16 * numTables;
+  const tables = [];
+  for (let i = 0; i < numTables; i++) {
+    const r = off + 12 + 16 * i;
+    tables.push({ tag: buf.subarray(r, r + 4), sum: buf.readUInt32BE(r + 4), o: buf.readUInt32BE(r + 8), len: buf.readUInt32BE(r + 12) });
+  }
+  const out = Buffer.alloc(tables.reduce((s, t) => s + ((t.len + 3) & ~3), head));
+  buf.copy(out, 0, off, off + 12);
+  let pos = head;
+  tables.forEach((t, i) => {
+    const r = 12 + 16 * i;
+    t.tag.copy(out, r); out.writeUInt32BE(t.sum, r + 4); out.writeUInt32BE(pos, r + 8); out.writeUInt32BE(t.len, r + 12);
+    buf.copy(out, pos, t.o, t.o + t.len); pos += (t.len + 3) & ~3;
+  });
+  return out;
+}
+ipcMain.handle('font-file', (_e, spec) => {
+  if (fontFiles.has(spec)) return fontFiles.get(spec);
+  const [name, idx] = String(spec).split('#');
+  let data = null;
+  if (/^[\w .-]+\.(ttf|otf|ttc)$/i.test(name)) {
+    for (const d of FONT_DIRS) {
+      const f = path.join(d, name);
+      if (fs.existsSync(f)) { data = fs.readFileSync(f); break; }
+    }
+    if (data && /\.ttc$/i.test(name)) data = ttcExtract(data, +idx || 0);
+  }
+  fontFiles.set(spec, data);
+  return data;
+});
 ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
 ipcMain.handle('show-in-folder', (_e, p) => shell.showItemInFolder(p));
 ipcMain.handle('app-version', () => app.getVersion());

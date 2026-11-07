@@ -1,21 +1,24 @@
 {
   "name": "edupdf-studio",
   "productName": "EduPDF Studio",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
   "main": "src/main.js",
   "author": "EduPDF",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
     "publish": "electron-builder --win --publish always"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@tesseract.js-data/eng": "^1.0.0",
     "@tesseract.js-data/fra": "^1.0.0",
     "docx": "^8.5.0",
     "electron-updater": "^6.3.9",
+    "mammoth": "^1.13.0",
+    "mupdf": "^1.28.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174",
     "tesseract.js": "5.1.1"
@@ -27,19 +30,32 @@
   "build": {
     "appId": "com.edupdf.studio",
     "productName": "EduPDF Studio",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "npmRebuild": false,
-    "files": ["src/**/*", "package.json", "!node_modules/canvas/**"],
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!node_modules/canvas/**"
+    ],
     "asarUnpack": [
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
-      "node_modules/@tesseract.js-data/**"
+      "node_modules/@tesseract.js-data/**",
+      "node_modules/mupdf/**"
     ],
     "fileAssociations": [
-      { "ext": "pdf", "name": "Document PDF", "role": "Editor" }
+      {
+        "ext": "pdf",
+        "name": "Document PDF",
+        "role": "Editor"
+      }
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -49,7 +65,12 @@
       "createDesktopShortcut": true
     },
     "publish": [
-      { "provider": "github", "owner": "ksehibi", "repo": "edupdf-studio", "releaseType": "release" }
+      {
+        "provider": "github",
+        "owner": "ksehibi",
+        "repo": "edupdf-studio",
+        "releaseType": "release"
+      }
     ]
   }
 }

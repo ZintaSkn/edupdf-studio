@@ -1,25 +1,35 @@
 # EduPDF Studio
 
 Éditeur PDF **hors-ligne** pour enseignants (Windows), dans l'esprit de PDFelement :
-créer, modifier, organiser, scanner, rendre le texte des scans modifiable (OCR) et convertir
-les documents de cours. Licence perpétuelle MIT : aucun abonnement, aucun compte.
+créer, modifier, organiser, scanner, rendre le texte des scans modifiable (OCR), protéger, signer,
+comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL-3.0) : aucun abonnement, aucun compte.
 
 ## Fonctions
 
 | Domaine | Ce que fait le logiciel |
 |---|---|
-| **Créer** | Document vierge A4, PDF depuis photos/images, depuis le scanner, depuis Word / PowerPoint / Excel / OpenOffice / RTF / TXT, fusion de plusieurs fichiers |
-| **Modifier** | Corriger le texte existant (clic sur le texte), ajouter du texte, images, surligneur, masquer (effaceur blanc), cadres, stylo à main levée, annuler/rétablir |
-| **Pages** | Glisser-déposer pour réordonner, pivoter, supprimer, dupliquer, insérer, extraire, diviser (1 PDF/page), numéroter |
+| **Créer** | Document vierge A4, PDF depuis photos/images, depuis le scanner, depuis Word / PowerPoint / Excel / OpenOffice / RTF / pages web / EPUB / TXT, fusion de plusieurs fichiers |
+| **Modifier** | Corriger le texte existant **dans la police, la taille et la couleur d'origine** (le fond est repris à l'identique), ajouter du texte (25 polices, gras, italique, tous alphabets), images, surligneur, masquer, cadres, stylo, annuler/rétablir |
+| **Formulaires** | Remplir les formulaires PDF existants (texte, cases, boutons radio, listes) ; créer des champs texte et des cases à cocher pour des fiches à compléter |
+| **Signature** | Signature manuscrite (souris, stylet ou image importée), mémorisée sur le PC, avec date facultative |
+| **Protéger** | Mot de passe d'ouverture et/ou de modification (AES 256), choix des autorisations (imprimer, copier, modifier, annoter) |
+| **PDF protégés** | Ouverture avec le mot de passe (structure, polices et mise en page conservées) ; les PDF « restreints » (sans mot de passe d'ouverture) s'ouvrent directement et deviennent modifiables ; PDF endommagés réparés |
+| **Copie numérisée éditable** | Pour un fichier impossible à déchiffrer ou dont le texte est illisible : chaque page devient une image identique, puis l'OCR rend le texte modifiable (corrections dans la couleur et sur le fond d'origine) |
+| **Comparer** | Comparaison mot à mot avec un autre fichier : ajouts, modifications et suppressions surlignés, liste cliquable des différences |
+| **Pages** | Glisser-déposer pour réordonner, pivoter, supprimer, dupliquer, insérer, extraire, diviser, numéroter |
 | **Scanner** | Numérisation WIA (tous scanners Windows), multi-pages, OCR proposé à la fin |
 | **OCR** | Tesseract intégré (français + anglais) : rend les scans cherchables/copiables et leur texte modifiable |
-| **Convertir** | PDF → Word (.docx), PDF → images PNG, PDF → texte ; Office → PDF |
+| **Convertir** | PDF → Word (.docx), PDF → images PNG, PDF → texte ; tous formats ci-dessous → PDF |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
-Formats ouverts : `pdf, docx, doc, odt, rtf, pptx, ppt, pps(x), odp, xlsx, xls, ods, odg, pub, html, epub, tif(f), png, jpg, bmp, gif, webp, txt, md, csv`.
+### Formats ouverts
 
-> Les fichiers Office sont convertis via **LibreOffice** (gratuit, hors-ligne), à installer une fois :
-> https://fr.libreoffice.org/download/telecharger-libreoffice/ — EduPDF le détecte automatiquement.
+- **PDF** (y compris protégés, restreints ou endommagés)
+- **Office** : `doc, docx, docm, dot(x), odt, ott, rtf, wpd, wps, ppt, pptx, pptm, pps(x), pot(x), odp, otp, xls, xlsx, xlsm, xlsb, ods, ots, odg, otg, vsd(x), pub` — via LibreOffice (mise en page identique) ;
+  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). EduPDF propose d'**installer LibreOffice automatiquement**.
+- **Livres et BD** : `epub, mobi, fb2, cbz` • **Images** : `png, jpg, jfif, bmp, gif, webp, avif, ico, tif/tiff (multipage), jxr, psd, pnm`
+- **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
+- Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
 ## Lancer en développement
 
@@ -34,37 +44,26 @@ npm start
 npm run dist
 ```
 
-Résultat : `dist/EduPDF Studio Setup 1.0.0.exe` (installation sans droits administrateur, raccourci bureau,
-association des fichiers .pdf).
-
-## Mises à jour automatiques (à configurer une fois)
-
-Le logiciel utilise `electron-updater` avec **GitHub Releases** (gratuit) :
+## Mises à jour automatiques
 
 Dépôt : https://github.com/ksehibi/edupdf-studio — téléchargement : onglet **Releases**.
 
-1. Pour chaque nouvelle version : augmentez `"version"` dans `package.json` (ex. `1.0.1`), commitez, puis
-   `git tag v1.0.1` et `git push --tags`. Le workflow `.github/workflows/release.yml` construit l'installateur
-   sur les serveurs de GitHub et le publie ; les PC déjà équipés installent la mise à jour tout seuls.
-
-(Alternative locale : `setx GH_TOKEN "jeton"` puis `npm run publish`. Si Windows bloque la construction avec
-`spawn UNKNOWN`, c'est le Contrôle intelligent des applications : utilisez le workflow GitHub.)
-
-Hors connexion, le logiciel fonctionne normalement ; il vérifiera les mises à jour à la prochaine connexion.
+Pour chaque nouvelle version : augmentez `"version"` dans `package.json`, commitez, puis
+`git tag vX.Y.Z` et `git push origin main vX.Y.Z`. Le workflow `.github/workflows/release.yml` construit
+l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés installent la mise à jour tout seuls.
 
 ## Architecture
 
-- `src/main.js` — processus principal : fichiers, conversion LibreOffice, scanner WIA, OCR Tesseract, export Word, mises à jour.
+- `src/main.js` — processus principal : fichiers et conversions, LibreOffice, scanner WIA, OCR Tesseract, polices Windows, export Word, mises à jour.
+- `src/mu.js` — MuPDF (WebAssembly) : déchiffrement, chiffrement AES, réparation, EPUB / MOBI / FB2 / CBZ / TIFF.
 - `src/preload.js` — pont sécurisé entre l'interface et le système.
-- `src/renderer/` — interface (PDF.js pour l'affichage, pdf-lib pour l'écriture du PDF).
+- `src/renderer/app.js` — interface et moteur d'édition (PDF.js pour l'affichage, pdf-lib pour l'écriture).
+- `src/renderer/fonts.js` — reconnaissance de la police d'origine et réécriture Unicode (polices de secours par alphabet).
 - `src/selftest.js` — auto-test : `set EDUPDF_SELFTEST=C:\dossier` puis `npx electron .`
 
-Principe d'édition : le document est un modèle de pages (source + rotation + éléments ajoutés) ;
-le PDF final est reconstruit à l'enregistrement. La « modification du texte » existant masque l'ancien texte
-et réécrit le nouveau à la même position (même méthode que la plupart des éditeurs PDF légers).
+## Bon à savoir
 
-## Limites actuelles / pistes
-
-- Police de réécriture : Helvetica (les caractères hors alphabet latin deviennent « ? »).
-- Pas encore : chiffrement par mot de passe, signature, formulaires, comparaison de documents.
-- Les PDF protégés par mot de passe ne s'ouvrent pas.
+- Un PDF chiffré avec un **mot de passe d'ouverture** ne peut être lu qu'avec ce mot de passe (c'est le principe du chiffrement).
+- Les fichiers Office protégés par mot de passe doivent d'abord être ouverts dans Word / LibreOffice avec leur mot de passe.
+- La signature est une signature manuscrite visuelle (pas un certificat numérique qualifié).
+- Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais leur mise en forme n'est pas garantie.
