@@ -30,7 +30,7 @@ jobs:
           Get-Content "$dir\selftest.log"
           if (-not (Select-String -Path "$dir\selftest.log" -Pattern '^ALL OK' -Quiet)) { Write-Error 'Auto-test en échec : version non publiée.'; exit 1 }
       # La version est créée d'abord : évite que les envois en parallèle créent deux versions identiques
-      - run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Mise à jour automatique d'EduPDF Studio." || echo "version déjà créée"
+      - run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Mise à jour automatique de SknEDUpdf-studio." || echo "version déjà créée"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npx electron-builder --win --publish always
