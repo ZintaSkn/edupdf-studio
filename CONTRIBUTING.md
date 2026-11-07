@@ -1,10 +1,10 @@
-# Contribuer à SknEDUpdf-studio
+# Contribuer à SknEDU-studio
 
 Merci de votre intérêt ! Les contributions (corrections, traductions, modèles, idées) sont les bienvenues.
 
 ## Accord de contribution (obligatoire)
 
-SknEDUpdf-studio est développé en **open core** : le logiciel est libre (AGPL-3.0) et son titulaire propose
+SknEDU-studio est développé en **open core** : le logiciel est libre (AGPL-3.0) et son titulaire propose
 autour des offres commerciales (licences établissement, support, déploiement, formation). Pour garder cette
 possibilité, chaque contribution est acceptée aux conditions suivantes, que vous acceptez en ouvrant une
 *pull request* :

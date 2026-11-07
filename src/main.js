@@ -1,4 +1,4 @@
-// SknEDUpdf-studio — processus principal (Electron)
+// SknEDU-studio — processus principal (Electron)
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -10,9 +10,9 @@ let pendingOpen = [];
 let dirty = false;
 ipcMain.on('set-dirty', (_e, v) => { dirty = !!v; });
 
-// Nouveau nom (SknEDUpdf-studio) : les réglages restent dans le dossier d'origine, pour que les postes déjà installés
+// Nouveau nom (SknEDU-studio) : les réglages restent dans le dossier d'origine, pour que les postes déjà installés
 // conservent clés IA, administration, fichiers récents et préférences après la mise à jour.
-app.setName('SknEDUpdf-studio');
+app.setName('SknEDU-studio');
 app.setPath('userData', path.join(app.getPath('appData'), 'EduPDF Studio'));
 // Auto-test : profil et dossier « machine » isolés (aucun effet sur la configuration réelle du PC)
 if (process.env.EDUPDF_SELFTEST) { app.setPath('userData', path.join(process.env.EDUPDF_SELFTEST, 'userdata')); process.env.EDUPDF_MACHINE_DIR = path.join(process.env.EDUPDF_SELFTEST, 'machine'); }
@@ -23,7 +23,7 @@ const ai = require('./ai');
 const license = require('./license');
 const classroom = require('./classroom');
 const { Notification, Tray, nativeImage } = require('electron');
-const ICON = path.join(__dirname, 'renderer', 'icon.png');
+const ICON = process.platform === 'win32' ? path.join(__dirname, 'icon.ico') : path.join(__dirname, 'renderer', 'icon.png');
 
 // ---------- Fichiers acceptés ----------
 const PDF_EXT = ['pdf'];
@@ -199,6 +199,11 @@ async function preparePdf(buf, name, file) {
 }
 
 async function loadFile(file) {
+  const r = await loadFileRaw(file);
+  if (r) r.orig = { name: path.basename(file), path: file, ext: path.extname(file).slice(1).toLowerCase() };
+  return r;
+}
+async function loadFileRaw(file) {
   const name = path.basename(file);
   let kind = kindOf(file);
   if (kind === 'heic') return { name, path: null, kind: 'image', bytes: await heicToJpeg(fs.readFileSync(file)) };
@@ -257,7 +262,7 @@ function fitWindowToScreen(w) {
 function createWindow() {
   win = new BrowserWindow({
     width: 1400, height: 900, minWidth: 760, minHeight: 520, show: false,
-    title: 'SknEDUpdf-studio',
+    title: 'SknEDU-studio',
     icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -278,7 +283,7 @@ function createWindow() {
     if (!dirty) return;
     const c = dialog.showMessageBoxSync(win, {
       type: 'warning', buttons: ['Quitter sans enregistrer', 'Annuler'], defaultId: 1, cancelId: 1,
-      title: 'SknEDUpdf-studio', message: 'Le document a des modifications non enregistrées.'
+      title: 'SknEDU-studio', message: 'Le document a des modifications non enregistrées.'
     });
     if (c === 1) e.preventDefault();
   });
@@ -427,7 +432,8 @@ const FAMILY_OF_EXT = (ext) => (['doc', 'docx', 'docm', 'dot', 'dotx', 'odt', 'o
 async function saveAs(buf, defaultName, ext) {
   if (process.env.EDUPDF_SELFTEST) { const p = path.join(process.env.EDUPDF_SELFTEST, path.basename(defaultName)); fs.writeFileSync(p, buf); return p; }
   const t = OFFICE_TARGETS[ext] || { label: ext.toUpperCase() };
-  const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName), filters: [{ name: t.label, extensions: [ext] }] });
+  // chemin complet accepté : « enregistrer au format d'origine » propose le dossier et le nom du fichier ouvert
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.isAbsolute(defaultName) ? defaultName.replace(/\.[^.\\/]+$/, '.' + ext) : path.basename(defaultName), filters: [{ name: t.label, extensions: [ext] }] });
   if (r.canceled) return null;
   fs.writeFileSync(r.filePath, buf); allow(r.filePath);
   admin.logEvent('export', { file: path.basename(r.filePath) });
@@ -450,7 +456,7 @@ ipcMain.handle('pdf-to-office', async (_e, { bytes, format, defaultName }) => {
 ipcMain.handle('export-sheet', async (_e, { sheets, defaultName, format }) => {
   admin.guard('convert', 'Convertir en tableur');
   const ExcelJS = require('exceljs');
-  const wb = new ExcelJS.Workbook(); wb.creator = 'SknEDUpdf-studio';
+  const wb = new ExcelJS.Workbook(); wb.creator = 'SknEDU-studio';
   sheets.forEach((s, i) => {
     const ws = wb.addWorksheet((s.name || `Page ${i + 1}`).slice(0, 31).replace(/[\\/?*[\]:]/g, '-'));
     s.rows.forEach((r) => ws.addRow(r));
@@ -534,6 +540,15 @@ ipcMain.handle('cloud-save', async (_e, { cloudPath, bytes, defaultName }) => {
   admin.logEvent('cloud', { file: path.basename(r.filePath), service: path.basename(cloudPath) });
   return r.filePath;
 });
+ipcMain.handle('cloud-autosave', async (_e, { cloudPath, bytes, name }) => {
+  admin.guard('cloud', 'Sauvegarde automatique dans le cloud');
+  if (!cloud.detect(readSettings().clouds || []).some((c) => c.path === cloudPath)) throw new Error('Dossier cloud inconnu.');
+  const base = path.basename(String(name || 'Document.pdf')).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\.[^.]*$/, '') || 'Document';
+  const dir = path.join(cloud.targetDir(cloudPath), 'Sauvegardes automatiques'); fs.mkdirSync(dir, { recursive: true });
+  const p = path.join(dir, base + '.pdf'); const tmp = p + '.tmp';
+  fs.writeFileSync(tmp, Buffer.from(bytes)); fs.renameSync(tmp, p); // écriture atomique : jamais de fichier à moitié synchronisé
+  return p;
+});
 ipcMain.handle('cloud-open', async (_e, { cloudPath }) => {
   admin.guard('cloud', 'Ouvrir depuis le cloud');
   const r = await dialog.showOpenDialog(win, { defaultPath: cloudPath, properties: ['openFile', 'multiSelections'], filters: [{ name: 'Tous les documents', extensions: ALL_EXT }, { name: 'Tous les fichiers', extensions: ['*'] }] });
@@ -561,7 +576,7 @@ ipcMain.handle('present-open', () => {
   if (!ext) return false;
   if (presentWin && !presentWin.isDestroyed()) return true;
   presentWin = new BrowserWindow({ x: ext.bounds.x, y: ext.bounds.y, width: ext.bounds.width, height: ext.bounds.height, fullscreen: true, frame: false, backgroundColor: '#000',
-    title: 'SknEDUpdf-studio — projection', icon: ICON, webPreferences: { preload: path.join(__dirname, 'present-preload.js'), contextIsolation: true, sandbox: true } });
+    title: 'SknEDU-studio — projection', icon: ICON, webPreferences: { preload: path.join(__dirname, 'present-preload.js'), contextIsolation: true, sandbox: true } });
   presentWin.setMenu(null);
   presentWin.loadFile(path.join(__dirname, 'renderer', 'present.html'));
   presentWin.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -802,7 +817,8 @@ ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
   });
   const doc = new Document({ sections: [{ children }] });
   const buf = await Packer.toBuffer(doc);
-  const r = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters: [{ name: 'Word', extensions: ['docx'] }] });
+  const r = process.env.EDUPDF_SELFTEST ? { filePath: path.join(process.env.EDUPDF_SELFTEST, path.basename(defaultName)) }
+    : await dialog.showSaveDialog(win, { defaultPath: defaultName, filters: [{ name: 'Word', extensions: ['docx'] }] });
   if (r.canceled) return null;
   fs.writeFileSync(r.filePath, buf); allow(r.filePath);
   admin.logEvent('export', { file: path.basename(r.filePath) });
@@ -814,7 +830,7 @@ function setupAutoUpdate() {
   if (!app.isPackaged) return;
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
-  // Journal des mises à jour (diagnostic) : %APPDATA%\SknEDUpdf-studio\logs\mises-a-jour.log, limité à 1 Mo
+  // Journal des mises à jour (diagnostic) : %APPDATA%\SknEDU-studio\logs\mises-a-jour.log, limité à 1 Mo
   const logFile = path.join(app.getPath('userData'), 'logs', 'mises-a-jour.log');
   const write = (lvl) => (m) => { try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1048576) fs.renameSync(logFile, logFile + '.1'); fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${lvl} ${m}\n`); } catch { /* */ } };
   autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };

@@ -21,9 +21,9 @@ const seen = new Map();
   }
 })(tree.dependencies);
 const rows = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-const md = `# Composants tiers — SknEDUpdf-studio
+const md = `# Composants tiers — SknEDU-studio
 
-SknEDUpdf-studio est distribué sous licence AGPL-3.0-or-later (voir LICENSE). Il intègre les composants libres
+SknEDU-studio est distribué sous licence AGPL-3.0-or-later (voir LICENSE). Il intègre les composants libres
 suivants, chacun sous sa propre licence. Données de langue OCR : tessdata (Apache-2.0).
 Code source complet : https://github.com/ksehibi/edupdf-studio
 

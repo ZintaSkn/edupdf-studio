@@ -1,4 +1,4 @@
-SknEDUpdf-studio
+SknEDU-studio
 Copyright (C) 2026 ksehibi
 
 This program is free software: you can redistribute it and/or modify it under the terms of the
@@ -9,5 +9,5 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 Affero General Public License for more details: https://www.gnu.org/licenses/agpl-3.0.html
 
-SknEDUpdf-studio uses MuPDF (Artifex Software, AGPL-3.0), PDF.js (Apache-2.0), pdf-lib (MIT),
+SknEDU-studio uses MuPDF (Artifex Software, AGPL-3.0), PDF.js (Apache-2.0), pdf-lib (MIT),
 fontkit (MIT), Tesseract.js (Apache-2.0), mammoth (BSD-2-Clause) and docx (MIT).

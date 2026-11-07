@@ -1,4 +1,4 @@
-/* SknEDUpdf-studio — fonctions pour la classe :
+/* SknEDU-studio — fonctions pour la classe :
    correction de copies, évaluations différenciées, publipostage, inclusion (DYS, lecture à voix haute),
    classe connectée, diaporama interactif et mode présentateur, IA locale, équations, version bilingue,
    accessibilité et interface en anglais. S'appuie sur le moteur de app.js (même portée globale). */
@@ -321,7 +321,8 @@ function inkCanvas() {
   return c;
 }
 function placeInk() {
-  const c = inkCanvas(); const s = $('#showCanvas'); const r = INK.board ? { left: 0, top: 0, width: innerWidth, height: innerHeight } : s.getBoundingClientRect();
+  const c = inkCanvas(); const s = $('#showCanvas'); const sh = $('#show');
+  const r = INK.board ? { left: 0, top: sh.scrollTop, width: sh.clientWidth, height: sh.clientHeight } : { left: s.offsetLeft, top: s.offsetTop, width: s.offsetWidth, height: s.offsetHeight };
   Object.assign(c.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   const dpr = devicePixelRatio || 1; c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
   c.classList.toggle('on', INK.pen || INK.board); redrawInk();
@@ -424,7 +425,7 @@ async function classroomDialog() {
     <label class="blk">Titre affiché aux élèves <input type="text" id="clT" value="${esc(baseName())}"></label>
     <label class="blk">Consigne <input type="text" id="clM" value="Téléchargez le document, complétez-le, puis rendez-le en PDF."></label>
     <label class="ck"><input type="checkbox" id="clC" checked> Récupérer les copies des élèves</label>
-    <p class="muted">Au premier partage, Windows peut demander d'autoriser SknEDUpdf-studio sur les réseaux privés : acceptez.</p>`,
+    <p class="muted">Au premier partage, Windows peut demander d'autoriser SknEDU-studio sur les réseaux privés : acceptez.</p>`,
   [['Annuler', null], ['Démarrer le partage', () => ({ title: $('#clT').value || baseName(), message: $('#clM').value, collect: $('#clC').checked }), true]]);
   if (!r) return;
   busy('Préparation du partage…');

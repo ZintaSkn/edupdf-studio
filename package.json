@@ -1,8 +1,8 @@
 {
   "name": "edupdf-studio",
-  "productName": "SknEDUpdf-studio",
-  "version": "1.9.0",
-  "description": "SknEDUpdf-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
+  "productName": "SknEDU-studio",
+  "version": "1.10.0",
+  "description": "SknEDU-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
   "license": "AGPL-3.0-or-later",
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.edupdf.studio",
-    "productName": "SknEDUpdf-studio",
+    "productName": "SknEDU-studio",
     "directories": {
       "output": "dist"
     },
@@ -110,14 +110,19 @@
       "target": [
         "nsis"
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "createDesktopShortcut": true,
-      "shortcutName": "SknEDUpdf-studio"
+      "shortcutName": "SknEDU-studio",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "include": "build/installer.nsh"
     },
     "publish": [
       {
@@ -145,15 +150,23 @@
         }
       ],
       "category": "public.app-category.education",
-      "identity": null
+      "identity": null,
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
       "category": "Education",
-      "maintainer": "SknEDUpdf-studio"
-    }
+      "maintainer": "SknEDU-studio",
+      "icon": "build/icon.png"
+    },
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ]
   },
   "allowScripts": {
     "electron@45.2.3": true

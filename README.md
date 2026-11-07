@@ -1,4 +1,6 @@
-# SknEDUpdf-studio
+<p align="center"><img src="docs/logo.png" alt="SknEDU-studio" width="180"></p>
+
+# SknEDU-studio
 
 Éditeur PDF **hors-ligne** pour enseignants (Windows) : créer, modifier, organiser, scanner, rendre le texte des scans
 modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours avec l'IA.
@@ -26,16 +28,16 @@ les comptes Windows de ce PC »). Une licence expirée ne bloque rien : le logic
 
 **Licence et marque.** Le code est sous **GNU AGPL-3.0** ([LICENSE](LICENSE)) : utilisation, étude, modification et
 redistribution libres, à condition de publier le code source des versions modifiées. Le nom et le logo
-« SknEDUpdf-studio » sont des marques réservées ([TRADEMARK.md](TRADEMARK.md)). Contributions : [CONTRIBUTING.md](CONTRIBUTING.md).
+« SknEDU-studio » sont des marques réservées ([TRADEMARK.md](TRADEMARK.md)). Contributions : [CONTRIBUTING.md](CONTRIBUTING.md).
 Composants tiers : [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### Émettre une licence (éditeur uniquement)
 
 ```bash
-node tools/licence.js emettre "%USERPROFILE%\SknEDUpdf-licences" --org "Lycée X" --edition etablissement --postes 50 --fin 2027-09-30 --ref FACT-2026-001
+node tools/licence.js emettre "%USERPROFILE%\SknEDU-licences" --org "Lycée X" --edition etablissement --postes 50 --fin 2027-09-30 --ref FACT-2026-001
 ```
 
-La clé privée de signature reste dans `%USERPROFILE%\SknEDUpdf-licences` (jamais dans le dépôt) : sauvegardez-la en lieu sûr.
+La clé privée de signature reste dans `%USERPROFILE%\SknEDU-licences` (jamais dans le dépôt) : sauvegardez-la en lieu sûr.
 ## Fonctions
 
 | Domaine | Ce que fait le logiciel |
@@ -62,25 +64,32 @@ La clé privée de signature reste dans `%USERPROFILE%\SknEDUpdf-licences` (jama
 | **Diaporama interactif** | Stylo (P), couleurs (C), gomme (E), tableau blanc (T), minuteur (M), **mode présentateur** sur deux écrans ; les annotations peuvent être conservées dans le document |
 | **IA hors ligne** | Installation guidée d'une IA locale (Ollama) : l'assistant fonctionne sans Internet ni abonnement |
 | **Langue** | Interface en français ou en anglais (Aide › Langue) ; navigation au clavier et lecteurs d'écran (rôles ARIA, focus visible, animations réduites) |
+| **Affichage** | **Défilement continu** des pages de haut en bas (ou page par page) ; **zoom** de 25 % à 400 %, largeur de page ou page entière (Ctrl + molette, Ctrl +/−, liste dans la barre d'état) ; **barres latérales automatiques** : elles apparaissent au passage de la souris sur le bord et se masquent seules (📌 pour les fixer) |
+| **Modifications** | Panneau « Modifications de la page » : chaque ajout ou correction (texte, cadre, image, surlignage, masquage, tracé, commentaire, rognage, filigrane) se supprime d'un clic ; supprimer un texte corrigé rétablit le texte d'origine ; « Tout effacer » pour la page ou le document |
+| **Texte ajouté** | Reprend automatiquement la police, la taille et la couleur du texte d'origine le plus proche |
+| **Commentaires** | Les commentaires du PDF s'affichent et se lisent dans le logiciel ; « Commentés en lecture seule » enregistre une copie dont les commentaires sont verrouillés et le contenu protégé, lisible dans tous les lecteurs PDF (Acrobat Reader, Edge, Chrome…) et ouverte en lecture seule dans SknEDU-studio |
+| **Format d'origine** | Un fichier Word, Excel, PowerPoint, OpenDocument, texte ou image ouvert dans le logiciel se réenregistre dans son format d'origine (ou en PDF, au choix) |
+| **Cloud automatique** | Connexion à OneDrive, Google Drive ou Dropbox (application officielle, sans saisir son mot de passe dans le logiciel) puis **sauvegarde automatique** des documents modifiés toutes les 1 à 15 minutes |
+| **Diaporama** | S'adapte à la **largeur de l'écran** (la page défile, puis passe à la suivante) ; F : page entière ; + / − et Ctrl + molette : zoom |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
 ### Formats ouverts
 
 - **PDF** (y compris protégés, restreints ou endommagés) • **XPS / OXPS** (converti en images fidèles)
 - **Office** : `doc, docx, docm, dot(x), odt, ott, rtf, wpd, wps, ppt, pptx, pptm, pps(x), pot(x), odp, otp, xls, xlsx, xlsm, xlsb, ods, ots, odg, otg, vsd(x), pub` — via LibreOffice (mise en page identique) ;
-  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). SknEDUpdf-studio propose d'**installer LibreOffice automatiquement**. Les fichiers Office **protégés par mot de passe** s'ouvrent avec leur mot de passe.
+  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). SknEDU-studio propose d'**installer LibreOffice automatiquement**. Les fichiers Office **protégés par mot de passe** s'ouvrent avec leur mot de passe.
 - **Livres et BD** : `epub, mobi, fb2, cbz` • **Images** : `heic, heif` (photos d'iPhone), `png, jpg, jfif, bmp, gif, webp, avif, ico, tif/tiff (multipage), jxr, psd, pnm`
 - **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
 - Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
 ## Assistant IA : clé API ou abonnement ?
 
-- **Clé API** (Claude, ChatGPT, Gemini, Mistral) : l'IA travaille **dans SknEDUpdf-studio** (réponse en direct, insertion dans le document).
+- **Clé API** (Claude, ChatGPT, Gemini, Mistral) : l'IA travaille **dans SknEDU-studio** (réponse en direct, insertion dans le document).
   La clé se crée sur le site du fournisseur (facturation à l'usage) et se colle dans « Réglages IA ». Elle est chiffrée par Windows
   et n'est jamais affichée. Claude reçoit les pages en PDF : il lit aussi les images, schémas et pages scannées.
 - **Abonnement grand public** (ChatGPT Plus, Claude Pro, Gemini Advanced, Copilot Pro, Le Chat Pro) : ces offres **ne donnent pas
   accès à une API**. Le bouton « Mon abonnement » copie votre demande avec le texte du document et ouvre votre IA dans le
-  navigateur (où vous êtes connecté) : collez, envoyez, puis « Coller la réponse » pour la ramener dans SknEDUpdf-studio.
+  navigateur (où vous êtes connecté) : collez, envoyez, puis « Coller la réponse » pour la ramener dans SknEDU-studio.
 - **Ollama** : IA installée sur le PC, gratuite et hors-ligne ; aucun texte ne quitte l'ordinateur.
 - L'administrateur peut désactiver l'assistant IA (fonction « Assistant IA » de la console).
 ## Administration (gestion des accès)
@@ -97,7 +106,7 @@ Aide › **Administration** :
    (`eleve1`), par poste (`SALLE-B12\*`) ou pour un compte précis (`SALLE-B12\eleve1`), et de bloquer un utilisateur.
 4. **Notifications** : choisissez les événements (action bloquée, utilisateur bloqué, règles falsifiées, mot de passe
    administrateur erroné, poste inscrit / retiré, PDF protégé déverrouillé…). Elles s'affichent sur votre PC
-   (SknEDUpdf-studio reste près de l'horloge, et démarre avec Windows si vous le souhaitez) et, si vous le voulez, sur votre
+   (SknEDU-studio reste près de l'horloge, et démarre avec Windows si vous le souhaitez) et, si vous le voulez, sur votre
    téléphone avec l'application gratuite **ntfy**.
 
 Sécurité : les règles sont **signées numériquement** (Ed25519) ; un utilisateur ne peut ni les modifier ni retirer son poste
@@ -110,7 +119,7 @@ sans le mot de passe administrateur. La clé de l'administrateur est chiffrée p
 | Antivirus | Installateur analysé sans détection par Kaspersky (7 164 éléments) et Microsoft Defender. |
 | Contrôle intelligent des applications (Windows 11) | Installateur et application autorisés : l'exécutable Electron est laissé intact. |
 | SmartScreen | Avertissement « Windows a protégé votre ordinateur » au premier lancement d'un fichier téléchargé, tant que l'installateur n'est pas signé : « Informations complémentaires › Exécuter quand même ». |
-| Mises à jour | Testé de bout en bout : la 1.3.0 installée a trouvé, téléchargé (mise à jour différentielle) et installé la 1.4.0 à la fermeture. Journal : `%APPDATA%\SknEDUpdf-studio\logs\mises-a-jour.log`. Chaque version passe l'audit de sécurité et l'auto-test complet avant publication. |
+| Mises à jour | Testé de bout en bout : la 1.3.0 installée a trouvé, téléchargé (mise à jour différentielle) et installé la 1.4.0 à la fermeture. Journal : `%APPDATA%\SknEDU-studio\logs\mises-a-jour.log`. Chaque version passe l'audit de sécurité et l'auto-test complet avant publication. |
 | Écrans | Testé de 800×600 à 2560×1440 et avec mise à l'échelle Windows 125 % : fenêtre adaptée à l'écran au démarrage (agrandie sur les petits écrans, taille mémorisée), ruban sur une ligne défilant à la molette, panneau Propriétés repliable sur petit écran. |
 | Comptes Windows | Noms d'utilisateur accentués et avec espaces pris en charge. |
 | Code source | Aucun secret dans l'historique ; 0 vulnérabilité connue dans les dépendances (`npm audit`) ; CodeQL, Dependabot et détection de secrets à l'envoi. Voir [SECURITY.md](SECURITY.md). |
@@ -158,7 +167,9 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 - Sécurité : PDF.js n'exécute jamais de code venant d'un PDF, l'interface est isolée (sandbox) et ne peut écrire que dans les fichiers que vous avez choisis.
 - Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais les phrases mêlant droite-à-gauche et gauche-à-droite peuvent être mal ordonnées.
 - Le texte écrit en oblique ou à la verticale dans un PDF n'est pas modifiable directement (utilisez « Masquer » puis « Ajouter du texte »).
-- Cloud : SknEDUpdf-studio utilise l'application officielle du service (OneDrive, Google Drive pour ordinateur, Dropbox…) qui synchronise le dossier ; vos identifiants ne passent jamais par SknEDUpdf-studio.
-- Administration : un utilisateur qui est **administrateur Windows** de son PC pourrait supprimer les fichiers de SknEDUpdf-studio ; réservez les droits d'administration Windows aux adultes responsables.
+- Cloud : SknEDU-studio utilise l'application officielle du service (OneDrive, Google Drive pour ordinateur, Dropbox…) qui synchronise le dossier ; vos identifiants ne passent jamais par SknEDU-studio.
+- Administration : un utilisateur qui est **administrateur Windows** de son PC pourrait supprimer les fichiers de SknEDU-studio ; réservez les droits d'administration Windows aux adultes responsables.
 - Windows « Contrôle intelligent des applications » peut bloquer l'**installateur** tant qu'il n'est pas signé par un certificat d'éditeur (payant).
+- Raccourcis : l'installateur crée les raccourcis Bureau et menu Démarrer avec le logo SknEDU-studio ; l'exécutable lui-même n'est pas modifié (exigence du contrôle intelligent des applications de Windows 11), il garde donc l'icône Electron dans l'Explorateur.
+- Cloud : la connexion passe par l'application officielle du service ; SknEDU-studio n'accède jamais directement à votre compte en ligne.
 - Scanner : pilotes WIA (la quasi-totalité des scanners récents). Les scanners uniquement TWAIN ne sont pas pris en charge.

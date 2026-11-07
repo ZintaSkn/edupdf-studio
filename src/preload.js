@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('api', {
   cloudAdd: () => ipcRenderer.invoke('cloud-add'),
   cloudRemove: (cloudPath) => ipcRenderer.invoke('cloud-remove', { cloudPath }),
   cloudInstall: (id) => ipcRenderer.invoke('cloud-install', { id }),
+  cloudAutosave: (cloudPath, bytes, name) => ipcRenderer.invoke('cloud-autosave', { cloudPath, bytes, name }),
   // assistant IA
   aiStatus: () => ipcRenderer.invoke('ai-status'),
   aiSave: (a) => ipcRenderer.invoke('ai-save', a),

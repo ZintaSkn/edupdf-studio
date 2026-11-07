@@ -1,6 +1,6 @@
-// SknEDUpdf-studio — services cloud (OneDrive, Google Drive, Dropbox, iCloud, Box, dossiers personnalisés)
+// SknEDU-studio — services cloud (OneDrive, Google Drive, Dropbox, iCloud, Box, dossiers personnalisés)
 // Principe : on enregistre dans le dossier synchronisé de l'application officielle du service ;
-// elle envoie le fichier dans le cloud (et le rend disponible sur les autres appareils), sans mot de passe à confier à SknEDUpdf-studio.
+// elle envoie le fichier dans le cloud (et le rend disponible sur les autres appareils), sans mot de passe à confier à SknEDU-studio.
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -65,9 +65,11 @@ const INSTALL = {
   dropbox: { id: 'Dropbox.Dropbox', name: 'Dropbox', web: 'https://www.dropbox.com/fr/install' }
 };
 
-/** Dossier « SknEDUpdf-studio » dans le cloud choisi (créé si besoin). */
+/** Dossier « SknEDU-studio » dans le cloud choisi (créé si besoin). */
 function targetDir(cloudPath) {
-  const d = path.join(cloudPath, 'SknEDUpdf-studio');
+  // dossier créé par les versions précédentes (ancien nom) réutilisé s'il existe
+  const old = path.join(cloudPath, 'SknEDUpdf-studio');
+  const d = fs.existsSync(old) ? old : path.join(cloudPath, 'SknEDU-studio');
   try { fs.mkdirSync(d, { recursive: true }); return d; } catch { return cloudPath; }
 }
 

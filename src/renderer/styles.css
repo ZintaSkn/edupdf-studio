@@ -1,4 +1,4 @@
-/* ================= Palette SknEDUpdf-studio =================
+/* ================= Palette SknEDU-studio =================
    Bleu marine #001871 et or #F1B434 (couleurs complémentaires).
    Leur dégradé en OKLCH (teinte décroissante) passe par le turquoise et le vert :
    ce sont les « ondulations » qui donnent toutes les couleurs par défaut du logiciel. */
@@ -334,7 +334,7 @@ pre.notices { max-height: 55vh; overflow: auto; font-size: 11px; white-space: pr
 .cllist { max-height: 240px; overflow: auto; padding-left: 18px; } .cllist small { color: var(--muted); }
 #classTag { background: var(--brand-gold); color: var(--brand-blue); border: none; border-radius: 10px; padding: 1px 10px; font-weight: 600; cursor: pointer; }
 .eqprev { min-height: 60px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); border-radius: 8px; margin: 6px 0; padding: 8px; background: #fff; }
-#showInk { position: fixed; z-index: 405; pointer-events: none; }
+#showInk { position: absolute; z-index: 405; pointer-events: none; }
 #showInk.on { pointer-events: auto; cursor: crosshair; }
 #showTimer { position: absolute; top: 14px; right: 18px; z-index: 406; color: #fff; background: rgba(0,24,113,.78); padding: 6px 14px; border-radius: 16px; font: 600 20px Segoe UI, sans-serif; }
 #showTimer.end { background: #c63b3b; animation: blink 1s infinite; }
@@ -347,3 +347,51 @@ pre.notices { max-height: 55vh; overflow: auto; font-size: 11px; white-space: pr
 #presNotes { white-space: pre-wrap; background: rgba(255,255,255,.08); padding: 10px; border-radius: 8px; max-height: 40vh; overflow: auto; font: 14px Segoe UI, sans-serif; }
 :focus-visible { outline: 2px solid var(--brand-gold); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- 1.10 : barres automatiques, défilement continu, zoom, modifications, commentaires ---------- */
+#tabs .brand { display: inline-flex; align-items: center; }
+#tabs .brand .logo { width: 24px; height: 24px; border-radius: 6px; margin-right: 8px; }
+.welcomeLogo { width: 120px; height: 120px; border-radius: 26px; box-shadow: 0 8px 28px rgba(0,24,113,.28); display: block; margin: 0 auto 10px; }
+main { position: relative; }
+body.sb-auto #leftBar, body.sb-auto #side { position: absolute; top: 0; bottom: 0; z-index: 60; transition: transform .22s ease, box-shadow .22s ease; }
+body.sb-auto #leftBar { left: 0; transform: translateX(calc(-100% + 10px)); }
+body.sb-auto #side { right: 0; display: block !important; transform: translateX(calc(100% - 10px)); }
+body.sb-auto #leftBar:not(.peek) { border-right: 3px solid var(--brand-gold); }
+body.sb-auto #side:not(.peek) { border-left: 3px solid var(--brand-gold); }
+body.sb-auto #leftBar.peek, body.sb-auto #side.peek { transform: none; box-shadow: 0 0 26px rgba(0,0,0,.24); }
+body.sb-auto #viewWrap { margin: 0 10px; }
+body.sb-auto #sideToggle { display: none; }
+@media (prefers-reduced-motion: reduce) { body.sb-auto #leftBar, body.sb-auto #side { transition: none; } }
+#pageStack .pslot { position: relative; margin: 0 auto 16px; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.22); }
+#pageStack .pslot > canvas { display: block; width: 100%; height: 100%; }
+#pageStack .pslot > #pageBox { margin: 0; box-shadow: 0 0 0 2px var(--brand-gold), 0 2px 12px rgba(0,0,0,.25); }
+#viewCtl { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; flex: 0 0 auto; }
+footer { min-width: 0; overflow: hidden; }
+footer #msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+footer #viewCtl button { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); min-width: 26px; }
+footer #viewCtl button:hover { background: rgba(255,255,255,.26); }
+footer #viewCtl button.on { background: rgba(241,180,52,.32); border-color: var(--brand-gold); }
+@media (max-width: 1100px) { #viewCtl .lbl { display: none; } }
+@media (max-width: 860px) { #zoomSel { display: none; } }
+#viewCtl select { font-size: 12px; padding: 1px 4px; }
+#roTag { margin-left: 10px; color: #ffd166; font-weight: 600; }
+#cloudTag { margin-left: 10px; color: #8ff0b8; }
+#modList { display: flex; flex-direction: column; gap: 3px; max-height: 210px; overflow-y: auto; margin-bottom: 6px; }
+.modrow { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.modrow.sel { border-color: var(--brand-blue); background: #eef2fd; }
+.modrow .modsel { flex: 1; text-align: left; background: none; border: none; padding: 4px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.modrow span.modsel { cursor: default; }
+.modrow .moddel { background: none; border: none; color: #c0392b; cursor: pointer; padding: 3px 7px; font-size: 13px; }
+.modrow .moddel:hover { background: #fdecea; border-radius: 5px; }
+#annotLayer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.annMark { position: absolute; pointer-events: auto; transform: translate(-2px, -2px); width: 24px; height: 24px; padding: 0; border-radius: 6px; border: 1px solid #d4a500; background: #ffe066; cursor: pointer; font-size: 13px; line-height: 22px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+#show.fitw:not([hidden]) { display: block; overflow-y: auto; overflow-x: auto; text-align: center; }
+#show.fitw #showCanvas { display: block; margin-left: auto; margin-right: auto; }
+body.sb-auto main { overflow: hidden; }
+html, body { overflow-x: hidden; }
+#tabs .brand { white-space: nowrap; flex: 0 0 auto; }
+footer { align-items: center; flex-wrap: nowrap; }
+footer > * { white-space: nowrap; flex: 0 0 auto; }
+footer > #msg { flex: 1 1 auto; }
+@media (max-width: 1250px) { #editionTag, #ver { display: none; } }
+@media (max-width: 1000px) { #cloudTag { max-width: 90px; overflow: hidden; text-overflow: ellipsis; } }

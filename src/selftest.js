@@ -45,6 +45,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
     await new Promise((r) => setTimeout(r, 600)); try { fs.writeFileSync(path.join(outDir, 'accueil.png'), (await win.webContents.capturePage()).toPNG()); } catch { /* capture facultative */ }
     const results = {};
     const step = async (name, code, ms = 60000) => {
+      if (process.env.EDUPDF_ONLY && !process.env.EDUPDF_ONLY.split(',').includes(name)) return; // mise au point : quelques étapes seulement
       if (process.env.EDUPDF_SMOKE && ['unicode+fonts', 'xps+locked-docx'].includes(name)) { log('SKIP', name, '(propre à Windows)'); return; }
       try { results[name] = await timeout(js(code), ms, name); log('OK  ', name, JSON.stringify(results[name]).slice(0, 600)); }
       catch (e) { results[name] = { error: e.message }; log('FAIL', name, e.message); }
@@ -428,13 +429,79 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
         log('OK   classe-connectee', JSON.stringify({ qr: st.qr, page: page.code, pdf: doc.body.subarray(0, 5).toString(), rendu: post.code, merci: post.body.includes('Copie reçue'), recues: status.received.map((r) => r.eleve), jetonInvalide: bad.code }));
       } catch (e) { log('FAIL classe-connectee', e.stack); results.classe = { error: e.message }; }
+      // ---------- 1.10 : défilement continu, zoom, barres automatiques, texte adapté, modifications, commentaires verrouillés, format d'origine, cloud ----------
+      const settingsF = path.join(require('electron').app.getPath('userData'), 'settings.json');
+      const editSettings = (fn) => { let st = {}; try { st = JSON.parse(fs.readFileSync(settingsF, 'utf8')); } catch { /* absent */ } fn(st); fs.writeFileSync(settingsF, JSON.stringify(st)); };
+      const cloudDir = path.join(outDir, 'MonCloud'); fs.mkdirSync(cloudDir, { recursive: true });
+      editSettings((st) => { st.clouds = (st.clouds || []).filter((c) => c.path !== cloudDir).concat([{ path: cloudDir, name: 'MonCloud' }]); });
+      const roFile = path.join(outDir, 'lecture-seule.pdf');
+      await step('v110', `(async () => {
+        const T = window.__edupdf; const ST = window.__studio; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); } // document vierge, un seul onglet
+        await T.applyPolicy(); // politique d'administration rétablie (poste désinscrit plus haut)
+        const d = await PDFLib.PDFDocument.create(); const f = await d.embedFont(PDFLib.StandardFonts.HelveticaBold);
+        for (let i = 0; i < 3; i++) { const pg = d.addPage([595, 842]); pg.drawText('Chapitre ' + (i + 1) + ' : les volcans', { x: 60, y: 760, size: 20, font: f, color: PDFLib.rgb(0.1, 0.2, 0.6) }); }
+        await T.insertPdf(await d.save()); T.S.cur = 0; T.refresh(); await wait(1200);
+        const stack = q('#pageStack'); out.continu = !!stack && stack.children.length === 3 && !!stack.children[0].querySelector('#pageBox');
+        const wrap = q('#viewWrap'); wrap.scrollTop = stack.children[2].offsetTop + 30; await wait(900);
+        out.pageApresDefilement = T.S.cur + 1; out.pageVivanteSuit = !!stack.children[2].querySelector('#pageBox');
+        await wait(700); out.pagesVoisinesAffichees = !!stack.children[1].querySelector('canvas');
+        T.actions.zoomPage(); await wait(600); out.zoomPageEntiere = q('#zoomSel').value + ' / ' + q('#zoomLbl').textContent;
+        T.actions.zoomIn(); await wait(600); out.zoomAvant = q('#zoomLbl').textContent; T.actions.zoomFit(); await wait(600);
+        const lb = q('#leftBar'); out.barresAuto = document.body.classList.contains('sb-auto') && getComputedStyle(lb).position === 'absolute';
+        lb.dispatchEvent(new MouseEvent('mouseenter')); out.barreSurvol = lb.classList.contains('peek');
+        lb.dispatchEvent(new MouseEvent('mouseleave')); await wait(1000); out.barreMasquee = !lb.classList.contains('peek');
+        T.S.cur = 0; T.S.sel = new Set([0]); T.refresh(); await wait(900);
+        const [px, py] = T.S.vp.convertToViewportPoint(62, 735);
+        const sty = await nearbyTextStyle(T.S.pages[0], [px, py]);
+        out.texteAdapte = sty && (sty.font.family + (sty.font.bold ? ' gras ' : ' ') + sty.size + ' pt ' + sty.color);
+        T.setTool('edit'); await wait(700);
+        const sp = [...document.querySelectorAll('#textLayer .tl')].find((x) => x.textContent.startsWith('Chapitre 1'));
+        if (!sp) return out;
+        sp.click(); sp.innerText = 'Chapitre 1 : les séismes'; if (sp.onblur) sp.onblur(); await wait(500);
+        const p0 = T.S.pages[0]; out.modifie = p0.items.length + ' éléments, ' + p0.edited.length + ' remplacé(s)';
+        if (!q('#modList .moddel')) return out;
+        q('#modList .moddel').click(); await wait(300);
+        out.apresSuppression = p0.items.length + ' éléments, ' + p0.edited.length + ' remplacé(s)';
+        T.setTool('select');
+        p0.items.push({ type: 'rect', kind: 'box', rect: [50, 50, 200, 120], color: '#ff0000', width: 2 }, { type: 'ink', points: [[60, 60], [90, 90]], color: '#000000', width: 2 });
+        T.refresh(); await wait(500); window.confirm = () => true; q('#modClearPage').click(); await wait(300); out.pageEffacee = p0.items.length === 0;
+        p0.items.push({ type: 'note', at: [300, 700], text: 'Très bon travail, revoir la conclusion.', color: '#ffd400', author: 'M. Koné' });
+        const ro = await ST.readOnlyBytes();
+        const rd = await pdfjsLib.getDocument({ data: ro.slice() }).promise; const pr = await rd.getPermissions(); const perms = pr ? [...pr] : null;
+        const an = (await (await rd.getPage(1)).getAnnotations()).filter((a) => a.subtype === 'Text');
+        out.verrou = 'modif. interdite ' + (!!perms && !perms.includes(8) && !perms.includes(32)) + ', commentaire ' + !!(an.length && an[0].contentsObj.str) + ', drapeaux ' + (an.length && an[0].annotationFlags) + ', marqueur ' + await window.isReadOnlyPdf(ro);
+        await window.api.save({ bytes: ro, defaultName: 'lecture-seule.pdf', filters: [], filePath: ${JSON.stringify(roFile)} });
+        T.S.origin = { ext: 'docx', name: 'cours.docx', path: ${JSON.stringify(path.join(outDir, 'cours.docx'))} };
+        const pe = ST.exportOrigin(); await wait(1500);
+        if (!q('#modal').hidden) { const b = [...document.querySelectorAll('#mBtns button')].find((x) => /Texte simple/.test(x.textContent)) || q('#mBtns button.primary'); b.click(); }
+        await pe; out.formatOrigine = q('#msg').textContent.slice(0, 70);
+        ST.setCloudAuto(${JSON.stringify(cloudDir)}, 'MonCloud'); T.S.fileName = 'Volcans.pdf'; await ST.cloudAutoTick(true);
+        out.cloud = q('#cloudTag').textContent + ' | ' + q('#cloudTag').title.split('\\n')[0];
+        return out;
+      })()`, 180000);
+      try {
+        const auto = path.join(cloudDir, 'SknEDU-studio', 'Sauvegardes automatiques', 'Volcans.pdf');
+        log((fs.existsSync(auto) ? 'OK   ' : 'FAIL ') + 'cloud-auto', auto, fs.existsSync(auto) ? fs.statSync(auto).size + ' octets' : '');
+        const docx = path.join(outDir, 'cours.docx'); log((fs.existsSync(docx) ? 'OK   ' : 'FAIL ') + 'origine-docx', fs.existsSync(docx) ? fs.readFileSync(docx).subarray(0, 2).toString() : 'absent');
+        editSettings((st) => { st.recent = [{ path: roFile, name: 'lecture-seule.pdf', date: Date.now() }].concat(st.recent || []); });
+      } catch (e) { log('FAIL v110-fichiers', e.message); }
+      await step('lecture-seule', `(async () => {
+        const T = window.__edupdf; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        T.S.dirty = false; T.actions.close();
+        const files = (await window.api.recentOpen(${JSON.stringify(roFile)})).filter((f) => !f.error); if (!files.length) return { erreur: 'fichier lecture seule absent' }; await T.handleLoaded(files, 0); await wait(1200);
+        T.setTool('text');
+        return { lectureSeule: T.S.readOnly, modifierBloque: !T.can('edit'), outilTexteRefuse: T.S.tool !== 'text', bandeau: !q('#roTag').hidden, commentaireVisible: document.querySelectorAll('#annotLayer .annMark').length, info: (q('#annotLayer .annMark') || {}).title, message: q('#msg').textContent.slice(0, 60) };
+      })()`);
+      await step('fin-lecture-seule', `(async () => { const T = window.__edupdf; T.S.dirty = false; T.actions.close(); return { lectureSeule: T.S.readOnly }; })()`);
+
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;
-        const priv = path.join(require('os').homedir(), 'SknEDUpdf-licences', 'cle-privee-licences.pem');
+        const priv = path.join(require('os').homedir(), 'SknEDU-licences', 'cle-privee-licences.pem');
         if (fs.existsSync(priv)) {
           const crypto = require('crypto');
-          const data = Buffer.from(JSON.stringify({ v: 1, product: 'SknEDUpdf-studio', edition: 'etablissement', org: 'Lycée de démonstration', seats: 25, ref: 'TEST', issued: '2026-11-07', expires: '2099-12-31' })).toString('base64url');
+          const data = Buffer.from(JSON.stringify({ v: 1, product: 'SknEDU-studio', edition: 'etablissement', org: 'Lycée de démonstration', seats: 25, ref: 'TEST', issued: '2026-11-07', expires: '2099-12-31' })).toString('base64url');
           realKey = `SKN1.${data}.${crypto.sign(null, Buffer.from(data), crypto.createPrivateKey(fs.readFileSync(priv))).toString('base64url')}`;
         }
         await step('licence', `(async () => {
@@ -483,6 +550,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
             const vw = q('#viewWrap').getBoundingClientRect(); out.docArea = Math.round(vw.width) + 'x' + Math.round(vw.height);
             out.side = q('#side').offsetWidth; out.thumbs = q('#thumbs').offsetWidth;
             out.footerVisible = q('footer').getBoundingClientRect().bottom <= innerHeight + 1;
+            out.diaporamaMasque = getComputedStyle(q('#show')).display === 'none';
             return out;
           })()`);
           log('OK   layout', label, JSON.stringify(m));

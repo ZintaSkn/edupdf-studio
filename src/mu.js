@@ -1,4 +1,4 @@
-// SknEDUpdf-studio — MuPDF (WebAssembly) : PDF protégés, réparation, chiffrement, formats XPS / EPUB / CBZ / FB2 / MOBI / TIFF / SVG
+// SknEDU-studio — MuPDF (WebAssembly) : PDF protégés, réparation, chiffrement, formats XPS / EPUB / CBZ / FB2 / MOBI / TIFF / SVG
 const path = require('path');
 const { pathToFileURL } = require('url');
 

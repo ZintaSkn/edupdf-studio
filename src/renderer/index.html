@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:;" />
-  <title>SknEDUpdf-studio</title>
+  <title>SknEDU-studio</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <nav id="tabs">
-      <span class="brand">SknEDUpdf<b>-studio</b></span>
+      <span class="brand"><img src="icon.png" alt="" class="logo">SknEDU<b>-studio</b></span>
       <div id="qat" title="Barre d'accès rapide (clic droit sur un bouton du ruban pour l'y ajouter)"></div>
       <button data-tab="accueil" class="on">🏠 Accueil</button>
       <button data-tab="fichier">Fichier</button>
@@ -52,6 +52,8 @@
         <button data-act="saveAs"><i>📝</i>Enregistrer sous</button>
         <button data-act="cloudSave"><i>☁️</i>Enregistrer<br>dans le cloud</button>
         <button data-act="cloudOpen"><i>🌐</i>Ouvrir depuis<br>le cloud</button>
+        <button data-act="cloudAuto" title="Sauvegarde automatique&#10;Connectez votre compte OneDrive, Google Drive ou Dropbox : vos documents y sont enregistrés automatiquement pendant le travail."><i>🔄</i>Sauvegarde<br>auto. cloud</button>
+        <button data-act="exportOrigin" title="Format d'origine&#10;Réenregistre le document dans le format du fichier ouvert (Word, Excel, PowerPoint, OpenDocument, texte, image)."><i>↩️</i>Format<br>d'origine</button>
         <button data-act="print"><i>🖨</i>Imprimer</button>
         <button data-act="compress"><i>🗜</i>Réduire la taille</button>
         <button data-act="close"><i>✖</i>Fermer</button>
@@ -76,6 +78,7 @@
         <button data-tool="ftext" class="tool"><i>▤</i>Champ texte</button>
         <button data-tool="fcheck" class="tool"><i>☑</i>Case à cocher</button>
         <button data-tool="note" class="tool"><i>💬</i>Commentaire</button>
+        <button data-act="commentLocked" title="Lecture seule&#10;Enregistre une copie avec ses commentaires verrouillés : lisible dans SknEDU-studio et dans tous les lecteurs PDF, sans modification possible."><i>🔒</i>Commentés en<br>lecture seule</button>
         <button data-act="find"><i>🔎</i>Rechercher /<br>remplacer</button>
         <button data-act="equation"><i>∑</i>Équation</button>
         <span class="sep"></span>
@@ -194,7 +197,7 @@
         <button id="findClose" class="small" title="Fermer (Échap)">✕</button>
       </div>
       <div id="welcome">
-        <h1>SknEDUpdf-studio</h1>
+        <img src="icon.png" alt="Logo SknEDU-studio" class="welcomeLogo"><h1>SknEDU-studio</h1>
         <p>Créez, modifiez, organisez et numérisez vos documents de cours — sans connexion.</p>
         <div class="cards">
           <button data-act="open"><i>📂</i>Ouvrir un fichier<small>PDF, Word, PowerPoint, Excel, images…</small></button>
@@ -220,6 +223,9 @@
       <label class="row">Taille du texte <input type="number" id="size" value="14" min="4" max="144"></label>
       <label class="row">Épaisseur stylo <input type="number" id="width" value="2" min="1" max="20"></label>
       <p class="muted" id="selInfo">Aucun élément sélectionné</p>
+      <h3>Modifications de la page</h3>
+      <div id="modList"></div>
+      <div class="row"><button id="modClearPage" class="small" title="Rétablir la page d'origine">🧹 Tout effacer (page)</button><button id="modClearDoc" class="small" title="Rétablir tout le document d'origine">🧹 Tout le document</button></div>
       <h3>Texte reconnu (OCR)</h3>
       <textarea id="ocrText" readonly placeholder="Lancez l'OCR (onglet OCR) pour extraire le texte d'une page scannée."></textarea>
       <button id="copyOcr" class="small">Copier le texte</button>
@@ -241,6 +247,9 @@
   <footer>
     <span id="msg">Prêt.</span>
     <button id="sideToggle" title="Afficher / masquer les propriétés">⚙ Propriétés</button>
+    <span id="viewCtl"><button data-act="zoomOut" class="small" title="Zoom arrière (Ctrl + molette, Ctrl+-)" aria-label="Zoom arrière">−</button><select id="zoomSel" title="Zoom" aria-label="Zoom"><option value="fit">Largeur de page</option><option value="page">Page entière</option><option value="0.5">50 %</option><option value="0.75">75 %</option><option value="1">100 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="2">200 %</option><option value="3">300 %</option><option value="4">400 %</option></select><button data-act="zoomIn" class="small" title="Zoom avant (Ctrl + molette, Ctrl++)" aria-label="Zoom avant">+</button><button data-act="viewMode" id="viewModeBtn" class="small" title="Défilement continu (pages l'une sous l'autre) ou page par page">📜 Continu</button><button id="sbMode" class="small">📌 Barres auto</button></span>
+    <span id="roTag" hidden title="Commentaires et contenu verrouillés : lecture, impression et export possibles">🔒 Lecture seule</span>
+    <span id="cloudTag" hidden></span>
     <span id="managedTag" hidden title="Les fonctions disponibles sont définies par l'administrateur">🛡️ Poste géré</span>
     <span id="update"></span>
     <span id="editionTag" title="Aide › Licence et édition"></span>
@@ -254,7 +263,7 @@
     <div id="aiOut" tabindex="0"></div>
     <div class="row wrap"><button id="aiCopy" class="small">Copier</button><button id="aiInsert" class="small">Insérer dans le document</button><button id="aiWordBtn" class="small">Exporter en Word</button><button id="aiPaste" class="small" title="Coller une réponse obtenue avec votre abonnement">Coller la réponse</button></div>
   </aside>
-  <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé SknEDUpdf-studio pour <b id="blockedWho"></b>.</p>
+  <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé SknEDU-studio pour <b id="blockedWho"></b>.</p>
     <p>Contactez votre administrateur si vous pensez qu'il s'agit d'une erreur.</p><button data-act="admin">Administration…</button></div></div>
   <div id="show" hidden><canvas id="showCanvas"></canvas><div id="showInfo"></div><div id="laser" hidden></div></div>
   <div id="ctxMenu" hidden></div>

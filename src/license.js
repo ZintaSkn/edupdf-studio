@@ -1,4 +1,4 @@
-// SknEDUpdf-studio — éditions commerciales (open core).
+// SknEDU-studio — éditions commerciales (open core).
 // Le logiciel reste entièrement utilisable en édition Communauté (AGPL-3.0). Une licence signée par l'éditeur
 // identifie l'édition Enseignant ou Établissement : nom de l'établissement dans l'application et les modèles,
 // support prioritaire, déploiement. Elle se vérifie hors ligne (signature Ed25519).
@@ -21,7 +21,7 @@ function verify(text) {
   try { ok = crypto.verify(null, Buffer.from(m[1]), PUBLIC_KEY, Buffer.from(m[2], 'base64url')); } catch { ok = false; }
   if (!ok) return { ok: false, error: 'Clé de licence invalide (signature incorrecte).' };
   let lic; try { lic = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8')); } catch { return { ok: false, error: 'Clé de licence endommagée.' }; }
-  if (lic.product !== 'SknEDUpdf-studio' || !EDITIONS[lic.edition]) return { ok: false, error: 'Cette clé ne concerne pas SknEDUpdf-studio.' };
+  if (!['SknEDU-studio', 'SknEDUpdf-studio'].includes(lic.product) || !EDITIONS[lic.edition]) return { ok: false, error: 'Cette clé ne concerne pas SknEDU-studio.' };
   return { ok: true, key: m[0], lic };
 }
 const read = (f) => { try { return fs.readFileSync(f, 'utf8'); } catch { return null; } };
@@ -55,7 +55,7 @@ function init(deps) {
   A.ipcMain.handle('license-activate', (_e, { text, scope }) => activate(text, scope));
   A.ipcMain.handle('license-remove', () => remove());
   A.ipcMain.handle('license-pick', async () => {
-    const r = await A.dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Licence SknEDUpdf-studio', extensions: ['sknlic', 'txt'] }] });
+    const r = await A.dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Licence SknEDU-studio', extensions: ['sknlic', 'txt'] }] });
     return r.canceled ? null : read(r.filePaths[0]);
   });
   A.ipcMain.handle('notices', () => read(path.join(__dirname, '..', 'THIRD_PARTY_NOTICES.md')) || 'Liste indisponible.');

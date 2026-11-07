@@ -1,4 +1,4 @@
-/* SknEDUpdf-studio — interface et moteur d'édition */
+/* SknEDU-studio — interface et moteur d'édition */
 'use strict';
 const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
 
@@ -30,7 +30,7 @@ function msg(t) { $('#msg').textContent = t; }
 function busy(t) { $('#busyMsg').textContent = t; $('#busy').hidden = false; }
 function done(t) { $('#busy').hidden = true; if (t) msg(t); }
 function setDirty(v) { S.dirty = v; window.api.setDirty(v || DOCS.some((d, i) => i !== curDoc && d.dirty)); updateTitle(); }
-function updateTitle() { if (typeof renderDocTabs === 'function' && DOCS.length) renderDocTabs(); document.title = `${S.dirty ? '● ' : ''}${S.protect ? '🔒 ' : ''}${S.fileName} — SknEDUpdf-studio`; }
+function updateTitle() { if (typeof renderDocTabs === 'function' && DOCS.length) renderDocTabs(); document.title = `${S.dirty ? '● ' : ''}${S.protect ? '🔒 ' : ''}${S.fileName} — SknEDU-studio`; }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function rgbHex(r, g, b) { return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join(''); }
 
@@ -177,7 +177,7 @@ async function handleLoaded(files, at) {
     try {
       if (f.error) {
         if (f.error === 'LIBREOFFICE_MISSING') { await officeMissing(f.name); continue; }
-        if (f.error === 'OFFICE_LOCKED') { alert(`« ${f.name} » est protégé par un mot de passe Office.\n\nOuvrez-le une fois dans Word / PowerPoint / Excel (ou LibreOffice) avec son mot de passe, puis « Enregistrer sous » sans mot de passe ou « Imprimer › Microsoft Print to PDF » : SknEDUpdf-studio pourra alors l'ouvrir et le modifier.`); continue; }
+        if (f.error === 'OFFICE_LOCKED') { alert(`« ${f.name} » est protégé par un mot de passe Office.\n\nOuvrez-le une fois dans Word / PowerPoint / Excel (ou LibreOffice) avec son mot de passe, puis « Enregistrer sous » sans mot de passe ou « Imprimer › Microsoft Print to PDF » : SknEDU-studio pourra alors l'ouvrir et le modifier.`); continue; }
         alert(`Impossible d'ouvrir ${f.name} :\n${f.error}`); continue;
       }
       if (f.kind === 'image') { images.push(f.bytes); continue; }
@@ -200,7 +200,7 @@ async function handleLoaded(files, at) {
       if (f.note === 'approx') notes.push(`${f.name} : converti sans LibreOffice (mise en page approximative — installez LibreOffice pour un rendu identique)`);
       const list = await insertPdf(bytes, at + added); added += list.length;
       if (isScan) scanned = (scanned || []).concat(list);
-      if (wasEmpty && files.length === 1) { S.filePath = f.kind === 'pdf' && !f.locked && !f.note ? f.path : null; S.fileName = f.name.replace(/\.[^.]+$/, '') + '.pdf'; }
+      if (wasEmpty && files.length === 1) { S.filePath = f.kind === 'pdf' && !f.locked && !f.note ? f.path : null; S.fileName = f.name.replace(/\.[^.]+$/, '') + '.pdf'; S.origin = f.orig && f.orig.ext !== 'pdf' ? f.orig : null; S.readOnly = window.isReadOnlyPdf ? await window.isReadOnlyPdf(bytes) : false; }
     } catch (e) { alert(`Erreur avec ${f.name} : ${errMsg(e)}`); }
   }
   if (images.length) { const list = await insertPdf(await imagesToPdf(images), at + added); added += list.length; }
@@ -233,7 +233,7 @@ async function askPassword(name, wrong) {
   return modal('Document protégé', `<p>« ${esc(name)} » est protégé par un mot de passe d'ouverture.</p>
     ${wrong ? '<p class="err">Mot de passe incorrect, réessayez.</p>' : ''}
     <input type="password" id="pw" placeholder="Mot de passe" autocomplete="off">
-    <p class="muted">Sans le mot de passe, le contenu chiffré ne peut pas être lu (ni par SknEDUpdf-studio, ni par un autre logiciel).</p>`,
+    <p class="muted">Sans le mot de passe, le contenu chiffré ne peut pas être lu (ni par SknEDU-studio, ni par un autre logiciel).</p>`,
   [['Annuler', null], ['Ouvrir', () => $('#pw').value, true]]);
 }
 /** Déverrouille un PDF : déchiffrement complet (structure intacte), sinon copie numérisée fidèle. */
@@ -264,12 +264,12 @@ function snapshotIfDoc() { if (S.pages.length) snapshot(); }
 async function officeMissing(name) {
   const wasBusy = !$('#busy').hidden; $('#busy').hidden = true;
   const c = await modal('Conversion Office', `<p>« ${esc(name)} » est un fichier Office (Word, PowerPoint, Excel…).</p>
-    <p>Pour le convertir avec sa mise en page exacte, SknEDUpdf-studio utilise <b>LibreOffice</b> (gratuit, hors-ligne), qui n'est pas encore installé sur ce PC.</p>
+    <p>Pour le convertir avec sa mise en page exacte, SknEDU-studio utilise <b>LibreOffice</b> (gratuit, hors-ligne), qui n'est pas encore installé sur ce PC.</p>
     <p class="muted">L'installation automatique télécharge LibreOffice (≈ 350 Mo) depuis le catalogue officiel Microsoft winget.</p>`,
   [['Annuler', null], ['Page de téléchargement', 'web'], ['Installer automatiquement', 'auto', true]]);
   if (c === 'web') window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
   if (c === 'auto') {
-    busy('Installation de LibreOffice… (plusieurs minutes, ne fermez pas SknEDUpdf-studio)');
+    busy('Installation de LibreOffice… (plusieurs minutes, ne fermez pas SknEDU-studio)');
     const r = await window.api.installOffice(); done();
     if (r.ok) alert('LibreOffice est installé. Rouvrez votre fichier Office : il sera converti avec sa mise en page d\'origine.');
     else if (confirm(`L'installation automatique n'a pas abouti.\n${r.log}\n\nOuvrir la page de téléchargement ?`)) window.api.openExternal('https://fr.libreoffice.org/download/telecharger-libreoffice/');
@@ -289,7 +289,7 @@ async function openFiles(insert) {
 }
 function confirmDiscard() { return !S.dirty || confirm('Des modifications ne sont pas enregistrées. Continuer quand même ?'); }
 function resetDoc() {
-  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; FIND.hits = [];
+  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; S.origin = null; S.readOnly = false; FIND.hits = [];
   hist.undo = []; hist.redo = []; thumbCache.clear(); textCache.clear(); setDirty(false);
 }
 
@@ -459,7 +459,7 @@ async function buildPdf(list = S.pages) {
         const [x, y] = o.at; const c = hexRgb(o.color || '#ffd400');
         const annot = out.context.obj({
           Type: 'Annot', Subtype: 'Text', Rect: [x, y - 20, x + 20, y], Name: 'Comment', F: 4, Open: false,
-          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || 'SknEDUpdf-studio'),
+          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || 'SknEDU-studio'),
           M: PDFLib.PDFString.fromDate(new Date())
         });
         cp.node.addAnnot(out.context.register(annot));
@@ -498,6 +498,7 @@ async function buildPdf(list = S.pages) {
 async function save(asNew) {
   if (!S.pages.length) return;
   if (!can('save')) return denied('save');
+  if (!asNew && S.origin && window.saveOriginDialog && await window.saveOriginDialog()) return;
   busy('Enregistrement…');
   try {
     let bytes = await buildPdf();
@@ -513,13 +514,13 @@ async function renderPage() {
   const token = ++S.renderToken;
   $('#welcome').hidden = !!p; $('#pageBox').hidden = !p;
   $('#pageLbl').textContent = p ? `${S.cur + 1} / ${S.pages.length}` : '–';
-  if (!p) { ['#formLayer', '#overlayLayer', '#textLayer'].forEach((s) => { $(s).innerHTML = ''; }); return; }
+  if (!p) { ['#formLayer', '#overlayLayer', '#textLayer'].forEach((s) => { $(s).innerHTML = ''; }); layoutStack(); return; }
   $('#formLayer').innerHTML = '';
   const pg = await getPdfPage(p);
   const R = (pg.rotate + p.rot + 360) % 360;
   const base = pg.getViewport({ scale: 1, rotation: R });
-  S.scale = S.zoom === 'fit' ? Math.min(Math.max(($('#viewWrap').clientWidth - 60) / base.width, 0.3), 2.5) : S.zoom;
-  $('#zoomLbl').textContent = S.zoom === 'fit' ? `Ajusté (${Math.round(S.scale * 100)} %)` : `${Math.round(S.scale * 100)} %`;
+  S.scale = pageScale(base);
+  $('#zoomLbl').textContent = (S.zoom === 'fit' ? 'Largeur ' : S.zoom === 'page' ? 'Page ' : '') + `${Math.round(S.scale * 100)} %`;
   const vp = pg.getViewport({ scale: S.scale, rotation: R });
   const dpr = window.devicePixelRatio || 1;
   const c = document.createElement('canvas');
@@ -530,11 +531,105 @@ async function renderPage() {
   c.id = 'canvas'; $('#canvas').replaceWith(c);
   S.vp = vp;
   const box = $('#pageBox'); box.style.width = vp.width + 'px'; box.style.height = vp.height + 'px';
+  await layoutStack();
   drawItems();
   await drawFormLayer(pg, p);
   await drawTextLayer();
   drawFindLayer();
+  if (window.afterRender) window.afterRender(pg, p);
   $('#ocrText').value = p.ocr ? p.ocr.text : '';
+}
+
+// ---------------- Défilement continu : toutes les pages l'une sous l'autre ----------------
+// La page courante est la page « vivante » (#pageBox, modifiable) ; les autres sont des images rendues
+// seulement quand elles approchent de l'écran. En défilant, la page au centre devient la page courante.
+const VIEW = { mode: null, sig: '', holder: -1, lock: false, io: null, fromScroll: false, raf: 0 };
+function continuous() {
+  if (VIEW.mode === null) { try { VIEW.mode = localStorage.getItem('edupdf.view') || 'continu'; } catch { VIEW.mode = 'continu'; } }
+  return VIEW.mode === 'continu';
+}
+function pageScale(b) {
+  const w = $('#viewWrap');
+  if (S.zoom === 'fit') return Math.min(Math.max((w.clientWidth - 60) / b.width, 0.3), 2.5);
+  if (S.zoom === 'page') return Math.min(Math.max(Math.min((w.clientWidth - 60) / b.width, (w.clientHeight - 48) / b.height), 0.2), 2.5);
+  return S.zoom;
+}
+async function slotDims(p) {
+  const pg = await getPdfPage(p); const R = (pg.rotate + p.rot + 360) % 360; const b = pg.getViewport({ scale: 1, rotation: R }); const k = pageScale(b);
+  return { w: b.width * k, h: b.height * k };
+}
+async function layoutStack() {
+  const wrap = $('#viewWrap'); const box = $('#pageBox'); let st = $('#pageStack');
+  if (!continuous() || !S.pages.length) {
+    if (st) { wrap.appendChild(box); st.parentNode.removeChild(st); if (VIEW.io) VIEW.io.disconnect(); }
+    VIEW.sig = ''; VIEW.holder = -1; return;
+  }
+  const dims = []; for (const p of S.pages) dims.push(await slotDims(p));
+  const sig = S.pages.map((p, i) => `${p.uid}:${Math.round(dims[i].w)}x${Math.round(dims[i].h)}`).join(',');
+  if (!st) { st = document.createElement('div'); st.id = 'pageStack'; wrap.appendChild(st); }
+  let rebuilt = false;
+  if (sig !== VIEW.sig) {
+    wrap.appendChild(box); st.innerHTML = ''; if (VIEW.io) VIEW.io.disconnect();
+    VIEW.io = new IntersectionObserver((en) => en.forEach((e) => {
+      if (e.isIntersecting) paintSlot(e.target);
+      else if (+e.target.dataset.i !== VIEW.holder) { e.target.innerHTML = ''; e.target._painted = false; } // mémoire libérée loin de l'écran
+    }), { root: wrap, rootMargin: '900px 0px' });
+    S.pages.forEach((p, i) => {
+      const d = document.createElement('div'); d.className = 'pslot'; d.dataset.i = i; d._p = p;
+      Object.assign(d.style, { width: dims[i].w + 'px', height: dims[i].h + 'px' }); st.appendChild(d); VIEW.io.observe(d);
+    });
+    VIEW.sig = sig; VIEW.holder = -1; rebuilt = true;
+  }
+  const slots = st.children; const slot = slots[S.cur]; if (!slot) return;
+  if (VIEW.holder !== S.cur) {
+    const old = slots[VIEW.holder]; VIEW.holder = S.cur;
+    if (old) { old._painted = false; paintSlot(old); } // l'ancienne page reprend son image, avec les modifications
+    slot.innerHTML = ''; slot.appendChild(box);
+  }
+  const mid = wrap.scrollTop + wrap.clientHeight / 2;
+  if (rebuilt || (!VIEW.fromScroll && (slot.offsetTop > mid || slot.offsetTop + slot.offsetHeight < mid))) {
+    VIEW.lock = true; wrap.scrollTop = slot.offsetTop - 12; requestAnimationFrame(() => requestAnimationFrame(() => { VIEW.lock = false; }));
+  }
+  VIEW.fromScroll = false;
+}
+async function paintSlot(d) {
+  const i = +d.dataset.i; const p = S.pages[i];
+  if (i === VIEW.holder || d._painted || !p || d._p !== p) return;
+  d._painted = true;
+  try {
+    const pg = await getPdfPage(p); const R = (pg.rotate + p.rot + 360) % 360; const b = pg.getViewport({ scale: 1, rotation: R });
+    const dpr = window.devicePixelRatio || 1; const vp = pg.getViewport({ scale: pageScale(b) * dpr, rotation: R });
+    const c = document.createElement('canvas'); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await pg.render({ canvasContext: ctx, viewport: vp, annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS }).promise;
+    await paintItems(ctx, vp, p);
+    if (+d.dataset.i === VIEW.holder || !d.isConnected || !d._painted) return;
+    d.innerHTML = ''; d.appendChild(c);
+  } catch { d._painted = false; }
+}
+function markThumbs() {
+  $$('#thumbs .thumb').forEach((t) => { const i = +t.dataset.i; t.classList.toggle('cur', i === S.cur); t.classList.toggle('sel', S.sel.has(i)); });
+  const c = $('#thumbs').children[S.cur]; if (c && !$('#thumbs').hidden) c.scrollIntoView({ block: 'nearest' });
+  $('#pageLbl').textContent = `${S.cur + 1} / ${S.pages.length}`;
+}
+$('#viewWrap').addEventListener('scroll', () => {
+  if (!continuous() || VIEW.lock || VIEW.raf) return;
+  VIEW.raf = requestAnimationFrame(() => {
+    VIEW.raf = 0; const st = $('#pageStack'); if (!st || VIEW.lock) return;
+    const ae = document.activeElement; if ((ae && ae.isContentEditable) || drag) return; // ne pas changer de page pendant une saisie
+    const wrap = $('#viewWrap'); const mid = wrap.scrollTop + wrap.clientHeight / 2; let idx = -1;
+    for (const d of st.children) { if (d.offsetTop + d.offsetHeight + 16 >= mid) { idx = +d.dataset.i; break; } }
+    if (idx >= 0 && idx !== S.cur && S.pages[idx]) { S.cur = idx; S.sel = new Set([idx]); S.selItem = -1; VIEW.fromScroll = true; renderPage(); markThumbs(); }
+  });
+}, { passive: true });
+function setViewMode(m) { VIEW.mode = m; try { localStorage.setItem('edupdf.view', m); } catch { /* */ } VIEW.sig = ''; renderPage(); msg(m === 'continu' ? 'Défilement continu : faites défiler les pages de haut en bas.' : 'Affichage page par page.'); }
+
+/** Supprime un élément ; pour un texte modifié, retire aussi son cache et rétablit le texte d'origine. */
+function removeItem(p, i) {
+  const o = p.items[i]; if (!o) return;
+  if (!o.grp) { p.items.splice(i, 1); return; }
+  const keys = p.items.filter((x) => x.grp === o.grp).flatMap((x) => x.keys || []);
+  p.items = p.items.filter((x) => x.grp !== o.grp); p.edited = p.edited.filter((k) => !keys.includes(k));
 }
 
 let thumbTimer = null;
@@ -594,6 +689,7 @@ function drawItems() {
     $('#fontFam').value = FONT_FAMILIES[f.family] ? f.family : 'Arial'; $('#fontB').checked = !!f.bold; $('#fontI').checked = !!f.italic;
     $('#size').value = o.size; $('#color').value = o.color && o.color.length === 7 ? o.color : '#000000';
   }
+  if (window.afterItems) window.afterItems();
 }
 
 // ---------------- Formulaires existants (champs à remplir) ----------------
@@ -768,13 +864,13 @@ function startParaEdit(el, para, r) {
     el.onblur = null; el.onkeydown = null;
     const txt = el.innerText.replace(/\n+$/, '');
     if (!commit || txt === para.text) { el.contentEditable = 'false'; el.classList.remove('editing'); el.textContent = para.text; return; }
-    snapshot(); const p = curPage(); const pad = 1.2;
-    for (const l of para.lines) p.items.push({ type: 'rect', kind: 'whiteout', edit: true, color: colors.bg, rect: [l.x1 - pad, l.y1 - pad, l.x2 + pad, l.y2 + pad] });
+    snapshot(); const p = curPage(); const pad = 1.2; const grp = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    para.lines.forEach((l, i) => p.items.push({ type: 'rect', kind: 'whiteout', edit: true, grp, keys: i ? undefined : para.keys, color: colors.bg, rect: [l.x1 - pad, l.y1 - pad, l.x2 + pad, l.y2 + pad] }));
     const lines = txt.trim() ? await wrapText(txt, para.font, para.size, para.width + 0.5) : [];
     lines.forEach((ln, i) => {
       if (!ln) return;
       const baseY = para.base - i * para.lh; // ligne de base dans les coordonnées PDF (texte horizontal)
-      p.items.push({ type: 'text', at: [para.x, baseY + 0.85 * para.size], size: Math.round(para.size * 10) / 10, color: colors.fg, font: para.font, text: ln });
+      p.items.push({ type: 'text', grp, at: [para.x, baseY + 0.85 * para.size], size: Math.round(para.size * 10) / 10, color: colors.fg, font: para.font, text: ln });
     });
     p.edited.push(...para.keys);
     const extra = lines.length - para.lines.length;
@@ -797,11 +893,12 @@ function startTextEdit(sp, t, r, fsPdf) {
       snapshot();
       const p = curPage();
       const pad = 1.5;
-      p.items.push({ type: 'rect', kind: 'whiteout', edit: true, color: colors.bg, rect: viewToPdfRect(S.vp, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
+      const grp = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      p.items.push({ type: 'rect', kind: 'whiteout', edit: true, grp, keys: [t.key], color: colors.bg, rect: viewToPdfRect(S.vp, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
       let at;
       if (t.base) { const [bx, by] = S.vp.convertToViewportPoint(...t.base); at = S.vp.convertToPdfPoint(bx, by - 0.85 * fsPdf * S.scale); }
       else at = S.vp.convertToPdfPoint(r.l, r.t + (r.h - fsPdf * S.scale) / 2);
-      if (txt.trim()) p.items.push({ type: 'text', at, size: Math.round(fsPdf * 10) / 10, color: colors.fg, font: t.font || { family: 'Arial' }, text: txt });
+      if (txt.trim()) p.items.push({ type: 'text', grp, at, size: Math.round(fsPdf * 10) / 10, color: colors.fg, font: t.font || { family: 'Arial' }, text: txt });
       p.edited.push(t.key);
       drawItems(); drawTextLayer(); msg('Texte modifié.');
     } else { sp.contentEditable = 'false'; sp.classList.remove('editing'); sp.textContent = t.text; }
@@ -816,6 +913,23 @@ function startTextEdit(sp, t, r, fsPdf) {
 
 // ---------------- Miniatures ----------------
 let thumbQueue = Promise.resolve();
+/** Style du texte d'origine le plus proche du point cliqué (police, taille, couleur), s'il est assez près. */
+async function nearbyTextStyle(p, pos) {
+  try {
+    const pg = await getPdfPage(p); let best = null;
+    for (const t of await getTextItems(p)) {
+      if (!t.text.trim()) continue;
+      const r = viewRect(S.vp, t.rect);
+      const dx = Math.max(r.l - pos[0], 0, pos[0] - (r.l + r.w)); const dy = Math.max(r.t - pos[1], 0, pos[1] - (r.t + r.h));
+      const d = Math.hypot(dx, dy * 1.6);
+      if (!best || d < best.d) best = { d, t, r };
+    }
+    if (!best || best.d > Math.max(60, best.r.h * 4)) return null;
+    const t = best.t; const sz = Math.round((t.size || Math.abs(t.rect[3] - t.rect[1]) * 0.8) * 10) / 10;
+    const col = sampleColors(best.r).fg;
+    return { font: fontOfItem(pg, t), size: sz, color: col && col.length === 7 ? col : '#000000' };
+  } catch { return null; }
+}
 function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 /** Dessine les ajouts d'une page sur un canevas (miniatures). */
 async function paintItems(ctx, vp, p) {
@@ -918,10 +1032,15 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
     const o = p.items[S.selItem];
     drag = { mode: e.target.classList.contains('handle') ? 'resize' : 'move', o, start: pos, orig: JSON.parse(JSON.stringify(o)), moved: false, snap: stateJson() };
   } else if (S.tool === 'text') {
-    snapshot();
-    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0], pos[1] - size() * S.scale * 0.6), size: size(), color: color(), font: curFont(), text: '' });
-    S.selItem = p.items.length - 1; drawItems();
-    editTextItem(S.selItem); e.preventDefault(); return;
+    e.preventDefault(); snapshot();
+    (async () => {
+      const st = await nearbyTextStyle(p, pos);
+      const sz = st ? st.size : size();
+      p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0], pos[1] - sz * S.scale * 0.6), size: sz, color: st ? st.color : color(), font: st ? st.font : curFont(), text: '' });
+      S.selItem = p.items.length - 1; drawItems(); editTextItem(S.selItem);
+      if (st) msg(`Texte adapté au texte voisin : ${st.font.family}${st.font.bold ? ' gras' : ''}, ${st.size} pt — modifiable dans Propriétés.`);
+    })();
+    return;
   } else if (S.tool === 'sign') {
     e.preventDefault(); placeSignature(pos); return;
   } else if (S.tool === 'note') {
@@ -1031,6 +1150,7 @@ function editTextItem(i) {
 }
 
 function setTool(t) {
+  const need = FEATURE_OF.tool[t]; if (need && !can(need)) { denied(need); t = 'select'; } // droits d'accès et lecture seule
   S.tool = t; $$('.tool').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
   const box = $('#pageBox'); box.className = 't-' + t;
   if (t !== 'select') { S.selItem = -1; drawItems(); }
@@ -1302,11 +1422,11 @@ async function exportDialog() {
   [['Annuler', null], ['Exporter', () => (document.querySelector('input[name=fmt]:checked') || {}).value, true]]);
   if (k) await toOffice(k);
 }
-async function toOffice(format) {
+async function toOffice(format, target) {
   if (!S.pages.length) return;
   if (!can('convert')) return denied('convert');
   const office = await window.api.officeStatus(); const E = EXPORTS[format];
-  const name = `${baseName()}.${format}`;
+  const name = target || `${baseName()}.${format}`;
   try {
     if (E.fam === 'sheet') { // tableaux → tableur
       busy('Reconstitution des tableaux…');
@@ -1348,7 +1468,7 @@ async function toOffice(format) {
     pages.push(ps);
   }
   done();
-  const r = await window.api.exportDocx(pages, `${baseName()}.docx`);
+  const r = await window.api.exportDocx(pages, target || `${baseName()}.docx`);
   if (r) msg(`Document Word créé : ${r}${pages.some((ps) => ps[0] && ps[0].image) ? ' (pages sans texte insérées en image : faites l\'OCR pour obtenir leur texte)' : ''}`);
 }
 const toWord = () => toOffice('docx');
@@ -1396,7 +1516,7 @@ async function protectDialog() {
   S.protect = r; setDirty(true); msg('Protection définie : elle sera appliquée à l\'enregistrement (Ctrl+S).');
 }
 function unprotect() {
-  if (!S.protect) return alert('Ce document n\'a pas de mot de passe défini dans SknEDUpdf-studio. Les PDF protégés que vous ouvrez sont déverrouillés automatiquement (avec leur mot de passe s\'il y en a un).');
+  if (!S.protect) return alert('Ce document n\'a pas de mot de passe défini dans SknEDU-studio. Les PDF protégés que vous ouvrez sont déverrouillés automatiquement (avec leur mot de passe s\'il y en a un).');
   S.protect = null; setDirty(true); msg('Mot de passe retiré : le document sera enregistré sans protection.');
 }
 
@@ -1585,11 +1705,12 @@ async function replaceInPage(p, hits, repl) {
     const t = u.t; const r = viewRect(vp1, t.rect); const size = t.size || r.h * 0.8;
     const colors = sampleColors(r, c, K);
     const pad = 1.5;
-    p.items.push({ type: 'rect', kind: 'whiteout', edit: true, color: colors.bg, rect: viewToPdfRect(vp1, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
+    const grp = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    p.items.push({ type: 'rect', kind: 'whiteout', edit: true, grp, keys: [t.key], color: colors.bg, rect: viewToPdfRect(vp1, r.l - pad, r.t - pad, r.w + 2 * pad, r.h + 2 * pad) });
     let at;
     if (t.base) { const [bx, by] = vp1.convertToViewportPoint(...t.base); at = vp1.convertToPdfPoint(bx, by - 0.85 * size); }
     else at = vp1.convertToPdfPoint(r.l, r.t + (r.h - size) / 2);
-    if (txt.trim()) p.items.push({ type: 'text', at, size: Math.round(size * 10) / 10, color: colors.fg, font: fontOfItem(pg, t), text: txt });
+    if (txt.trim()) p.items.push({ type: 'text', grp, at, size: Math.round(size * 10) / 10, color: colors.fg, font: fontOfItem(pg, t), text: txt });
     p.edited.push(t.key);
   }
   return n;
@@ -1693,7 +1814,7 @@ async function convertOfficeFileDialog() {
   if (!k) return;
   busy('Conversion… (LibreOffice)');
   try { const r = await window.api.convertOfficeFile(k); done(r ? `Fichier converti : ${r}` : ''); }
-  catch (e) { done(); alert(/OFFICE_LOCKED/.test(errMsg(e)) ? 'Ce fichier est protégé par mot de passe : ouvrez-le d\'abord dans SknEDUpdf-studio (Fichier › Ouvrir), puis exportez-le.' : 'Conversion impossible : ' + errMsg(e)); }
+  catch (e) { done(); alert(/OFFICE_LOCKED/.test(errMsg(e)) ? 'Ce fichier est protégé par mot de passe : ouvrez-le d\'abord dans SknEDU-studio (Fichier › Ouvrir), puis exportez-le.' : 'Conversion impossible : ' + errMsg(e)); }
 }
 
 // ---------------- Cloud ----------------
@@ -1705,7 +1826,7 @@ async function cloudDialog(mode) {
   const rows = clouds.map((c, i) => `<div class="cloudrow"><button class="cloudbtn" data-c="${i}">${icons[c.id] || '☁️'} <b>${esc(c.name)}</b><small>${esc(c.path)}</small></button>${c.custom ? `<button class="small" data-rm="${i}" title="Retirer">✕</button>` : ''}</div>`).join('');
   const missing = Object.entries(install).filter(([id]) => !clouds.some((c) => c.id.startsWith(id)));
   const html = `${clouds.length ? `<p>${mode === 'save' ? 'Enregistrer le document dans :' : 'Ouvrir un fichier depuis :'}</p>${rows}` : '<p><b>Aucun service cloud détecté sur ce PC.</b></p>'}
-    <p class="muted">SknEDUpdf-studio enregistre dans le dossier synchronisé de l'application officielle (OneDrive, Google Drive pour ordinateur, Dropbox…), qui envoie le fichier dans votre cloud. Vos identifiants ne sont jamais demandés par SknEDUpdf-studio.</p>
+    <p class="muted">SknEDU-studio enregistre dans le dossier synchronisé de l'application officielle (OneDrive, Google Drive pour ordinateur, Dropbox…), qui envoie le fichier dans votre cloud. Vos identifiants ne sont jamais demandés par SknEDU-studio.</p>
     ${missing.length ? `<p>Installer un service : ${missing.map(([id, v]) => `<button class="small" data-inst="${id}">${esc(v.name)}</button>`).join(' ')}</p>` : ''}
     <p><button class="small" id="cloudAdd">➕ Ajouter un autre dossier synchronisé (Nextcloud, réseau de l'établissement…)</button></p>`;
   let chosen = null;
@@ -1738,7 +1859,8 @@ async function cloudDialog(mode) {
 
 // ---------------- Droits d'accès (administration) ----------------
 let POLICY = { managed: false, blocked: false, features: {} };
-const can = (f) => !POLICY.blocked && POLICY.features[f] !== false;
+const RO_BLOCK = new Set(['edit', 'pages', 'sign', 'forms', 'ocr', 'protect']);
+const can = (f) => !POLICY.blocked && POLICY.features[f] !== false && !(S.readOnly && RO_BLOCK.has(f));
 const FEATURE_OF = {
   act: { save: 'save', saveAs: 'save', compress: 'save', print: 'print', cloudSave: 'cloud', cloudOpen: 'cloud', scan: 'scan',
     rotL: 'pages', rotR: 'pages', delPages: 'pages', dupPages: 'pages', moveUp: 'pages', moveDown: 'pages', extract: 'save', split: 'save', numbers: 'pages', uncrop: 'pages', watermark: 'pages',
@@ -1748,6 +1870,7 @@ const FEATURE_OF = {
   tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
 };
 function denied(f) {
+  if (S.readOnly && RO_BLOCK.has(f) && !POLICY.blocked && POLICY.features[f] !== false) { msg('🔒 Document en lecture seule : les commentaires et le contenu sont verrouillés. Lisez, imprimez ou exportez-le.'); return false; }
   const label = (POLICY.labels && POLICY.labels[f]) || f;
   msg(`⛔ « ${label} » est désactivé par l'administrateur.`);
   window.api.logEvent('blocked', { feature: f, action: label });
@@ -1757,7 +1880,9 @@ async function applyPolicy() {
   try { POLICY = await window.api.policy(); } catch { return; }
   $$('[data-act],[data-tool],[data-ai]').forEach((b) => {
     const f = b.dataset.ai ? 'ai' : b.dataset.act ? FEATURE_OF.act[b.dataset.act] : FEATURE_OF.tool[b.dataset.tool];
-    const off = !!f && !can(f); b.classList.toggle('locked', off); b.title = off ? 'Désactivé par l\'administrateur' : '';
+    const off = !!f && !can(f); b.classList.toggle('locked', off);
+    if (b.dataset.t0 === undefined) b.dataset.t0 = b.title || ''; // info-bulle d'origine conservée
+    b.title = off ? (S.readOnly && POLICY.features[f] !== false && !POLICY.blocked ? '🔒 Document en lecture seule' : 'Désactivé par l\'administrateur') : b.dataset.t0;
   });
   if (S.tool && FEATURE_OF.tool[S.tool] && !can(FEATURE_OF.tool[S.tool])) setTool('select');
   if (!can('ai')) $('#aiPanel').hidden = true;
@@ -1814,7 +1939,7 @@ document.addEventListener('click', async (e) => {
   const d = await window.api.adminPickFolder(); if (d) $('#afold').textContent = d;
 });
 // ---------------- Assistant IA ----------------
-const AI_SYSTEM = "Tu es l'assistant pédagogique de SknEDUpdf-studio, au service d'enseignants francophones. Réponds en français (sauf demande de traduction), de façon claire et structurée, en texte simple (titres courts, listes avec tirets, pas de tableaux Markdown), prêt à être collé dans un document de cours. Appuie-toi sur le document fourni ; si une information n'y figure pas, dis-le au lieu d'inventer.";
+const AI_SYSTEM = "Tu es l'assistant pédagogique de SknEDU-studio, au service d'enseignants francophones. Réponds en français (sauf demande de traduction), de façon claire et structurée, en texte simple (titres courts, listes avec tirets, pas de tableaux Markdown), prêt à être collé dans un document de cours. Appuie-toi sur le document fourni ; si une information n'y figure pas, dis-le au lieu d'inventer.";
 const AI_PRESETS = {
   resume: ['Résumer', 'Fais un résumé structuré de ce document : idées principales, notions clés à retenir, vocabulaire important.'],
   qcm: ['QCM', 'Crée un QCM de 10 questions sur ce document (4 propositions, une seule bonne réponse), de difficulté progressive, puis le corrigé commenté à la fin.'],
@@ -1894,7 +2019,7 @@ async function aiSettings() {
     <p class="muted" id="aiHelp"></p>
     <label class="ck" id="aiPdfRow"><input type="checkbox" id="aiPdf" ${st.sendPdf ? 'checked' : ''}> Envoyer les pages en PDF (Claude lit aussi les images, schémas et pages scannées)</label>
     <p class="muted">La clé est chiffrée par Windows sur ce PC et n'est jamais affichée ni partagée. Le texte des pages choisies est envoyé au fournisseur à chaque demande (sauf Ollama, 100 % local).</p>
-    <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : SknEDUpdf-studio prépare la demande et ouvre votre IA dans le navigateur.</p>`;
+    <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : SknEDU-studio prépare la demande et ouvre votre IA dans le navigateur.</p>`;
   const pr = modal('Réglages de l\'assistant IA', html, [['Annuler', null], ['Enregistrer', () => ({ provider: $('#aiProv').value, model: $('#aiModel').value, key: $('#aiKey').value, sendPdf: $('#aiPdf').checked }), true]]);
   const upd = async () => {
     const k = $('#aiProv').value; const p = st.providers[k];
@@ -1961,7 +2086,7 @@ const actions = {
   },
   scan,
   undo: () => restore(hist.undo, hist.redo), redo: () => restore(hist.redo, hist.undo),
-  delItem() { const p = curPage(); if (!p || S.selItem < 0) return; snapshot(); p.items.splice(S.selItem, 1); S.selItem = -1; drawItems(); },
+  delItem() { const p = curPage(); if (!p || S.selItem < 0) return; snapshot(); removeItem(p, S.selItem); S.selItem = -1; drawItems(); drawTextLayer(); },
   rotL: () => rotate(-90), rotR: () => rotate(90),
   delPages: deletePages, dupPages: duplicatePages, moveUp: () => movePages(-1), moveDown: () => movePages(1),
   extract: extractPages, split: splitPages, numbers: numberPages,
@@ -1973,9 +2098,11 @@ const actions = {
   toPpt: () => toOffice('pptx'), toExcel: () => toOffice('xlsx'), exportAs: exportDialog, convertOffice: convertOfficeFileDialog,
   aiPanel: () => toggleAi(), aiSettings, aiSubscription, aiPreset: null,
   cloudSave: () => cloudDialog('save'), cloudOpen: () => cloudDialog('open'), admin: adminDialog, print: printDoc, find: () => toggleFind(true), watermark: watermarkDialog, uncrop, compress: compressDoc, certSign,
-  zoomIn() { S.zoom = Math.min(4, (S.zoom === 'fit' ? S.scale : S.zoom) * 1.2); renderPage(); },
-  zoomOut() { S.zoom = Math.max(0.25, (S.zoom === 'fit' ? S.scale : S.zoom) / 1.2); renderPage(); },
+  zoomIn() { S.zoom = Math.min(4, (typeof S.zoom === 'number' ? S.zoom : S.scale) * 1.2); renderPage(); },
+  zoomOut() { S.zoom = Math.max(0.25, (typeof S.zoom === 'number' ? S.zoom : S.scale) / 1.2); renderPage(); },
   zoomFit() { S.zoom = 'fit'; renderPage(); },
+  zoomPage() { S.zoom = 'page'; renderPage(); },
+  viewMode() { setViewMode(continuous() ? 'page' : 'continu'); },
   prev() { if (S.cur > 0) { S.cur--; S.sel = new Set([S.cur]); S.selItem = -1; refresh(); } },
   next() { if (S.cur < S.pages.length - 1) { S.cur++; S.sel = new Set([S.cur]); S.selItem = -1; refresh(); } },
   async checkUpdate() {
@@ -2057,7 +2184,7 @@ window.api.onUpdate(({ status, info }) => {
   } else el.textContent = t || '';
 });
 
-let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => S.zoom === 'fit' && renderPage(), 150); });
+let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => typeof S.zoom !== 'number' && renderPage(), 150); });
 
 window.api.version().then((v) => { $('#ver').textContent = 'v' + v; });
 applyPolicy(); setInterval(applyPolicy, 60000);
@@ -2104,13 +2231,14 @@ window.addEventListener('resize', () => { if (innerWidth > 1000) document.body.c
 // ================= Onglets de documents (plusieurs fichiers dans la même fenêtre) =================
 function docState() {
   return { sources: S.sources, pages: S.pages, cur: S.cur, sel: S.sel, zoom: S.zoom, filePath: S.filePath, fileName: S.fileName, dirty: S.dirty,
-    selItem: S.selItem, protect: S.protect, watermark: S.watermark, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
+    selItem: S.selItem, protect: S.protect, watermark: S.watermark, origin: S.origin, readOnly: S.readOnly, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
 }
 const emptyDoc = () => ({ sources: [], pages: [], cur: 0, sel: new Set(), zoom: 'fit', filePath: null, fileName: 'Document.pdf', dirty: false,
-  selItem: -1, protect: null, watermark: null, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
+  selItem: -1, protect: null, watermark: null, origin: null, readOnly: false, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
 function loadDocState(d) {
   Object.assign(S, { sources: d.sources, pages: d.pages, cur: d.cur, sel: d.sel, zoom: d.zoom, filePath: d.filePath, fileName: d.fileName, dirty: d.dirty,
-    selItem: d.selItem, protect: d.protect, watermark: d.watermark });
+    selItem: d.selItem, protect: d.protect, watermark: d.watermark, origin: d.origin || null, readOnly: !!d.readOnly });
+  if (window.afterDocSwitch) window.afterDocSwitch();
   hist.undo = d.undo; hist.redo = d.redo; thumbCache = d.thumbs; textCache = d.texts;
   FIND.hits = []; drawFindLayer();
 }
@@ -2306,30 +2434,44 @@ document.addEventListener('click', (e) => {
 });
 
 // ================= Diaporama plein écran =================
-const SHOW = { on: false, i: 0, token: 0, digits: '', idleT: null, laser: false };
+const SHOW = { on: false, i: 0, token: 0, digits: '', idleT: null, laser: false, fit: 'width', zoom: 1, wheelT: 0 };
+try { SHOW.fit = localStorage.getItem('edupdf.showfit') || 'width'; } catch { /* */ }
 async function startShow(fromCurrent) {
   if (!S.pages.length) return alert('Ouvrez d\'abord un document à projeter.');
   SHOW.on = true; SHOW.i = fromCurrent ? S.cur : 0; SHOW.digits = '';
-  const el = $('#show'); el.hidden = false; el.className = '';
+  const el = $('#show'); el.hidden = false; el.className = ''; SHOW.zoom = 1;
   try { await el.requestFullscreen({ navigationUI: 'hide' }); } catch { /* plein écran refusé : affichage dans la fenêtre */ }
   await renderShow();
 }
 async function renderShow() {
   const tok = ++SHOW.token; const p = S.pages[SHOW.i]; const pg = await getPdfPage(p);
   const R = (pg.rotate + p.rot + 360) % 360; const v1 = pg.getViewport({ scale: 1, rotation: R });
-  const W = window.innerWidth, H = window.innerHeight; const k = Math.min(W / v1.width, H / v1.height); const dpr = window.devicePixelRatio || 1;
+  const W = window.innerWidth, H = window.innerHeight; const dpr = window.devicePixelRatio || 1;
+  const k = (SHOW.fit === 'width' ? W / v1.width : Math.min(W / v1.width, H / v1.height)) * SHOW.zoom;
   const vp = pg.getViewport({ scale: k * dpr, rotation: R });
   const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
   c.style.width = Math.round(vp.width / dpr) + 'px'; c.style.height = Math.round(vp.height / dpr) + 'px';
   const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
   await pg.render({ canvasContext: ctx, viewport: vp }).promise; await paintItems(ctx, vp, p);
   if (tok !== SHOW.token || !SHOW.on) return;
-  c.id = 'showCanvas'; $('#showCanvas').replaceWith(c);
+  c.id = 'showCanvas'; const sh = $('#show'); const scrolls = SHOW.fit === 'width' || SHOW.zoom > 1;
+  sh.classList.toggle('fitw', scrolls); c.style.marginTop = scrolls ? Math.max(0, (H - vp.height / dpr) / 2) + 'px' : '';
+  $('#showCanvas').replaceWith(c); if (SHOW.keepScroll === undefined) sh.scrollTop = SHOW.toBottom ? sh.scrollHeight : 0; SHOW.keepScroll = undefined; SHOW.toBottom = false;
   if (window.showRenderHook) window.showRenderHook(c, vp, p);
   const info = $('#showInfo'); info.textContent = `${SHOW.i + 1} / ${S.pages.length}`; info.classList.add('vis');
   clearTimeout(info._t); info._t = setTimeout(() => info.classList.remove('vis'), 1500);
 }
-function showGo(i) { const n = Math.max(0, Math.min(S.pages.length - 1, i)); if (n !== SHOW.i) { SHOW.i = n; renderShow(); } }
+function showGo(i) { const n = Math.max(0, Math.min(S.pages.length - 1, i)); if (n !== SHOW.i) { SHOW.toBottom = n < SHOW.i && SHOW.scrollUpNav; SHOW.scrollUpNav = false; SHOW.i = n; renderShow(); } }
+/** Largeur de la fenêtre : la page défile d'abord, puis on passe à la suivante. */
+function showScroll(dir) {
+  const el = $('#show'); if (!el.classList.contains('fitw')) return false;
+  const max = el.scrollHeight - el.clientHeight;
+  if (dir > 0 && el.scrollTop < max - 2) { el.scrollBy({ top: el.clientHeight * 0.85, behavior: 'smooth' }); return true; }
+  if (dir < 0 && el.scrollTop > 2) { el.scrollBy({ top: -el.clientHeight * 0.85, behavior: 'smooth' }); return true; }
+  return false;
+}
+function showBadgeMsg(t) { const info = $('#showInfo'); info.textContent = t; info.classList.add('vis'); clearTimeout(info._t); info._t = setTimeout(() => info.classList.remove('vis'), 1600); }
+function showRefit() { SHOW.keepScroll = true; renderShow(); }
 function endShow() {
   if (!SHOW.on) return;
   if (window.showEndHook) window.showEndHook(); SHOW.on = false; $('#show').hidden = true; $('#laser').hidden = true; SHOW.laser = false;
@@ -2345,18 +2487,32 @@ window.addEventListener('keydown', (e) => {
   if (/^[0-9]$/.test(k)) { SHOW.digits += k; return; }
   if (k === 'Enter' && SHOW.digits) { showGo(+SHOW.digits - 1); SHOW.digits = ''; return; }
   SHOW.digits = '';
-  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n', 'N'].includes(k)) { el.className = ''; showGo(SHOW.i + 1); }
-  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p', 'P'].includes(k)) { el.className = ''; showGo(SHOW.i - 1); }
+  if (['ArrowDown', 'PageDown', ' '].includes(k) && showScroll(1)) return;
+  if (['ArrowUp', 'PageUp'].includes(k) && showScroll(-1)) return;
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n', 'N'].includes(k)) { el.classList.remove('black', 'white'); showGo(SHOW.i + 1); }
+  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p', 'P'].includes(k)) { el.classList.remove('black', 'white'); SHOW.scrollUpNav = ['ArrowUp', 'PageUp'].includes(k); showGo(SHOW.i - 1); }
+  else if (k === 'f' || k === 'F') { SHOW.fit = SHOW.fit === 'width' ? 'page' : 'width'; SHOW.zoom = 1; try { localStorage.setItem('edupdf.showfit', SHOW.fit); } catch { /* */ } renderShow(); showBadgeMsg(SHOW.fit === 'width' ? '↔ Largeur de l\'écran (F : page entière)' : '⛶ Page entière (F : largeur de l\'écran)'); }
+  else if (k === '+' || k === '=') { SHOW.zoom = Math.min(4, SHOW.zoom * 1.2); showRefit(); showBadgeMsg(`🔍 ${Math.round(SHOW.zoom * 100)} %`); }
+  else if (k === '-' || k === '_') { SHOW.zoom = Math.max(0.4, SHOW.zoom / 1.2); showRefit(); showBadgeMsg(`🔍 ${Math.round(SHOW.zoom * 100)} %`); }
   else if (k === 'Home') showGo(0);
   else if (k === 'End') showGo(S.pages.length - 1);
-  else if (k === 'b' || k === 'B' || k === '.') el.className = el.className === 'black' ? '' : 'black';
-  else if (k === 'w' || k === 'W' || k === ',') el.className = el.className === 'white' ? '' : 'white';
+  else if (k === 'b' || k === 'B' || k === '.') { el.classList.remove('white'); el.classList.toggle('black'); }
+  else if (k === 'w' || k === 'W' || k === ',') { el.classList.remove('black'); el.classList.toggle('white'); }
   else if (k === 'l' || k === 'L') { SHOW.laser = !SHOW.laser; $('#laser').hidden = !SHOW.laser; el.classList.toggle('laser', SHOW.laser); }
   else if (k === 'Escape' || k === 'F5') endShow();
 }, true);
 $('#show').addEventListener('click', () => { if (window.showPointerBusy && window.showPointerBusy()) return; showGo(SHOW.i + 1); });
 $('#show').addEventListener('contextmenu', (e) => { e.preventDefault(); showGo(SHOW.i - 1); });
-$('#show').addEventListener('wheel', (e) => { showGo(SHOW.i + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+$('#show').addEventListener('wheel', (e) => {
+  const el = $('#show');
+  if (e.ctrlKey) { e.preventDefault(); SHOW.zoom = Math.max(0.4, Math.min(4, SHOW.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); showRefit(); showBadgeMsg(`🔍 ${Math.round(SHOW.zoom * 100)} %`); return; }
+  if (el.classList.contains('fitw')) { // la page défile ; au bord, page suivante / précédente
+    const max = el.scrollHeight - el.clientHeight;
+    if ((e.deltaY > 0 && el.scrollTop < max - 2) || (e.deltaY < 0 && el.scrollTop > 2)) return;
+  }
+  e.preventDefault(); const now = Date.now(); if (now - SHOW.wheelT < 450) return; SHOW.wheelT = now;
+  if (e.deltaY < 0) SHOW.scrollUpNav = true; showGo(SHOW.i + (e.deltaY > 0 ? 1 : -1));
+}, { passive: false });
 $('#show').addEventListener('mousemove', (e) => {
   const el = $('#show'); el.classList.remove('idle'); clearTimeout(SHOW.idleT); SHOW.idleT = setTimeout(() => el.classList.add('idle'), 2500);
   if (SHOW.laser) Object.assign($('#laser').style, { left: e.clientX + 'px', top: e.clientY + 'px' });
@@ -2395,10 +2551,10 @@ document.addEventListener('click', async (e) => { if (e.target.id !== 'licFile')
 async function aboutDialog() {
   await applyLicense();
   const v = await window.api.version();
-  const r = await modal('À propos de SknEDUpdf-studio', `<p><b>SknEDUpdf-studio ${esc(v)}</b> — éditeur PDF hors-ligne pour l'enseignement.<br>
+  const r = await modal('À propos de SknEDU-studio', `<p><b>SknEDU-studio ${esc(v)}</b> — éditeur PDF hors-ligne pour l'enseignement.<br>
     Édition : <b>${esc(LIC.edition === 'communaute' ? 'Communauté' : LIC.label + (LIC.org ? ' — ' + LIC.org : ''))}</b></p>
     <p>Logiciel libre sous licence <b>GNU AGPL-3.0</b> : vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer selon cette licence.
-    Le code source complet est publié. Le nom et le logo « SknEDUpdf-studio » sont des marques réservées (voir la politique de marque).</p>
+    Le code source complet est publié. Le nom et le logo « SknEDU-studio » sont des marques réservées (voir la politique de marque).</p>
     <p class="muted">Rendu PDF.js · Édition pdf-lib · Protection et formats MuPDF · OCR Tesseract · IA : Claude, ChatGPT, Gemini, Mistral, Ollama.</p>`,
   [['Licences des composants', 'notices'], ['Code source', 'source'], ['Politique de marque', 'tm'], ['Fermer', null, true]]);
   if (r === 'source') window.api.openExternal('https://github.com/ksehibi/edupdf-studio');

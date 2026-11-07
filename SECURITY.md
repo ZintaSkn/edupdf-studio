@@ -1,4 +1,4 @@
-# Sécurité de SknEDUpdf-studio
+# Sécurité de SknEDU-studio
 
 ## Signaler une faille
 

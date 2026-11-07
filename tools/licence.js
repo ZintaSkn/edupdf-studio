@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Outil du vendeur : émettre les licences commerciales de SknEDUpdf-studio (à utiliser sur VOTRE PC uniquement).
+// Outil du vendeur : émettre les licences commerciales de SknEDU-studio (à utiliser sur VOTRE PC uniquement).
 //
 //   node tools/licence.js init <dossier-prive>
 //       Crée la paire de clés de signature. La clé privée reste dans <dossier-prive> (JAMAIS dans le dépôt Git) ;
@@ -35,7 +35,7 @@ if (cmd === 'init') {
   const org = arg('org'); if (!org) die('--org est obligatoire');
   const fin = arg('fin'); if (!/^\d{4}-\d{2}-\d{2}$/.test(fin || '')) die('--fin AAAA-MM-JJ est obligatoire');
   const payload = {
-    v: 1, product: 'SknEDUpdf-studio', edition, org, seats: Number(arg('postes', edition === 'enseignant' ? 1 : 10)),
+    v: 1, product: 'SknEDU-studio', edition, org, seats: Number(arg('postes', edition === 'enseignant' ? 1 : 10)),
     email: arg('email', ''), support: arg('support', ''), ref: arg('ref', 'LIC-' + Date.now()),
     issued: new Date().toISOString().slice(0, 10), expires: fin
   };

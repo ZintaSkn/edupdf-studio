@@ -1,4 +1,4 @@
-// SknEDUpdf-studio — classe connectée : partage d'un document aux élèves par le réseau local (Wi-Fi de la classe)
+// SknEDU-studio — classe connectée : partage d'un document aux élèves par le réseau local (Wi-Fi de la classe)
 // et récupération de leurs copies, sans Internet. Le partage n'est actif que pendant la séance, derrière un
 // jeton aléatoire dans l'adresse ; seuls des PDF (30 Mo max.) sont acceptés en retour.
 const http = require('http');
@@ -25,7 +25,7 @@ header{background:#001871;color:#fff;padding:14px 18px;border-bottom:4px solid #
 .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 a.btn,button{display:inline-block;background:#001871;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:16px;text-decoration:none}
 input{font-size:16px;padding:10px;border:1px solid #c4cbd8;border-radius:8px;width:100%;box-sizing:border-box;margin:6px 0 12px}.ok{color:#128a3e}.err{color:#c63b3b}</style></head>
-<body><header><b>SknEDUpdf-studio</b> — classe connectée</header><main>${body}</main></body></html>`;
+<body><header><b>SknEDU-studio</b> — classe connectée</header><main>${body}</main></body></html>`;
 }
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
