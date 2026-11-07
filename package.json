@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "SknEDU-studio",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "SknEDU-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -111,7 +111,13 @@
         "nsis"
       ],
       "signAndEditExecutable": false,
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signtoolOptions": {
+        "sign": "build/signpath-sign.js",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -122,7 +128,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "license": "build/installation.txt"
     },
     "publish": [
       {

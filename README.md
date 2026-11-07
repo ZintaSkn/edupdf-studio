@@ -5,6 +5,8 @@
 Éditeur PDF **hors-ligne** pour enseignants (Windows) : créer, modifier, organiser, scanner, rendre le texte des scans
 modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours avec l'IA.
 
+Liens : [Politique de signature de code](CODE_SIGNING.md) · [Confidentialité](PRIVACY.md) · [Sécurité](SECURITY.md) · [Téléchargements](https://github.com/ksehibi/edupdf-studio/releases/latest)
+
 **Open core** : le logiciel est libre (AGPL-3.0) et complet en édition Communauté ; les éditions Enseignant et
 Établissement financent le projet par des services (voir « Éditions et offres »).
 

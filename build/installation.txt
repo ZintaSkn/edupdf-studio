@@ -1,0 +1,25 @@
+﻿SknEDU-studio — Licence et confidentialité
+
+LICENCE
+SknEDU-studio est un logiciel libre distribué sous licence GNU Affero General Public License version 3 (AGPL-3.0).
+Code source : https://github.com/ksehibi/edupdf-studio
+Les composants tiers et leurs licences sont listés dans THIRD_PARTY_NOTICES.md (Aide › Mentions légales).
+
+CONFIDENTIALITÉ
+SknEDU-studio fonctionne hors connexion. Il ne collecte aucune donnée personnelle et n'envoie aucune
+statistique d'utilisation. Il ne se connecte à un autre système que dans ces cas :
+
+- Mises à jour : vérification de la dernière version sur github.com au démarrage puis toutes les 4 heures.
+  Aucune donnée personnelle n'est envoyée. Désactivable : Aide › Préférences.
+- Assistant IA : uniquement quand vous lancez une demande avec votre propre clé (Anthropic, OpenAI, Google,
+  Mistral) ; le texte choisi est envoyé à ce fournisseur. L'IA locale (Ollama) reste sur l'ordinateur.
+- Cloud : uniquement si vous enregistrez dans un dossier synchronisé (OneDrive, Google Drive, Dropbox…)
+  ou activez la sauvegarde automatique.
+- Classe connectée : uniquement quand vous partagez un document sur le réseau local de la classe.
+- Administration : notifications envoyées seulement si l'administrateur de l'établissement les configure.
+
+MODIFICATIONS DU SYSTÈME
+L'installation ajoute l'application, ses raccourcis (Bureau, menu Démarrer) et l'association des fichiers PDF.
+Tout est retiré par la désinstallation (Paramètres › Applications). Vos documents ne sont jamais supprimés.
+
+Politique complète : PRIVACY.md et CODE_SIGNING.md sur https://github.com/ksehibi/edupdf-studio

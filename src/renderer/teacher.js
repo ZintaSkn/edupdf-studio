@@ -14,6 +14,7 @@ function applyPrefs() {
   $('#size').value = PREFS.size || 14;
 }
 async function prefsDialog() {
+  let upd = true; try { upd = await window.api.updatePref(); } catch { /* */ }
   const fonts = Object.keys(FONT_FAMILIES).map((f) => `<option ${f === PREFS.font ? 'selected' : ''}>${esc(f)}</option>`).join('');
   const r = await modal('⚙ Préférences', `
     <label class="row">Nom de l'enseignant <input id="pfT" value="${esc(PREFS.teacher)}" placeholder="ex. Mme Kouassi" autocomplete="name"></label>
@@ -23,9 +24,12 @@ async function prefsDialog() {
     <label class="row">Police du texte ajouté <select id="pfF">${fonts}</select></label>
     <label class="row">Taille du texte ajouté <input id="pfZ" type="number" min="6" max="72" value="${PREFS.size || 14}"></label>
     <label class="row">Copie de récupération <select id="pfR">${[[1, 'chaque minute'], [2, 'toutes les 2 min'], [5, 'toutes les 5 min'], [0, 'désactivée (déconseillé)']].map(([v, l]) => `<option value="${v}" ${+PREFS.recoveryMin === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <p class="muted">En cas de coupure de courant ou de fermeture imprévue, vos documents non enregistrés sont proposés au redémarrage.</p>`,
-  [['Annuler', null], ['Enregistrer', () => ({ teacher: $('#pfT').value.trim(), school: $('#pfS').value.trim(), className: $('#pfC').value.trim(), font: $('#pfF').value, size: Math.max(6, Math.min(72, +$('#pfZ').value || 14)), recoveryMin: +$('#pfR').value }), true]]);
+    <p class="muted">En cas de coupure de courant ou de fermeture imprévue, vos documents non enregistrés sont proposés au redémarrage.</p>
+    <label class="ck"><input type="checkbox" id="pfU" ${upd ? 'checked' : ''}> Rechercher les mises à jour automatiquement (connexion à github.com)</label>
+    <p class="muted">SknEDU-studio n'envoie aucune donnée personnelle ni statistique d'utilisation. Voir PRIVACY.md.</p>`,
+  [['Annuler', null], ['Enregistrer', () => ({ teacher: $('#pfT').value.trim(), school: $('#pfS').value.trim(), className: $('#pfC').value.trim(), font: $('#pfF').value, size: Math.max(6, Math.min(72, +$('#pfZ').value || 14)), recoveryMin: +$('#pfR').value, upd: $('#pfU').checked }), true]]);
   if (!r) return;
+  try { await window.api.updatePref(!!r.upd); } catch { /* */ } delete r.upd;
   Object.assign(PREFS, r); savePrefs(); applyPrefs(); msg('Préférences enregistrées.');
 }
 

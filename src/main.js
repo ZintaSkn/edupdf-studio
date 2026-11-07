@@ -549,6 +549,7 @@ function recoveryClear(id) {
     else fs.rmSync(recoveryDir(), { recursive: true, force: true });
   } catch { /* */ }
 }
+ipcMain.handle('update-pref', (_e, v) => { const s = readSettings(); if (typeof v === 'boolean') { s.autoUpdate = v; writeSettings(s); } return s.autoUpdate !== false; });
 ipcMain.handle('recovery-save', (_e, { id, name, bytes }) => {
   const d = recoveryDir(); fs.mkdirSync(d, { recursive: true }); const k = recId(id); if (!k) return false;
   const tmp = path.join(d, k + '.tmp'); fs.writeFileSync(tmp, Buffer.from(bytes)); fs.renameSync(tmp, path.join(d, k + '.pdf'));
@@ -884,10 +885,10 @@ function setupAutoUpdate() {
   autoUpdater.on('download-progress', (p) => send('progress', Math.round(p.percent)));
   autoUpdater.on('update-downloaded', (i) => send('ready', i.version));
   autoUpdater.on('error', () => send('offline'));
-  const check = () => autoUpdater.checkForUpdates().catch(() => send('offline'));
+  const check = () => { if (readSettings().autoUpdate === false) return Promise.resolve(); return autoUpdater.checkForUpdates().catch(() => send('offline')); }; // désactivable dans Préférences
   setTimeout(check, 5000);
   setInterval(check, 4 * 60 * 60 * 1000); // toutes les 4 h
-  ipcMain.handle('check-update', check);
+  ipcMain.handle('check-update', () => autoUpdater.checkForUpdates().catch(() => send('offline'))); // vérification demandée par l'utilisateur
   ipcMain.handle('install-update', () => autoUpdater.quitAndInstall());
 }
 ipcMain.handle('is-packaged', () => app.isPackaged);

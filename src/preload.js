@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('api', {
   cloudAutosave: (cloudPath, bytes, name) => ipcRenderer.invoke('cloud-autosave', { cloudPath, bytes, name }),
   recoverySave: (id, name, bytes) => ipcRenderer.invoke('recovery-save', { id, name, bytes }),
   recoveryList: () => ipcRenderer.invoke('recovery-list'),
+  updatePref: (v) => ipcRenderer.invoke('update-pref', v),
   recoveryLoad: (id) => ipcRenderer.invoke('recovery-load', { id }),
   recoveryClear: (id) => ipcRenderer.invoke('recovery-clear', { id }),
   // assistant IA

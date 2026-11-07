@@ -33,7 +33,28 @@ jobs:
       - run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Mise à jour automatique de SknEDU-studio." || echo "version déjà créée"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx electron-builder --win --publish always
+      # Signature de code SignPath (si les secrets SIGNPATH_* sont définis) : application, désinstalleur et installateur
+      # sont envoyés à SignPath puis attendent l'approbation manuelle d'un approbateur (voir CODE_SIGNING.md).
+      # Sans secrets, l'exécutable Electron reste intact (contrôle intelligent des applications de Windows 11).
+      - name: Installateur Windows
+        shell: pwsh
+        timeout-minutes: 240
+        run: |
+          $extra = @()
+          if ($env:SIGNPATH_API_TOKEN) { $extra = @('-c.win.signAndEditExecutable=true'); Write-Host 'Signature SignPath activée' }
+          npx electron-builder --win --publish always @extra
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      # Empreintes SHA-256 publiées avec la version (vérification par les établissements)
+      - name: Empreintes
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.yml' } | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content dist\SHA256SUMS-windows.txt
+          gh release upload "${{ github.ref_name }}" dist\SHA256SUMS-windows.txt --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

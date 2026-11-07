@@ -537,6 +537,8 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const l1 = await window.api.recoveryList(); out.recuperation = l1.length + ' copie(s) ' + (l1[0] ? l1[0].name : '');
         const back = await window.api.recoveryLoad(l1[0].id); out.recupOuvrable = back.bytes.length > 1000;
         T.S.dirty = true; window.setDirty(false); await wait(300); out.apresEnregistrement = (await window.api.recoveryList()).length;
+        const u0 = await window.api.updatePref(); await window.api.updatePref(false); const u1 = await window.api.updatePref(); await window.api.updatePref(true);
+        out.majDesactivable = u0 === true && u1 === false && (await window.api.updatePref()) === true;
         TE.PREFS.teacher = ''; TE.PREFS.school = '';
         return out;
       })()`, 120000);
