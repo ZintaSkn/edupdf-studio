@@ -495,6 +495,52 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       })()`);
       await step('fin-lecture-seule', `(async () => { const T = window.__edupdf; T.S.dirty = false; T.actions.close(); return { lectureSeule: T.S.readOnly }; })()`);
 
+      // ---------- 1.11 : formes et flèches, tampons, en-tête / pied de page, impression, récupération, auteur des commentaires ----------
+      await step('v111', `(async () => {
+        const T = window.__edupdf; const TE = window.__teacher; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+        await T.applyPolicy();
+        const d = await PDFLib.PDFDocument.create(); d.addPage([595, 842]); d.addPage([842, 595]); d.addPage([595, 842]);
+        await T.insertPdf(await d.save()); T.S.cur = 0; T.refresh(); await wait(900);
+        // flèche tracée à la souris
+        T.setTool('arrow'); const ov = q('#overlayLayer'); const r = ov.getBoundingClientRect();
+        const ev = (type, x, y) => ov.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientX: r.left + x, clientY: r.top + y }));
+        ev('pointerdown', 60, 60); ev('pointermove', 160, 120); ev('pointerup', 160, 120); await wait(200);
+        const p0 = T.S.pages[0]; const arrow = p0.items.find((o) => o.type === 'ink' && o.arrow);
+        out.fleche = !!arrow && arrow.points.length === 2 && !!q('#overlayLayer .ov svg polyline + polyline');
+        T.setTool('ellipse'); ev('pointerdown', 200, 200); ev('pointermove', 300, 260); ev('pointerup', 300, 260); await wait(200);
+        out.ellipse = p0.items.some((o) => o.kind === 'ellipse') && !!q('#overlayLayer .ov.ellipse');
+        // tampons
+        TE.setStamp('Très bien', '#1e8e3e'); T.setTool('stamp'); ev('pointerdown', 120, 320); await wait(400);
+        TE.setStamp('✔', '#1e8e3e'); ev('pointerdown', 220, 320); await wait(400);
+        out.tampons = p0.items.filter((o) => o.stamp).map((o) => o.stamp).join(' + ');
+        T.setTool('select');
+        // auteur des commentaires (préférences)
+        TE.PREFS.teacher = 'Mme Test'; TE.PREFS.school = 'Lycée Test';
+        p0.items.push({ type: 'note', at: [400, 700], text: 'Soignez la présentation.', color: '#ffd400' });
+        // en-tête et pied de page sur les 3 pages
+        await TE.applyHeaderFooter({ hl: '{établissement}', hc: '', hr: '{classe}', fl: '{enseignant}', fc: '', fr: 'Page {page} / {pages}', size: 9, color: '#444444', cls: '4e A' });
+        const pdf = await T.buildPdf(); const doc = await pdfjsLib.getDocument({ data: pdf }).promise;
+        const t2 = (await (await doc.getPage(2)).getTextContent()).items.map((i) => i.str).join(' ');
+        out.enTete = t2.includes('Lycée Test') && t2.includes('4e A') && t2.includes('Mme Test') && t2.includes('Page 2 / 3');
+        const ann = (await (await doc.getPage(1)).getAnnotations()).find((a) => a.subtype === 'Text');
+        out.auteurCommentaire = ann && ann.titleObj.str;
+        out.pdfValide = doc.numPages === 3;
+        // impression : sélection de pages, 2 par feuille, orientation homogène
+        out.intervalle = TE.parseRange('1-3, 5, 2', 4).join(',');
+        const fake = async (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').fillRect(0, 0, 10, 10); const b = await new Promise((res) => c.toBlob(res, 'image/jpeg')); return { bytes: new Uint8Array(await b.arrayBuffer()), w, h }; };
+        const pages = [await fake(600, 848), await fake(848, 600), await fake(600, 848)];
+        const s2 = await TE.composePrint(pages, 2); const s1 = await TE.composePrint(pages, 1);
+        out.impression = s2.length + ' feuilles à 2 pages (' + (s2[0].w > s2[0].h ? 'italienne' : 'portrait') + '), 1 par feuille : ' + s1.every((p) => p.h > p.w);
+        // copie de récupération puis suppression après enregistrement
+        TE.PREFS.recoveryMin = 1; T.S.dirty = true; await TE.recoveryTick();
+        const l1 = await window.api.recoveryList(); out.recuperation = l1.length + ' copie(s) ' + (l1[0] ? l1[0].name : '');
+        const back = await window.api.recoveryLoad(l1[0].id); out.recupOuvrable = back.bytes.length > 1000;
+        T.S.dirty = true; window.setDirty(false); await wait(300); out.apresEnregistrement = (await window.api.recoveryList()).length;
+        TE.PREFS.teacher = ''; TE.PREFS.school = '';
+        return out;
+      })()`, 120000);
+
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;

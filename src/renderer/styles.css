@@ -395,3 +395,12 @@ footer > * { white-space: nowrap; flex: 0 0 auto; }
 footer > #msg { flex: 1 1 auto; }
 @media (max-width: 1250px) { #editionTag, #ver { display: none; } }
 @media (max-width: 1000px) { #cloudTag { max-width: 90px; overflow: hidden; text-overflow: ellipsis; } }
+
+/* ---------- 1.11 : formes, tampons, en-tête / pied de page ---------- */
+.ov.ellipse { border: 2px solid; border-radius: 50%; }
+#pageBox.t-ellipse #overlayLayer, #pageBox.t-line #overlayLayer, #pageBox.t-arrow #overlayLayer, #pageBox.t-stamp #overlayLayer { cursor: crosshair; }
+.stampgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin-bottom: 10px; }
+.stampbtn { background: #fff; border: 2px solid; border-radius: 10px; font-weight: 700; font-size: 15px; padding: 7px 6px; cursor: pointer; }
+.stampbtn:hover { background: #f5f7fc; }
+.hfgrid { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 6px; align-items: center; margin-bottom: 8px; }
+.hfgrid input { width: 100%; box-sizing: border-box; }

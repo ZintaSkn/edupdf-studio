@@ -289,7 +289,7 @@ async function openFiles(insert) {
 }
 function confirmDiscard() { return !S.dirty || confirm('Des modifications ne sont pas enregistrées. Continuer quand même ?'); }
 function resetDoc() {
-  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; S.origin = null; S.readOnly = false; FIND.hits = [];
+  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; S.origin = null; S.readOnly = false; S.rid = null; FIND.hits = [];
   hist.undo = []; hist.redo = []; thumbCache.clear(); textCache.clear(); setDirty(false);
 }
 
@@ -439,6 +439,7 @@ async function buildPdf(list = S.pages) {
         const [x1, y1, x2, y2] = normRect(o.rect); const box = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
         if (o.kind === 'highlight') cp.drawRectangle({ ...box, color: hexRgb(o.color || '#F1B434'), opacity: 0.38, blendMode: 'Multiply' });
         else if (o.kind === 'whiteout') cp.drawRectangle({ ...box, color: o.color && o.color.length === 7 ? hexRgb(o.color) : rgb(1, 1, 1) });
+        else if (o.kind === 'ellipse') cp.drawEllipse({ x: x1 + box.width / 2, y: y1 + box.height / 2, xScale: box.width / 2, yScale: box.height / 2, borderColor: hexRgb(o.color), borderWidth: o.width || 2 });
         else cp.drawRectangle({ ...box, borderColor: hexRgb(o.color), borderWidth: o.width || 2 });
       } else if (o.type === 'field') {
         newFields.push({ o, cp, R });
@@ -451,6 +452,10 @@ async function buildPdf(list = S.pages) {
           const [a, b] = [o.points[i - 1], o.points[i]];
           cp.drawLine({ start: { x: a[0], y: a[1] }, end: { x: b[0], y: b[1] }, thickness: o.width, color: hexRgb(o.color), lineCap: 1 });
         }
+        if (o.arrow && o.points.length > 1) {
+          const b = o.points[o.points.length - 1]; const h = arrowHead(o.points[o.points.length - 2], b, Math.max(9, o.width * 4));
+          for (const e of h) cp.drawLine({ start: { x: e[0], y: e[1] }, end: { x: b[0], y: b[1] }, thickness: o.width, color: hexRgb(o.color), lineCap: 1 });
+        }
       } else if (o.type === 'text') {
         const [vx, vy] = vp.convertToViewportPoint(...o.at);
         const lines = o.text.split('\n');
@@ -459,7 +464,7 @@ async function buildPdf(list = S.pages) {
         const [x, y] = o.at; const c = hexRgb(o.color || '#ffd400');
         const annot = out.context.obj({
           Type: 'Annot', Subtype: 'Text', Rect: [x, y - 20, x + 20, y], Name: 'Comment', F: 4, Open: false,
-          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || 'SknEDU-studio'),
+          C: [c.red, c.green, c.blue], Contents: PDFHexString.fromText(o.text || ''), T: PDFHexString.fromText(o.author || (window.PREFS && PREFS.teacher) || 'SknEDU-studio'),
           M: PDFLib.PDFString.fromDate(new Date())
         });
         cp.node.addAnnot(out.context.register(annot));
@@ -643,7 +648,7 @@ function drawItems() {
     if (o.type === 'rect' || o.type === 'image') {
       const r = viewRect(vp, o.rect); Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
       el.classList.add(o.type === 'image' ? 'image' : o.kind);
-      if (o.kind === 'box') el.style.borderColor = o.color, el.style.borderWidth = (o.width || 2) * S.scale + 'px';
+      if (o.kind === 'box' || o.kind === 'ellipse') el.style.borderColor = o.color, el.style.borderWidth = (o.width || 2) * S.scale + 'px';
       if (o.kind === 'whiteout' && o.color && o.color.length === 7) el.style.background = o.color;
       if (o.kind === 'highlight' && o.color) el.style.background = o.color + '61';
       if (o.type === 'image') { const im = document.createElement('img'); im.src = srcOf(o); el.appendChild(im); }
@@ -665,7 +670,11 @@ function drawItems() {
       const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
       const l = Math.min(...xs), t = Math.min(...ys);
       Object.assign(el.style, { left: l + 'px', top: t + 'px', width: Math.max(...xs) - l + 'px', height: Math.max(...ys) - t + 'px' });
-      el.innerHTML = `<svg width="100%" height="100%"><polyline fill="none" stroke="${o.color}" stroke-width="${o.width * S.scale}" stroke-linecap="round" stroke-linejoin="round" points="${pts.map((q) => `${q[0] - l},${q[1] - t}`).join(' ')}"/></svg>`;
+      const head = o.arrow && pts.length > 1 ? arrowHead(pts[pts.length - 2], pts[pts.length - 1], Math.max(9, o.width * 4) * S.scale) : null;
+      const pad = head ? Math.max(9, o.width * 4) * S.scale : 0; // la pointe dépasse du cadre du trait
+      Object.assign(el.style, { left: l - pad + 'px', top: t - pad + 'px', width: Math.max(...xs) - l + 2 * pad + 'px', height: Math.max(...ys) - t + 2 * pad + 'px' });
+      const sh = (q) => `${q[0] - l + pad},${q[1] - t + pad}`; const last = pts[pts.length - 1];
+      el.innerHTML = `<svg width="100%" height="100%" style="overflow:visible"><polyline fill="none" stroke="${o.color}" stroke-width="${o.width * S.scale}" stroke-linecap="round" stroke-linejoin="round" points="${pts.map(sh).join(' ')}"/>${head ? `<polyline fill="none" stroke="${o.color}" stroke-width="${o.width * S.scale}" stroke-linecap="round" stroke-linejoin="round" points="${sh(head[0])} ${sh(last)} ${sh(head[1])}"/>` : ''}</svg>`;
     }
     if (i === S.selItem) el.classList.add('sel');
     layer.appendChild(el);
@@ -930,6 +939,11 @@ async function nearbyTextStyle(p, pos) {
     return { font: fontOfItem(pg, t), size: sz, color: col && col.length === 7 ? col : '#000000' };
   } catch { return null; }
 }
+/** Deux segments de pointe de flèche au point b (venant de a), longueur L. */
+function arrowHead(a, b, L) {
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]); const s = Math.PI / 7.5;
+  return [[b[0] - L * Math.cos(ang - s), b[1] - L * Math.sin(ang - s)], [b[0] - L * Math.cos(ang + s), b[1] - L * Math.sin(ang + s)]];
+}
 function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 /** Dessine les ajouts d'une page sur un canevas (miniatures). */
 async function paintItems(ctx, vp, p) {
@@ -941,10 +955,13 @@ async function paintItems(ctx, vp, p) {
       else if (o.kind === 'highlight') { ctx.save(); ctx.globalAlpha = 0.38; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = o.color || '#F1B434'; ctx.fillRect(r.l, r.t, r.w, r.h); ctx.restore(); }
       else if (o.kind === 'whiteout') { ctx.fillStyle = o.color && o.color.length === 7 ? o.color : '#fff'; ctx.fillRect(r.l, r.t, r.w, r.h); }
       else if (o.type === 'field') { ctx.save(); ctx.setLineDash([3, 2]); ctx.strokeStyle = '#2f6fed'; ctx.strokeRect(r.l, r.t, r.w, r.h); ctx.restore(); }
+      else if (o.kind === 'ellipse') { ctx.strokeStyle = o.color; ctx.lineWidth = (o.width || 2) * k; ctx.beginPath(); ctx.ellipse(r.l + r.w / 2, r.t + r.h / 2, r.w / 2, r.h / 2, 0, 0, 2 * Math.PI); ctx.stroke(); }
       else { ctx.strokeStyle = o.color; ctx.lineWidth = (o.width || 2) * k; ctx.strokeRect(r.l, r.t, r.w, r.h); }
     } else if (o.type === 'ink') {
       ctx.beginPath(); ctx.strokeStyle = o.color; ctx.lineWidth = o.width * k; ctx.lineCap = 'round';
-      o.points.forEach((q, i) => { const [x, y] = vp.convertToViewportPoint(...q); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+      const vpts = o.points.map((q) => vp.convertToViewportPoint(...q));
+      vpts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+      if (o.arrow && vpts.length > 1) { const b = vpts[vpts.length - 1]; const h = arrowHead(vpts[vpts.length - 2], b, Math.max(9, o.width * 4) * k); ctx.beginPath(); ctx.moveTo(...h[0]); ctx.lineTo(...b); ctx.lineTo(...h[1]); ctx.stroke(); }
     } else if (o.type === 'text') {
       const [x, y] = vp.convertToViewportPoint(...o.at); const f = o.font || {};
       ctx.fillStyle = o.color; ctx.font = `${f.italic ? 'italic ' : ''}${f.bold ? 'bold ' : ''}${o.size * k}px ${cssFont(f)}`;
@@ -1045,7 +1062,7 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
     e.preventDefault(); placeSignature(pos); return;
   } else if (S.tool === 'note') {
     e.preventDefault(); snapshot();
-    const o = { type: 'note', at: S.vp.convertToPdfPoint(pos[0] - 10, pos[1] - 10), text: '', color: '#ffd400' };
+    const o = { type: 'note', at: S.vp.convertToPdfPoint(pos[0] - 10, pos[1] - 10), text: '', color: '#ffd400', author: (window.PREFS && PREFS.teacher) || undefined };
     p.items.push(o); S.selItem = p.items.length - 1; drawItems(); editNote(o, true); return;
   } else if (S.tool === 'ink') {
     drag = { mode: 'ink', pts: [pos] };
@@ -1054,6 +1071,13 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
     svg.innerHTML = `<polyline fill="none" stroke="${color()}" stroke-width="${+$('#width').value * S.scale}" stroke-linecap="round" stroke-linejoin="round"/>`;
     layer.appendChild(svg); drag.svg = svg;
   } else {
+    if (S.tool === 'line' || S.tool === 'arrow') {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none');
+      svg.innerHTML = `<line stroke="${color()}" stroke-width="${(+$('#width').value || 2) * S.scale}" stroke-linecap="round" x1="${pos[0]}" y1="${pos[1]}" x2="${pos[0]}" y2="${pos[1]}"/>`;
+      layer.appendChild(svg); drag = { mode: 'line', start: pos, svg }; layer.setPointerCapture(e.pointerId); return;
+    }
+    if (S.tool === 'stamp') { e.preventDefault(); if (window.placeStamp) window.placeStamp(pos); return; }
     const rb = document.createElement('div'); rb.className = 'rubber'; layer.appendChild(rb);
     drag = { mode: 'rubber', start: pos, rb };
   }
@@ -1071,6 +1095,9 @@ $('#overlayLayer').addEventListener('pointermove', (e) => {
     if (drag.mode === 'move') translateItem(o, dx, dy);
     else { const r = viewRect(S.vp, drag.orig.rect); o.rect = viewToPdfRect(S.vp, r.l, r.t, Math.max(8, r.w + dx), Math.max(8, r.h + dy)); }
     drawItems();
+  } else if (drag.mode === 'line') {
+    let [x, y] = pos; if (e.shiftKey) { const dx = x - drag.start[0], dy = y - drag.start[1]; if (Math.abs(dx) > Math.abs(dy) * 2) y = drag.start[1]; else if (Math.abs(dy) > Math.abs(dx) * 2) x = drag.start[0]; }
+    drag.end = [x, y]; const ln = drag.svg.firstChild; ln.setAttribute('x2', x); ln.setAttribute('y2', y);
   } else if (drag.mode === 'ink') {
     drag.pts.push(pos); drag.svg.firstChild.setAttribute('points', drag.pts.map((q) => q.join(',')).join(' '));
   } else if (drag.mode === 'rubber') {
@@ -1082,6 +1109,11 @@ $('#overlayLayer').addEventListener('pointermove', (e) => {
 $('#overlayLayer').addEventListener('pointerup', async (e) => {
   if (!drag) return;
   const d = drag; drag = null; const p = curPage(); const pos = localPos(e);
+  if (d.mode === 'line') {
+    d.svg.remove(); const end = d.end || pos;
+    if (Math.hypot(end[0] - d.start[0], end[1] - d.start[1]) > 4) { snapshot(); p.items.push({ type: 'ink', points: [S.vp.convertToPdfPoint(...d.start), S.vp.convertToPdfPoint(...end)], color: color(), width: +$('#width').value || 2, arrow: S.tool === 'arrow' }); S.selItem = p.items.length - 1; }
+    drawItems(); return;
+  }
   if (d.mode === 'ink') {
     d.svg.remove();
     if (d.pts.length > 1) { snapshot(); p.items.push({ type: 'ink', points: d.pts.map((q) => S.vp.convertToPdfPoint(...q)), color: color(), width: +$('#width').value || 2 }); }
@@ -1158,6 +1190,10 @@ function setTool(t) {
   const tips = {
     select: 'Cliquez un élément pour le déplacer, le redimensionner, ou double-cliquez un texte pour le modifier.',
     edit: 'Cliquez sur un texte de la page pour le corriger (Entrée pour valider, Échap pour annuler).',
+    ellipse: 'Tracez un cercle ou une ellipse en faisant glisser la souris.',
+    line: 'Tracez un trait en faisant glisser la souris (Maj : horizontal ou vertical).',
+    arrow: 'Tracez une flèche en faisant glisser la souris (Maj : horizontale ou verticale).',
+    stamp: 'Cliquez sur la page pour poser le tampon choisi (Échap pour arrêter).',
     editpara: 'Cliquez sur un paragraphe pour le réécrire : il se recompose dans sa largeur, avec la police, la taille et la couleur d\'origine (Ctrl+Entrée pour valider).',
     text: 'Cliquez à l\'endroit où ajouter du texte.', image: 'Tracez un cadre puis choisissez une image.',
     highlight: 'Tracez un rectangle pour surligner.', whiteout: 'Tracez un rectangle pour masquer (effacer) une zone.',
@@ -1736,10 +1772,13 @@ function toggleFind(show = $('#findBar').hidden) {
 async function printDoc() {
   if (!S.pages.length) return;
   if (!can('print')) return denied('print');
+  const opt = window.printOptions ? await window.printOptions() : { pages: null, perSheet: 1 };
+  if (!opt) return;
   busy('Préparation de l\'impression…');
   try {
-    const doc = await openPdfJs(await buildPdf()); const pages = [];
-    for (let i = 1; i <= doc.numPages; i++) {
+    const doc = await openPdfJs(await buildPdf()); let pages = [];
+    for (const i of (opt.pages || [...Array(doc.numPages).keys()].map((k) => k + 1))) {
+      if (i < 1 || i > doc.numPages) continue;
       busy(`Préparation de l'impression… page ${i} / ${doc.numPages}`);
       const pg = await doc.getPage(i); const vp = pg.getViewport({ scale: 2.2 });
       const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
@@ -1747,6 +1786,7 @@ async function printDoc() {
       await pg.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
       pages.push({ bytes: dataUrlToBytes(c.toDataURL('image/jpeg', 0.92)), w: c.width, h: c.height });
     }
+    if (window.composePrint) pages = await window.composePrint(pages, opt.perSheet); // orientation homogène, 2 ou 4 pages par feuille
     done();
     const r = await window.api.printPages(pages);
     if (r && !r.ok && r.reason && !/cancel/i.test(r.reason)) alert('Impression impossible : ' + r.reason);
@@ -1867,7 +1907,7 @@ const FEATURE_OF = {
     ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr', toWord: 'convert', toPpt: 'convert', toExcel: 'convert', toImages: 'convert', toText: 'convert', exportAs: 'convert', convertOffice: 'convert',
     aiPanel: 'ai', aiSettings: 'ai', aiSubscription: 'ai',
     protect: 'protect', unprotect: 'protect', signPad: 'sign', certSign: 'sign', compare: 'compare', clearCompare: 'compare', find: 'edit', delItem: 'edit' },
-  tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
+  tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ellipse: 'edit', line: 'edit', arrow: 'edit', stamp: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
 };
 function denied(f) {
   if (S.readOnly && RO_BLOCK.has(f) && !POLICY.blocked && POLICY.features[f] !== false) { msg('🔒 Document en lecture seule : les commentaires et le contenu sont verrouillés. Lisez, imprimez ou exportez-le.'); return false; }
@@ -2231,13 +2271,13 @@ window.addEventListener('resize', () => { if (innerWidth > 1000) document.body.c
 // ================= Onglets de documents (plusieurs fichiers dans la même fenêtre) =================
 function docState() {
   return { sources: S.sources, pages: S.pages, cur: S.cur, sel: S.sel, zoom: S.zoom, filePath: S.filePath, fileName: S.fileName, dirty: S.dirty,
-    selItem: S.selItem, protect: S.protect, watermark: S.watermark, origin: S.origin, readOnly: S.readOnly, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
+    selItem: S.selItem, protect: S.protect, watermark: S.watermark, origin: S.origin, readOnly: S.readOnly, rid: S.rid, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
 }
 const emptyDoc = () => ({ sources: [], pages: [], cur: 0, sel: new Set(), zoom: 'fit', filePath: null, fileName: 'Document.pdf', dirty: false,
-  selItem: -1, protect: null, watermark: null, origin: null, readOnly: false, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
+  selItem: -1, protect: null, watermark: null, origin: null, readOnly: false, rid: null, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
 function loadDocState(d) {
   Object.assign(S, { sources: d.sources, pages: d.pages, cur: d.cur, sel: d.sel, zoom: d.zoom, filePath: d.filePath, fileName: d.fileName, dirty: d.dirty,
-    selItem: d.selItem, protect: d.protect, watermark: d.watermark, origin: d.origin || null, readOnly: !!d.readOnly });
+    selItem: d.selItem, protect: d.protect, watermark: d.watermark, origin: d.origin || null, readOnly: !!d.readOnly, rid: d.rid || null });
   if (window.afterDocSwitch) window.afterDocSwitch();
   hist.undo = d.undo; hist.redo = d.redo; thumbCache = d.thumbs; textCache = d.texts;
   FIND.hits = []; drawFindLayer();

@@ -66,6 +66,12 @@ La clé privée de signature reste dans `%USERPROFILE%\SknEDU-licences` (jamais 
 | **Langue** | Interface en français ou en anglais (Aide › Langue) ; navigation au clavier et lecteurs d'écran (rôles ARIA, focus visible, animations réduites) |
 | **Affichage** | **Défilement continu** des pages de haut en bas (ou page par page) ; **zoom** de 25 % à 400 %, largeur de page ou page entière (Ctrl + molette, Ctrl +/−, liste dans la barre d'état) ; **barres latérales automatiques** : elles apparaissent au passage de la souris sur le bord et se masquent seules (📌 pour les fixer) |
 | **Modifications** | Panneau « Modifications de la page » : chaque ajout ou correction (texte, cadre, image, surlignage, masquage, tracé, commentaire, rognage, filigrane) se supprime d'un clic ; supprimer un texte corrigé rétablit le texte d'origine ; « Tout effacer » pour la page ou le document |
+| **Correction** | **Tampons** ✔ ✘ Vu, Très bien, Bien, À revoir, Insuffisant, Bravo !, Absent, Copie non rendue… ou personnalisés, posés d'un clic ; **ellipse**, **trait** et **flèche** pour entourer, souligner ou montrer une erreur |
+| **En-tête et pied de page** | Établissement, enseignant, classe, date et « Page n / N » sur toutes les pages, en un clic (Pages › En-tête et pied de page) |
+| **Impression** | Toutes les pages, la page courante ou un intervalle (1-3, 5) ; **2 ou 4 pages par feuille** ; documents mêlant portrait et paysage imprimés dans le bon sens |
+| **Préférences** | Nom de l'enseignant (signe les commentaires), établissement, classe, police et taille par défaut, fréquence de la copie de récupération (Aide › Préférences) |
+| **Anti-perte** | Copie de récupération automatique (chaque minute par défaut) : après une coupure de courant ou une fermeture imprévue, les documents non enregistrés sont proposés au redémarrage |
+| **Orthographe** | Correcteur orthographique français et anglais pendant la saisie ; suggestions au clic droit |
 | **Texte ajouté** | Reprend automatiquement la police, la taille et la couleur du texte d'origine le plus proche |
 | **Commentaires** | Les commentaires du PDF s'affichent et se lisent dans le logiciel ; « Commentés en lecture seule » enregistre une copie dont les commentaires sont verrouillés et le contenu protégé, lisible dans tous les lecteurs PDF (Acrobat Reader, Edge, Chrome…) et ouverte en lecture seule dans SknEDU-studio |
 | **Format d'origine** | Un fichier Word, Excel, PowerPoint, OpenDocument, texte ou image ouvert dans le logiciel se réenregistre dans son format d'origine (ou en PDF, au choix) |

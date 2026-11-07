@@ -285,14 +285,26 @@ function createWindow() {
       type: 'warning', buttons: ['Quitter sans enregistrer', 'Annuler'], defaultId: 1, cancelId: 1,
       title: 'SknEDU-studio', message: 'Le document a des modifications non enregistrées.'
     });
-    if (c === 1) e.preventDefault();
+    if (c === 1) e.preventDefault(); else recoveryClear();
   });
+  win.on('closed', () => { if (!dirty) recoveryClear(); });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   if (process.env.EDUPDF_SELFTEST) require('./selftest')(win, process.env.EDUPDF_SELFTEST);
   win.webContents.on('did-finish-load', () => {
     if (pendingOpen.length) { win.webContents.send('open-paths', pendingOpen); pendingOpen = []; }
   });
   // Liens externes dans le navigateur par défaut (https uniquement) ; aucune navigation hors de l'application
+  try { win.webContents.session.setSpellCheckerLanguages(['fr', 'en-US']); } catch { /* macOS : correcteur du système */ }
+  win.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable) return;
+    const items = (p.dictionarySuggestions || []).slice(0, 6).map((s) => ({ label: s, click: () => win.webContents.replaceMisspelling(s) }));
+    if (p.misspelledWord) {
+      if (!items.length) items.push({ label: 'Aucune suggestion', enabled: false });
+      items.push({ type: 'separator' }, { label: `Ajouter « ${p.misspelledWord} » au dictionnaire`, click: () => win.webContents.session.addWordToSpellCheckerDictionary(p.misspelledWord) }, { type: 'separator' });
+    }
+    items.push({ label: 'Couper', role: 'cut' }, { label: 'Copier', role: 'copy' }, { label: 'Coller', role: 'paste' }, { type: 'separator' }, { label: 'Tout sélectionner', role: 'selectAll' });
+    Menu.buildFromTemplate(items).popup({ window: win });
+  });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
@@ -529,6 +541,34 @@ ipcMain.handle('recent-open', (_e, { file }) => {
   if (!known) throw new Error('Fichier inconnu.');
   return loadMany([file]);
 });
+const recoveryDir = () => path.join(app.getPath('userData'), 'recuperation');
+const recId = (id) => String(id || '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+function recoveryClear(id) {
+  try {
+    if (id) { for (const ext of ['.pdf', '.json']) fs.rmSync(path.join(recoveryDir(), recId(id) + ext), { force: true }); }
+    else fs.rmSync(recoveryDir(), { recursive: true, force: true });
+  } catch { /* */ }
+}
+ipcMain.handle('recovery-save', (_e, { id, name, bytes }) => {
+  const d = recoveryDir(); fs.mkdirSync(d, { recursive: true }); const k = recId(id); if (!k) return false;
+  const tmp = path.join(d, k + '.tmp'); fs.writeFileSync(tmp, Buffer.from(bytes)); fs.renameSync(tmp, path.join(d, k + '.pdf'));
+  fs.writeFileSync(path.join(d, k + '.json'), JSON.stringify({ name: path.basename(String(name || 'Document.pdf')), date: Date.now() }));
+  return true;
+});
+ipcMain.handle('recovery-list', () => {
+  const d = recoveryDir(); const out = [];
+  for (const f of (() => { try { return fs.readdirSync(d); } catch { return []; } })()) {
+    if (!f.endsWith('.json')) continue; const k = f.slice(0, -5);
+    try { const m = JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')); if (fs.existsSync(path.join(d, k + '.pdf'))) out.push({ id: k, name: m.name, date: m.date }); } catch { /* */ }
+  }
+  return out.sort((x, y) => y.date - x.date);
+});
+ipcMain.handle('recovery-load', async (_e, { id }) => {
+  const p = path.join(recoveryDir(), recId(id) + '.pdf');
+  const m = (() => { try { return JSON.parse(fs.readFileSync(path.join(recoveryDir(), recId(id) + '.json'), 'utf8')); } catch { return {}; } })();
+  return { name: m.name || 'Document récupéré.pdf', path: null, kind: 'pdf', bytes: fs.readFileSync(p), note: 'recovered' };
+});
+ipcMain.handle('recovery-clear', (_e, { id }) => { recoveryClear(id); return true; });
 ipcMain.handle('cloud-list', () => ({ clouds: cloud.detect(readSettings().clouds || []), install: cloud.INSTALL }));
 ipcMain.handle('cloud-save', async (_e, { cloudPath, bytes, defaultName }) => {
   admin.guard('cloud', 'Enregistrer dans le cloud');

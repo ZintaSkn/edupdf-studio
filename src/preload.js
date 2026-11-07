@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('api', {
   cloudRemove: (cloudPath) => ipcRenderer.invoke('cloud-remove', { cloudPath }),
   cloudInstall: (id) => ipcRenderer.invoke('cloud-install', { id }),
   cloudAutosave: (cloudPath, bytes, name) => ipcRenderer.invoke('cloud-autosave', { cloudPath, bytes, name }),
+  recoverySave: (id, name, bytes) => ipcRenderer.invoke('recovery-save', { id, name, bytes }),
+  recoveryList: () => ipcRenderer.invoke('recovery-list'),
+  recoveryLoad: (id) => ipcRenderer.invoke('recovery-load', { id }),
+  recoveryClear: (id) => ipcRenderer.invoke('recovery-clear', { id }),
   // assistant IA
   aiStatus: () => ipcRenderer.invoke('ai-status'),
   aiSave: (a) => ipcRenderer.invoke('ai-save', a),
