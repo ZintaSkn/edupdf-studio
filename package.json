@@ -40,7 +40,7 @@
     "pdfjs-dist": "^6.5.438",
     "pptxgenjs": "^4.0.1",
     "qrcode": "^1.5.4",
-    "tesseract.js": "5.1.1"
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "electron": "^45.2.3",
