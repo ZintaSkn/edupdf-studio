@@ -27,7 +27,7 @@
     "@tesseract.js-data/ita": "^1.0.0",
     "@tesseract.js-data/por": "^1.0.0",
     "@tesseract.js-data/spa": "^1.0.0",
-    "docx": "^8.5.0",
+    "docx": "^9.15.2",
     "electron-updater": "^6.3.9",
     "exceljs": "^4.4.0",
     "heic-convert": "^2.1.0",
