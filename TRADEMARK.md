@@ -4,7 +4,7 @@ Le **code** de SknEDU-studio est un logiciel libre (licence AGPL-3.0) : vous pou
 le modifier et le redistribuer selon les termes de cette licence.
 
 La **marque** est différente : le nom **« SknEDU-studio »**, le nom **« SknEDU »**, le logo et l'icône
-sont réservés à leur titulaire (ZintaSkn). La licence AGPL ne donne aucun droit sur la marque.
+sont réservés à leur titulaire (SEHI BI Kouahi Nestor). La licence AGPL ne donne aucun droit sur la marque.
 
 ## Ce qui est permis sans autorisation
 
