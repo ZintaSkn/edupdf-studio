@@ -4,6 +4,10 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.11.3] — Nouvelle adresse des mises à jour
+- Mises à jour automatiques recherchées à la nouvelle adresse du projet : https://github.com/ZintaSkn/edupdf-studio
+- Liens de l'application (À propos, code source, signalement de problèmes) mis à jour
+
 ## [1.11.2] — Aller à une page en tapant son numéro
 - Champ « numéro de page » dans la barre d'état, avec ◀ ▶ et le nombre total de pages
 - Ctrl+G pour y accéder ; Entrée pour aller à la page ; au-delà du total, la dernière page s'affiche
