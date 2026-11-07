@@ -5,15 +5,15 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
   <title>EduPDF — Administration</title>
   <style>
-    :root { --b: #1f3b73; --a: #2f6fed; --line: #dfe3ea; --muted: #6b7486; --ok: #128a3e; --no: #d64545; }
+    :root { --b: #001871; --a: #133ca1; --gold: #F1B434; --line: #dfe3ea; --muted: #6b7486; --ok: #128a3e; --no: #d64545; }
     * { box-sizing: border-box; }
     body { margin: 0; font: 14px "Segoe UI", Arial, sans-serif; color: #1d2433; background: #f4f6fa; }
-    header { background: var(--b); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+    header { background: var(--b); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; border-bottom: 4px solid transparent; border-image: linear-gradient(90deg, #001871, #004d81 20%, #006f79 35%, #008a65 50%, #3f9d48 65%, #97aa23 80%, #F1B434) 1; }
     header h1 { font-size: 17px; margin: 0; flex: 1; }
     header small { opacity: .8; }
     nav { display: flex; gap: 2px; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); }
     nav button { border: none; background: none; padding: 12px 14px; font-size: 14px; cursor: pointer; border-bottom: 3px solid transparent; }
-    nav button.on { border-bottom-color: var(--a); font-weight: 600; }
+    nav button.on { border-bottom-color: var(--gold); font-weight: 600; }
     main { padding: 18px 22px; max-width: 1200px; }
     section { display: none; } section.on { display: block; }
     .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }

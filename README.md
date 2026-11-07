@@ -4,6 +4,8 @@
 créer, modifier, organiser, scanner, rendre le texte des scans modifiable (OCR), protéger, signer,
 comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL-3.0) : aucun abonnement, aucun compte.
 
+Couleurs : bleu marine **#001871** et or **#F1B434** d'Enko Education ; leur dégradé (bleu → turquoise → vert → or) forme les vagues signature et toutes les nuances de l'interface.
+
 ## Fonctions
 
 | Domaine | Ce que fait le logiciel |

@@ -436,7 +436,7 @@ async function buildPdf(list = S.pages) {
     for (const o of p.items) {
       if (o.type === 'rect') {
         const [x1, y1, x2, y2] = normRect(o.rect); const box = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-        if (o.kind === 'highlight') cp.drawRectangle({ ...box, color: hexRgb(o.color || '#ffe600'), opacity: 0.38, blendMode: 'Multiply' });
+        if (o.kind === 'highlight') cp.drawRectangle({ ...box, color: hexRgb(o.color || '#F1B434'), opacity: 0.38, blendMode: 'Multiply' });
         else if (o.kind === 'whiteout') cp.drawRectangle({ ...box, color: o.color && o.color.length === 7 ? hexRgb(o.color) : rgb(1, 1, 1) });
         else cp.drawRectangle({ ...box, borderColor: hexRgb(o.color), borderWidth: o.width || 2 });
       } else if (o.type === 'field') {
@@ -745,7 +745,7 @@ async function paintItems(ctx, vp, p) {
     if (o.type === 'rect' || o.type === 'image' || o.type === 'field') {
       const r = viewRect(vp, o.rect);
       if (o.type === 'image') { try { ctx.drawImage(await loadImg(srcOf(o)), r.l, r.t, r.w, r.h); } catch { /* image absente */ } }
-      else if (o.kind === 'highlight') { ctx.save(); ctx.globalAlpha = 0.38; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = o.color || '#ffe600'; ctx.fillRect(r.l, r.t, r.w, r.h); ctx.restore(); }
+      else if (o.kind === 'highlight') { ctx.save(); ctx.globalAlpha = 0.38; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = o.color || '#F1B434'; ctx.fillRect(r.l, r.t, r.w, r.h); ctx.restore(); }
       else if (o.kind === 'whiteout') { ctx.fillStyle = o.color && o.color.length === 7 ? o.color : '#fff'; ctx.fillRect(r.l, r.t, r.w, r.h); }
       else if (o.type === 'field') { ctx.save(); ctx.setLineDash([3, 2]); ctx.strokeStyle = '#2f6fed'; ctx.strokeRect(r.l, r.t, r.w, r.h); ctx.restore(); }
       else { ctx.strokeStyle = o.color; ctx.lineWidth = (o.width || 2) * k; ctx.strokeRect(r.l, r.t, r.w, r.h); }
@@ -912,7 +912,7 @@ $('#overlayLayer').addEventListener('pointerup', async (e) => {
       const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0);
       snapshot(); p.items.push({ type: 'image', rect: rr, ref: putImg(c.toDataURL('image/png')) });
     } else {
-      snapshot(); p.items.push({ type: 'rect', kind: S.tool, rect, color: S.tool === 'highlight' ? '#ffe600' : S.tool === 'whiteout' ? '#ffffff' : color(), width: +$('#width').value || 2 });
+      snapshot(); p.items.push({ type: 'rect', kind: S.tool, rect, color: S.tool === 'highlight' ? '#F1B434' : S.tool === 'whiteout' ? '#ffffff' : color(), width: +$('#width').value || 2 });
     }
     S.selItem = p.items.length - 1; drawItems();
   }
@@ -1001,7 +1001,7 @@ async function signaturePad() {
     return o.toDataURL('image/png');
   }, true]]);
   const c = $('#sigPad'); const ctx = c.getContext('2d');
-  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b1f5c';
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#001871';
   const old = store.get('edupdf.signature');
   if (old) loadImg(old).then((im) => { const k = Math.min(1, c.width / im.width, c.height / im.height); ctx.drawImage(im, (c.width - im.width * k) / 2, (c.height - im.height * k) / 2, im.width * k, im.height * k); });
   let last = null;
@@ -1034,7 +1034,7 @@ async function placeSignature(pos) {
   snapshot();
   p.items.push({ type: 'image', rect: viewToPdfRect(S.vp, pos[0] - w / 2, pos[1] - h / 2, w, h), ref: putImg(sig) });
   if (store.get('edupdf.signDate') === '1') {
-    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0] - w / 2, pos[1] + h / 2 + 2 * S.scale), size: 10, color: '#0b1f5c', font: { family: 'Arial' }, text: 'Le ' + new Date().toLocaleDateString('fr-FR') });
+    p.items.push({ type: 'text', at: S.vp.convertToPdfPoint(pos[0] - w / 2, pos[1] + h / 2 + 2 * S.scale), size: 10, color: '#001871', font: { family: 'Arial' }, text: 'Le ' + new Date().toLocaleDateString('fr-FR') });
   }
   S.selItem = p.items.length - 1; setTool('select'); drawItems(); msg('Signature ajoutée : déplacez-la ou redimensionnez-la si besoin.');
 }

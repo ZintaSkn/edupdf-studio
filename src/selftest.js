@@ -42,6 +42,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
     await fixtures;
     const js = (code) => win.webContents.executeJavaScript(code);
     for (let i = 0; i < 100 && !(await js('!!window.__edupdf')); i++) await new Promise((r) => setTimeout(r, 100)); // éditeur chargé (module PDF.js)
+    await new Promise((r) => setTimeout(r, 600)); try { fs.writeFileSync(path.join(outDir, 'accueil.png'), (await win.webContents.capturePage()).toPNG()); } catch { /* capture facultative */ }
     const results = {};
     const step = async (name, code, ms = 60000) => {
       try { results[name] = await timeout(js(code), ms, name); log('OK  ', name, JSON.stringify(results[name]).slice(0, 600)); }
