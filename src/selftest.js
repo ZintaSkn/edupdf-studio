@@ -543,6 +543,22 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         return out;
       })()`, 120000);
 
+      await step('aller-a-la-page', `(async () => {
+        const T = window.__edupdf; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+        const d = await PDFLib.PDFDocument.create(); for (let i = 0; i < 6; i++) d.addPage([595, 842]);
+        await T.insertPdf(await d.save()); T.S.cur = 0; T.refresh(); await wait(900);
+        out.affiche = q('#pageInput').value + ' ' + q('#pageTotal').textContent;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', ctrlKey: true })); out.ctrlG = document.activeElement === q('#pageInput');
+        const inp = q('#pageInput'); inp.value = '4'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(900);
+        out.page4 = T.S.cur + 1; out.champApres = inp.value; out.pageVisible = !!q('#pageStack') && !!q('#pageStack').children[3].querySelector('#pageBox');
+        inp.focus(); inp.value = '99'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(700);
+        out.horsLimite = T.S.cur + 1 + ' — ' + q('#msg').textContent.slice(0, 50);
+        inp.focus(); inp.value = 'abc'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(200);
+        out.invalide = T.S.cur + 1; inp.blur();
+        T.actions.prev(); await wait(600); out.precedente = q('#pageInput').value;
+        return out;
+      })()`);
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;

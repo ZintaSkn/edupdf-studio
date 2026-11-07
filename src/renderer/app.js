@@ -2356,7 +2356,7 @@ function initHome() {
   $('#homeSide').innerHTML = HOME_ITEMS.map(([group, items]) => `<section role="group" aria-label="${esc(group)}">${items.map(([attrs, icon, label, help]) =>
     `<button ${attrs} class="hi" title="${esc(label)}\n${esc(help)}" aria-label="${esc(label)} : ${esc(help)}">${icon}</button>`).join('')}</section>`).join('<hr>') +
     '<hr><section role="group" aria-label="Fichiers récents" id="recentList"></section>' +
-    `<hr><button class="hi" id="shortcutsHelp" title="Raccourcis clavier\nCtrl+T nouvel onglet · Ctrl+W fermer · Ctrl+Tab onglet suivant\nF5 diaporama · Ctrl+F1 masquer le ruban · Ctrl+F rechercher\nClic droit sur un bouton du ruban : barre d'accès rapide" aria-label="Raccourcis clavier">⌨️</button>`;
+    `<hr><button class="hi" id="shortcutsHelp" title="Raccourcis clavier\nCtrl+T nouvel onglet · Ctrl+W fermer · Ctrl+Tab onglet suivant\nF5 diaporama · Ctrl+F1 masquer le ruban · Ctrl+F rechercher · Ctrl+G aller à la page\nClic droit sur un bouton du ruban : barre d'accès rapide" aria-label="Raccourcis clavier">⌨️</button>`;
   showSide('home');
 }
 async function renderRecent() {

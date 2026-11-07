@@ -404,3 +404,11 @@ footer > #msg { flex: 1 1 auto; }
 .stampbtn:hover { background: #f5f7fc; }
 .hfgrid { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 6px; align-items: center; margin-bottom: 8px; }
 .hfgrid input { width: 100%; box-sizing: border-box; }
+
+/* ---------- Aller à la page ---------- */
+#pageNav { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+#pageNav button { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); min-width: 24px; }
+#pageInput { width: 44px; text-align: center; font-size: 12px; padding: 1px 3px; border-radius: 4px; border: 1px solid rgba(255,255,255,.5); }
+#pageInput:focus { outline: 2px solid var(--brand-gold); }
+#pageTotal { color: #dfe6f7; }
+@media (max-width: 860px) { #pageNav button { display: none; } }

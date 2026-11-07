@@ -237,11 +237,38 @@ async function cloudAutoDialog() {
 }
 if (CA.on) cloudTag(`☁ ${CA.name}`, 'Sauvegarde automatique activée');
 
+// ================================================================ 7. Aller à une page en tapant son numéro (Ctrl+G)
+function syncPageNav() {
+  const n = S.pages.length; const inp = $('#pageInput');
+  $('#pageTotal').textContent = '/ ' + (n || '–'); inp.disabled = !n;
+  if (document.activeElement !== inp) inp.value = n ? S.cur + 1 : '';
+}
+function goToPage(v) {
+  const n = S.pages.length; if (!n) return false;
+  const k = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  if (!k) { msg(`Tapez un numéro de page entre 1 et ${n}.`); syncPageNav(); return false; }
+  const i = Math.min(n, Math.max(1, k)) - 1;
+  if (k > n) msg(`Le document n'a que ${n} page(s) : dernière page affichée.`);
+  S.cur = i; S.sel = new Set([i]); S.selItem = -1; refresh(); syncPageNav(); return true;
+}
+$('#pageInput').addEventListener('keydown', (e) => {
+  e.stopPropagation(); // les raccourcis de l'éditeur ne s'appliquent pas pendant la saisie
+  if (e.key === 'Enter') { e.preventDefault(); if (goToPage(e.target.value)) e.target.blur(); }
+  else if (e.key === 'Escape') { e.target.blur(); syncPageNav(); }
+});
+$('#pageInput').addEventListener('focus', (e) => e.target.select());
+$('#pageInput').addEventListener('blur', syncPageNav);
+new MutationObserver(syncPageNav).observe($('#pageLbl'), { childList: true, characterData: true, subtree: true });
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'g' || e.key === 'G') && S.pages.length && $('#modal').hidden) { e.preventDefault(); $('#pageInput').focus(); }
+});
+syncPageNav();
+
 // ================================================================ Crochets et actions
 window.afterRender = (pg) => { syncViewControls(); syncReadOnly(); drawExistingComments(pg); renderModList(); };
 window.afterDocSwitch = () => { syncReadOnly(); };
 Object.assign(actions, { cloudAuto: cloudAutoDialog, exportOrigin, commentLocked: saveCommentedReadOnly, sidebars: () => $('#sbMode').click() });
 Object.assign(FEATURE_OF.act, { cloudAuto: 'cloud', exportOrigin: 'convert', commentLocked: 'save' });
 syncViewControls(); renderModList();
-window.__studio = { SB, cloudAutoTick, exportOrigin, saveCommentedReadOnly, readOnlyBytes, renderModList,
+window.__studio = { goToPage, SB, cloudAutoTick, exportOrigin, saveCommentedReadOnly, readOnlyBytes, renderModList,
   setCloudAuto: (path, name) => { CA = { on: true, path, name, every: 2 }; caHashes.clear(); caLast = 0; } };
