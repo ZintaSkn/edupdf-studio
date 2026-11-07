@@ -264,6 +264,50 @@ window.addEventListener('keydown', (e) => {
 });
 syncPageNav();
 
+// ================================================================ 8. Assistant IA : erreurs expliquées, solutions en un clic
+const BILLING = { anthropic: 'https://console.anthropic.com/settings/billing', openai: 'https://platform.openai.com/settings/organization/billing/overview', gemini: 'https://aistudio.google.com/', mistral: 'https://console.mistral.ai/billing' };
+const KEYS = { anthropic: 'https://console.anthropic.com/settings/keys', openai: 'https://platform.openai.com/api-keys', gemini: 'https://aistudio.google.com/apikey', mistral: 'https://console.mistral.ai/api-keys' };
+window.aiErrorHelp = (text) => {
+  const m = /\[(credit|key|model|rate|overload|size|network|local)\]\s*/.exec(text);
+  return m ? { code: m[1], text: text.slice(0, m.index) + text.slice(m.index + m[0].length) } : { code: null, text };
+};
+async function aiProvider() { try { return (await window.api.aiStatus()).provider; } catch { return 'anthropic'; } }
+window.aiErrorActions = async (code) => {
+  let box = $('#aiFix');
+  if (!box) { box = document.createElement('div'); box.id = 'aiFix'; $('#aiOut').after(box); }
+  box.innerHTML = ''; if (!code) return;
+  const prov = await aiProvider(); const btns = [];
+  if (code === 'credit') {
+    btns.push(['💳 Ajouter du crédit API', () => window.api.openExternal(BILLING[prov] || BILLING.anthropic)]);
+    btns.push(['🌐 Utiliser mon abonnement (navigateur)', () => actions.aiSubscription()]);
+    btns.push(['💻 IA locale gratuite', () => actions.aiLocal()]);
+  }
+  if (code === 'key') { btns.push(['🔑 Changer la clé', () => actions.aiSettings()]); if (KEYS[prov]) btns.push(['🌐 Mes clés API', () => window.api.openExternal(KEYS[prov])]); }
+  if (code === 'model') btns.push(['⚙️ Choisir un autre modèle', () => actions.aiSettings()]);
+  if (code === 'size') btns.push(['📄 Envoyer la page courante', () => { const s = $('#aiScope'); if (s) { s.value = [...s.options].some((o) => o.value === 'page') ? 'page' : s.options[0].value; } }]);
+  if (code === 'rate' || code === 'overload' || code === 'network') btns.push(['🔁 Réessayer', () => $('#aiSend').click()]);
+  if (code === 'local') btns.push(['💻 Installer l\'IA locale', () => actions.aiLocal()]);
+  for (const [label, fn] of btns) { const b = document.createElement('button'); b.className = 'small'; b.textContent = label; b.onclick = fn; box.appendChild(b); }
+};
+/** Petite demande d'essai après l'enregistrement de la clé : on sait tout de suite si la clé et le crédit sont bons. */
+window.aiTestConnection = async () => {
+  busy('Test de la connexion à l\'IA…');
+  try {
+    const r = await window.api.aiChat({ id: 'test' + Date.now(), system: 'Réponds en un seul mot.', prompt: 'Réponds seulement : OK' });
+    done(); alert(`✅ Connexion réussie : ${r.provider || 'l\'IA'}${r.model ? ' (' + r.model + ')' : ''} répond. L'assistant est prêt.`);
+    return true;
+  } catch (e) {
+    done(); const h = window.aiErrorHelp(errMsg(e));
+    const go = await modal('⚠️ Test de connexion', `<p>${esc(h.text)}</p>`, h.code === 'credit'
+      ? [['Fermer', null], ['IA locale gratuite', 'local'], ['Mon abonnement (navigateur)', 'sub'], ['Ajouter du crédit', 'pay', true]]
+      : h.code === 'key' ? [['Fermer', null], ['Changer la clé', 'key', true]] : [['Fermer', null, true]]);
+    const prov = await aiProvider();
+    if (go === 'pay') window.api.openExternal(BILLING[prov] || BILLING.anthropic);
+    else if (go === 'sub') actions.aiSubscription(); else if (go === 'local') actions.aiLocal(); else if (go === 'key') actions.aiSettings();
+    return false;
+  }
+};
+
 // ================================================================ Crochets et actions
 window.afterRender = (pg) => { syncViewControls(); syncReadOnly(); drawExistingComments(pg); renderModList(); };
 window.afterDocSwitch = () => { syncReadOnly(); };

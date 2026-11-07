@@ -4,6 +4,12 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.11.4] — Assistant IA : erreurs expliquées et solutions
+- Messages clairs en français à la place des réponses techniques des fournisseurs d'IA : crédit épuisé, clé refusée, modèle introuvable, document trop long, limite atteinte, service surchargé, connexion absente
+- Crédit épuisé : explique que l'API est facturée à part (un abonnement Claude Pro / Max ou ChatGPT Plus n'inclut pas de crédit API) et propose « Ajouter du crédit », « Utiliser mon abonnement (navigateur) » ou « IA locale gratuite »
+- Boutons de solution sous la réponse : changer la clé, choisir un autre modèle, envoyer la page courante, réessayer
+- Réglages de l'assistant : test de connexion après l'enregistrement de la clé
+
 ## [1.11.3] — Nouvelle adresse des mises à jour
 - Mises à jour automatiques recherchées à la nouvelle adresse du projet : https://github.com/ZintaSkn/edupdf-studio
 - Liens de l'application (À propos, code source, signalement de problèmes) mis à jour

@@ -260,6 +260,8 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         document.querySelector('#aiPrompt').value = 'Résume en une phrase.';
         await T.aiRun();
         out.claude = document.querySelector('#aiOut').textContent.slice(0, 160);
+        await new Promise((r) => setTimeout(r, 300)); out.solutionsProposees = [...document.querySelectorAll('#aiFix button')].map((b) => b.textContent).join(' | ');
+        const h = window.aiErrorHelp('[credit] Compte sans crédit API'); out.aideCredit = h.code + ' / ' + h.text.slice(0, 30);
         await window.api.aiSave({ provider: 'openai', model: 'gpt-5', key: 'sk-test-invalide' });
         await T.aiRun(); out.openai = document.querySelector('#aiOut').textContent.slice(0, 160);
         out.ollama = await window.api.aiOllamaModels();
@@ -533,7 +535,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const s2 = await TE.composePrint(pages, 2); const s1 = await TE.composePrint(pages, 1);
         out.impression = s2.length + ' feuilles à 2 pages (' + (s2[0].w > s2[0].h ? 'italienne' : 'portrait') + '), 1 par feuille : ' + s1.every((p) => p.h > p.w);
         // copie de récupération puis suppression après enregistrement
-        TE.PREFS.recoveryMin = 1; T.S.dirty = true; await TE.recoveryTick();
+        TE.PREFS.recoveryMin = 1; T.S.dirty = true; await TE.recoveryTick(true);
         const l1 = await window.api.recoveryList(); out.recuperation = l1.length + ' copie(s) ' + (l1[0] ? l1[0].name : '');
         const back = await window.api.recoveryLoad(l1[0].id); out.recupOuvrable = back.bytes.length > 1000;
         T.S.dirty = true; window.setDirty(false); await wait(300); out.apresEnregistrement = (await window.api.recoveryList()).length;

@@ -79,13 +79,29 @@ async function runClaude({ id, model, key, system, prompt, pdfBase64, images, se
   if (msg.stop_reason === 'max_tokens') send('ai-chunk', { id, text: '\n\n[… réponse tronquée : demandez la suite]' });
   return { model: msg.model, usage: msg.usage };
 }
+/** Erreur compréhensible : « [code] explication ». Codes : credit, key, model, rate, overload, size, network. */
+function friendlyError(provider, status, raw) {
+  const P = PROVIDERS[provider] || { name: provider }; const name = P.name.split(' (')[0]; const m = String(raw || '');
+  const cons = { anthropic: 'console Anthropic (console.anthropic.com)', openai: 'console OpenAI (platform.openai.com)', gemini: 'console Google AI Studio', mistral: 'console Mistral (console.mistral.ai)' }[provider] || `console ${name}`;
+  if (status === 402 || /credit balance|purchase credits|plans? & billing|insufficient_quota|billing|exceeded your current quota|quota exceeded|payment required/i.test(m))
+    return `[credit] Votre compte ${name} n'a plus de crédit pour l'API. La clé est valide, mais l'API est facturée à part, en prépayé : un abonnement ${provider === 'anthropic' ? 'Claude Pro ou Max' : provider === 'openai' ? 'ChatGPT Plus' : 'grand public'} ne l'inclut pas. Ajoutez du crédit sur la ${cons}, ou utilisez votre abonnement par le navigateur, ou l'IA locale gratuite.`;
+  if (status === 401 || /invalid x-api-key|invalid api key|incorrect api key|authentication|api key not valid/i.test(m))
+    return `[key] Clé API ${name} refusée : elle est invalide, révoquée ou mal copiée. Recopiez-la depuis la ${cons}.`;
+  if (status === 403 || /permission/i.test(m)) return `[key] Accès refusé par ${name} : cette clé n'a pas accès à ce modèle ou le compte est restreint.`;
+  if (status === 404 || /not_found_error|model.*(not found|does not exist)|unknown model/i.test(m)) return `[model] Modèle introuvable chez ${name} : choisissez un autre modèle dans les réglages de l'assistant.`;
+  if (status === 413 || /too large|prompt is too long|maximum context|context length|too many tokens/i.test(m)) return `[size] Document trop volumineux pour une seule demande : choisissez « Page courante » ou « Sélection » dans « Contenu envoyé ».`;
+  if (status === 429 || /rate.?limit/i.test(m)) return `[rate] Limite d'utilisation ${name} atteinte : patientez une minute puis recommencez.`;
+  if (status === 529 || status === 503 || /overloaded/i.test(m)) return `[overload] ${name} est momentanément surchargé : recommencez dans quelques instants.`;
+  return null;
+}
 function claudeError(e) {
   const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
-  if (e instanceof Anthropic.AuthenticationError) return 'Clé API Claude invalide ou révoquée.';
+  if (e instanceof Anthropic.APIError && e.status) { const msg = (e.error && e.error.error && e.error.error.message) || e.message; const f = friendlyError('anthropic', e.status, msg); if (f) return f; }
+  if (e instanceof Anthropic.AuthenticationError) return '[key] Clé API Claude invalide ou révoquée.';
   if (e instanceof Anthropic.PermissionDeniedError) return 'Accès refusé par Anthropic (droits du compte ou du modèle).';
   if (e instanceof Anthropic.RateLimitError) return 'Limite d\'utilisation atteinte : réessayez dans un moment (ou vérifiez le crédit du compte).';
   if (e instanceof Anthropic.BadRequestError) return 'Demande refusée par Claude : ' + e.message;
-  if (e instanceof Anthropic.APIConnectionError) return 'Connexion impossible à Claude : vérifiez Internet.';
+  if (e instanceof Anthropic.APIConnectionError) return '[network] Connexion impossible à Claude : vérifiez la connexion Internet.';
   if (e instanceof Anthropic.APIError) return `Erreur Claude (${e.status}) : ${e.message}`;
   return null;
 }
@@ -101,9 +117,7 @@ async function runCompatible({ id, provider, model, key, system, prompt, images,
   if (!r.ok) {
     const t = await r.text().catch(() => '');
     let m = t; try { const j = JSON.parse(t); m = (j.error && (j.error.message || j.error)) || (Array.isArray(j) && j[0] && j[0].error && j[0].error.message) || t; } catch { /* texte brut */ }
-    if (r.status === 401 || r.status === 403) throw new Error(`Clé API ${P.name} invalide ou sans accès à ce modèle.`);
-    if (r.status === 404) throw new Error(`Modèle « ${model} » introuvable chez ${P.name}.`);
-    if (r.status === 429) throw new Error(`Limite d'utilisation ${P.name} atteinte (ou crédit épuisé).`);
+    const fe = friendlyError(provider, r.status, `${m} ${t}`); if (fe) throw new Error(fe);
     throw new Error(`${P.name} (${r.status}) : ${String(m).slice(0, 300)}`);
   }
   const dec = new TextDecoder(); let buf = '';
@@ -135,7 +149,8 @@ async function chat(evt, { id, system, prompt, pdfBase64, images }) {
   } catch (e) {
     if (ctrl.signal.aborted) return { ok: false, cancelled: true };
     if (provider === 'anthropic') { const m = claudeError(e); if (m) throw new Error(m); }
-    if (provider === 'ollama' && /fetch failed|ECONNREFUSED/i.test(String(e.cause || e.message))) throw new Error('Ollama ne répond pas : installez-le (ollama.com) puis lancez « ollama run llama3.2 » une première fois.');
+    if (provider !== 'ollama' && /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(String(e.cause || e.message))) throw new Error(`[network] Connexion impossible à ${P.name.split(' (')[0]} : vérifiez la connexion Internet.`);
+    if (provider === 'ollama' && /fetch failed|ECONNREFUSED/i.test(String(e.cause || e.message))) throw new Error('[local] Ollama ne répond pas : installez-le (ollama.com) puis lancez « ollama run llama3.2 » une première fois.');
     throw e;
   } finally { running.delete(id); }
 }
@@ -173,4 +188,4 @@ function init(deps) {
   });  ip.handle('ai-cancel', (_e, { id }) => { const c = running.get(id); if (c) c.abort(); return true; });
 }
 
-module.exports = { init, PROVIDERS };
+module.exports = { friendlyError, init, PROVIDERS };

@@ -36,17 +36,17 @@ async function prefsDialog() {
 // ================================================================ 2. Récupération après coupure ou plantage
 const newRid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const recHash = new Map(); let recBusy = false; let recLast = 0;
-async function recoveryTick() {
+async function recoveryTick(force) {
   const every = +PREFS.recoveryMin; if (!every || recBusy || !S.pages.length || !S.dirty) return;
-  if (Date.now() - recLast < every * 60000 - 500) return;
+  if (!force && Date.now() - recLast < every * 60000 - 500) return;
   const ae = document.activeElement; if (!$('#busy').hidden || (ae && ae.isContentEditable)) return;
   if (!S.rid) S.rid = newRid();
-  const h = hashStr(stateJson() + S.fileName); if (recHash.get(S.rid) === h) return;
+  const h = hashStr(stateJson() + S.fileName); if (!force && recHash.get(S.rid) === h) return;
   recBusy = true;
   try { await window.api.recoverySave(S.rid, S.fileName, await buildPdf()); recHash.set(S.rid, h); recLast = Date.now(); }
   catch { /* nouvel essai au prochain passage */ } finally { recBusy = false; }
 }
-setInterval(recoveryTick, 15000);
+setInterval(() => recoveryTick(false), 15000);
 // enregistré ou abandonné : la copie de récupération n'est plus utile
 const _setDirty = setDirty;
 setDirty = (v) => { _setDirty(v); if (!v && S.rid) { window.api.recoveryClear(S.rid); recHash.delete(S.rid); } }; // eslint-disable-line no-global-assign

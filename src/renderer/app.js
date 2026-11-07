@@ -2039,14 +2039,15 @@ async function aiRun(preset) {
     text = text.slice(0, LIMIT); note = '\n[Document tronqué pour respecter la taille maximale.]';
   }
   const prompt = pdfBase64 ? ask : (text ? `${ask}\n\n<document>\n${text}${note}\n</document>` : ask);
-  AI.id = 'r' + Date.now(); AI.text = ''; $('#aiOut').textContent = ''; $('#aiOut').classList.add('busy');
+  AI.id = 'r' + Date.now(); AI.text = ''; $('#aiOut').textContent = ''; $('#aiOut').classList.add('busy'); if (window.aiErrorActions) window.aiErrorActions(null);
   $('#aiSend').hidden = true; $('#aiStop').hidden = false;
   try {
     const r = await window.api.aiChat({ id: AI.id, system: AI_SYSTEM, prompt, pdfBase64 });
     if (r.cancelled) AI.text += '\n[Arrêté]';
     msg(`Réponse de ${r.provider || 'l\'IA'}${r.model ? ` (${r.model})` : ''}${pdfBase64 ? ' — PDF lu directement (texte, images, mise en page)' : ''}.`);
-  } catch (e) { AI.text += (AI.text ? '\n\n' : '') + '⚠️ ' + errMsg(e); }
+  } catch (e) { const h = window.aiErrorHelp ? window.aiErrorHelp(errMsg(e)) : { text: errMsg(e) }; AI.text += (AI.text ? '\n\n' : '') + '⚠️ ' + h.text; AI.errCode = h.code; }
   $('#aiOut').textContent = AI.text; $('#aiOut').classList.remove('busy');
+  if (window.aiErrorActions) window.aiErrorActions(AI.errCode); AI.errCode = null;
   $('#aiSend').hidden = false; $('#aiStop').hidden = true;
 }
 async function aiSettings() {
@@ -2059,8 +2060,10 @@ async function aiSettings() {
     <p class="muted" id="aiHelp"></p>
     <label class="ck" id="aiPdfRow"><input type="checkbox" id="aiPdf" ${st.sendPdf ? 'checked' : ''}> Envoyer les pages en PDF (Claude lit aussi les images, schémas et pages scannées)</label>
     <p class="muted">La clé est chiffrée par Windows sur ce PC et n'est jamais affichée ni partagée. Le texte des pages choisies est envoyé au fournisseur à chaque demande (sauf Ollama, 100 % local).</p>
+    <label class="ck"><input type="checkbox" id="aiTest" checked> Tester la connexion après l'enregistrement</label>
+    <p class="muted"><b>Important :</b> l'API est facturée à part, en crédit prépayé (Claude : console.anthropic.com › Billing). Un abonnement Claude Pro / Max ou ChatGPT Plus <b>ne donne pas de crédit API</b>.</p>
     <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : SknEDU-studio prépare la demande et ouvre votre IA dans le navigateur.</p>`;
-  const pr = modal('Réglages de l\'assistant IA', html, [['Annuler', null], ['Enregistrer', () => ({ provider: $('#aiProv').value, model: $('#aiModel').value, key: $('#aiKey').value, sendPdf: $('#aiPdf').checked }), true]]);
+  const pr = modal('Réglages de l\'assistant IA', html, [['Annuler', null], ['Enregistrer', () => ({ provider: $('#aiProv').value, model: $('#aiModel').value, key: $('#aiKey').value, sendPdf: $('#aiPdf').checked, test: $('#aiTest').checked }), true]]);
   const upd = async () => {
     const k = $('#aiProv').value; const p = st.providers[k];
     let models = p.models;
@@ -2072,8 +2075,8 @@ async function aiSettings() {
     $('#aiKey').placeholder = p.hasKey ? '•••••••• (enregistrée — laisser vide pour la garder)' : 'Collez votre clé API';
   };
   $('#aiProv').onchange = upd; upd();
-  const r = await pr; if (!r) return false;
-  try { AI.status = await window.api.aiSave(r); await refreshAiBadge(); msg('Assistant IA configuré.'); return AI.status.providers[r.provider].hasKey; }
+  const r = await pr; if (!r) return false; const doTest = r.test; delete r.test;
+  try { AI.status = await window.api.aiSave(r); await refreshAiBadge(); msg('Assistant IA configuré.'); if (doTest && window.aiTestConnection) await window.aiTestConnection(); return AI.status.providers[r.provider].hasKey; }
   catch (e) { alert(errMsg(e)); return false; }
 }
 async function aiSubscription() {

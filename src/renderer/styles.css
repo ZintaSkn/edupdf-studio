@@ -412,3 +412,7 @@ footer > #msg { flex: 1 1 auto; }
 #pageInput:focus { outline: 2px solid var(--brand-gold); }
 #pageTotal { color: #dfe6f7; }
 @media (max-width: 860px) { #pageNav button { display: none; } }
+
+/* ---------- Assistant IA : solutions proposées après une erreur ---------- */
+#aiFix { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#aiFix:empty { display: none; }
