@@ -20,6 +20,7 @@
       <button data-tab="ocr">OCR</button>
       <button data-tab="convertir">Convertir</button>
       <button data-tab="outils">Protéger &amp; Comparer</button>
+      <button data-tab="classe">🎓 Classe</button>
       <button data-tab="ia">✨ Assistant IA</button>
       <button data-tab="aide">Aide</button>
       <span class="spacer"></span>
@@ -34,6 +35,7 @@
         <button data-act="print"><i>🖨</i>Imprimer</button>
         <span class="sep"></span>
         <button data-tool="edit" class="tool"><i>✏️</i>Modifier<br>le texte</button>
+        <button data-tool="editpara" class="tool"><i>📝</i>Modifier un<br>paragraphe</button>
         <button data-tool="text" class="tool"><i>🔤</i>Ajouter<br>du texte</button>
         <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
         <button data-act="ocrPage"><i>🔍</i>OCR</button>
@@ -63,6 +65,7 @@
       <div class="panel" data-panel="modifier">
         <button data-tool="select" class="tool on"><i>🖱</i>Sélection</button>
         <button data-tool="edit" class="tool"><i>✏️</i>Modifier le texte</button>
+        <button data-tool="editpara" class="tool"><i>📝</i>Modifier un<br>paragraphe</button>
         <button data-tool="text" class="tool"><i>🔤</i>Ajouter du texte</button>
         <button data-tool="image" class="tool"><i>🖼</i>Image</button>
         <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
@@ -74,6 +77,7 @@
         <button data-tool="fcheck" class="tool"><i>☑</i>Case à cocher</button>
         <button data-tool="note" class="tool"><i>💬</i>Commentaire</button>
         <button data-act="find"><i>🔎</i>Rechercher /<br>remplacer</button>
+        <button data-act="equation"><i>∑</i>Équation</button>
         <span class="sep"></span>
         <button data-act="undo"><i>↶</i>Annuler</button>
         <button data-act="redo"><i>↷</i>Rétablir</button>
@@ -132,8 +136,21 @@
         <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
         <button data-act="insertFiles"><i>📥</i>Word / PPT / Excel → PDF</button>
       </div>
-      <div class="panel" data-panel="ia">
-        <button data-act="aiPanel"><i>✨</i>Ouvrir<br>l'assistant</button>
+      <div class="panel" data-panel="classe">
+        <button data-act="grading"><i>🧑‍🏫</i>Corriger<br>des copies</button>
+        <button data-act="diffEval"><i>🎯</i>Évaluations<br>différenciées</button>
+        <button data-act="mailMerge"><i>✉️</i>Publipostage</button>
+        <button data-act="classroom"><i>📡</i>Classe<br>connectée</button>
+        <span class="sep"></span>
+        <button data-act="dys"><i>🔠</i>Version adaptée<br>(DYS)</button>
+        <button data-act="speak"><i>🔊</i>Lire à<br>voix haute</button>
+        <button data-act="bilingual"><i>🌍</i>Version<br>bilingue</button>
+        <button data-act="equation"><i>∑</i>Équation</button>
+        <span class="sep"></span>
+        <button data-act="slideshow"><i>🖥</i>Diaporama<br>(F5)</button>
+        <button data-act="aiLocal"><i>💻</i>IA locale<br>(hors ligne)</button>
+      </div>
+      <div class="panel" data-panel="ia">        <button data-act="aiPanel"><i>✨</i>Ouvrir<br>l'assistant</button>
         <button data-ai="resume"><i>📝</i>Résumer</button>
         <button data-ai="qcm"><i>✅</i>Créer un QCM</button>
         <button data-ai="exos"><i>✏️</i>Fiche<br>d'exercices</button>
@@ -145,9 +162,11 @@
         <span class="sep"></span>
         <button data-act="aiSubscription"><i>🔗</i>Mon abonnement<br>(ChatGPT, Claude…)</button>
         <button data-act="aiSettings"><i>⚙️</i>Réglages IA</button>
+        <button data-act="aiLocal"><i>💻</i>IA locale<br>(hors ligne)</button>
       </div>
       <div class="panel" data-panel="aide">
         <button data-act="admin"><i>🛡️</i>Administration</button>
+        <button data-act="language"><i>🌐</i>Langue<br>(Language)</button>
         <button data-act="license"><i>🔑</i>Licence et<br>édition</button>
         <button data-act="checkUpdate"><i>🔄</i>Rechercher les mises à jour</button>
         <button data-act="office"><i>🧩</i>Statut conversion Office</button>
@@ -159,7 +178,7 @@
 
   <main>
     <aside id="leftBar">
-      <div id="sideSwitch"><button data-side="home" class="on">🏠 Accueil</button><button data-side="pages">📑 Pages</button></div>
+      <div id="sideSwitch"><button data-side="home" class="on" title="Accueil&#10;Les outils essentiels de l'enseignant : démarrer, modèles, outils, fichiers récents." aria-label="Accueil">🏠</button><button data-side="pages" title="Pages&#10;Miniatures du document : cliquer pour aller à une page, glisser pour réorganiser." aria-label="Pages">📑</button></div>
       <div id="homeSide"></div>
       <div id="thumbs" hidden></div>
     </aside>

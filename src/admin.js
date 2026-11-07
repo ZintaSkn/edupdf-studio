@@ -38,7 +38,7 @@ const DEFAULT_NOTIFY = ['blocked', 'user_blocked', 'policy_tampered', 'admin_fai
 const host = os.hostname();
 const user = (() => { try { return os.userInfo().username; } catch { return process.env.USERNAME || 'inconnu'; } })();
 const PROGRAMDATA = process.env.ProgramData || 'C:\\ProgramData';
-const MACHINE_DIR = process.env.EDUPDF_MACHINE_DIR || path.join(PROGRAMDATA, 'EduPDF');
+const MACHINE_DIR = process.env.EDUPDF_MACHINE_DIR || (process.platform === 'win32' ? path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF') : process.platform === 'darwin' ? '/Users/Shared/EduPDF' : '/var/tmp/EduPDF');
 
 let A = null; // { app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath, getMainWindow, openMain, preloadAdmin }
 const P = {};  // chemins

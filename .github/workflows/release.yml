@@ -36,3 +36,28 @@ jobs:
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # macOS et Linux : construits seulement si la version Windows (auto-test complet) a réussi
+  autres-systemes:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            cible: --mac
+          - os: ubuntu-latest
+            cible: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci --omit=optional
+      - run: node node_modules/electron/install.js
+      # Application non signée par Apple : pas de recherche de certificat (Gatekeeper avertira à la première ouverture)
+      - run: npx electron-builder ${{ matrix.cible }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'

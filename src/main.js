@@ -21,6 +21,7 @@ const admin = require('./admin');
 const cloud = require('./cloud');
 const ai = require('./ai');
 const license = require('./license');
+const classroom = require('./classroom');
 const { Notification, Tray, nativeImage } = require('electron');
 const ICON = path.join(__dirname, 'renderer', 'icon.png');
 
@@ -71,7 +72,7 @@ function findSoffice() {
   const candidates = [
     'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
     'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
-    '/usr/bin/soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice'
+    '/usr/bin/soffice', '/usr/bin/libreoffice', '/snap/bin/libreoffice', '/opt/libreoffice/program/soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice'
   ];
   return candidates.find((p) => fs.existsSync(p)) || null;
 }
@@ -315,6 +316,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
+    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win });
     ai.init({ app, ipcMain, safeStorage: require('electron').safeStorage, guard: admin.guard, logEvent: admin.logEvent });
     admin.logEvent('app_start', {});
     if (admin.effective().blocked) admin.logEvent('user_blocked', {});
@@ -550,6 +552,45 @@ ipcMain.handle('cloud-install', (_e, { id }) => new Promise((resolve) => {
     (err, so, se) => resolve({ ok: !err, log: String(se || so || (err && err.message) || '').trim().slice(-300) }));
 }));
 
+// ---------- Mode présentateur : projection sur le second écran ----------
+let presentWin = null;
+ipcMain.handle('displays', () => require('electron').screen.getAllDisplays().length);
+ipcMain.handle('present-open', () => {
+  const { screen } = require('electron');
+  const ext = screen.getAllDisplays().find((d) => d.id !== screen.getDisplayMatching(win.getBounds()).id);
+  if (!ext) return false;
+  if (presentWin && !presentWin.isDestroyed()) return true;
+  presentWin = new BrowserWindow({ x: ext.bounds.x, y: ext.bounds.y, width: ext.bounds.width, height: ext.bounds.height, fullscreen: true, frame: false, backgroundColor: '#000',
+    title: 'SknEDUpdf-studio — projection', icon: ICON, webPreferences: { preload: path.join(__dirname, 'present-preload.js'), contextIsolation: true, sandbox: true } });
+  presentWin.setMenu(null);
+  presentWin.loadFile(path.join(__dirname, 'renderer', 'present.html'));
+  presentWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  presentWin.on('closed', () => { presentWin = null; if (win && !win.isDestroyed()) win.webContents.send('present-closed'); });
+  return true;
+});
+ipcMain.on('present-frame', (_e, url) => { if (presentWin && !presentWin.isDestroyed() && /^data:image\/(jpeg|png);base64,/.test(url)) presentWin.webContents.send('present-frame', url); });
+ipcMain.on('present-key', (_e, k) => { if (win && !win.isDestroyed()) win.webContents.send('present-key', k); });
+ipcMain.handle('present-close', () => { if (presentWin && !presentWin.isDestroyed()) presentWin.close(); presentWin = null; return true; });
+
+// ---------- Publipostage : lecture d'un tableur (Excel ou CSV) ----------
+ipcMain.handle('read-sheet', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Tableur', extensions: ['xlsx', 'xlsm', 'csv', 'txt'] }] });
+  if (r.canceled) return null;
+  const file = r.filePaths[0]; let rows = [];
+  if (/\.(xlsx|xlsm)$/i.test(file)) {
+    const ExcelJS = require('exceljs'); const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    ws.eachRow({ includeEmpty: false }, (row) => rows.push(row.values.slice(1).map((v) => (v && typeof v === 'object' ? (v.text || v.result || (v instanceof Date ? v.toLocaleDateString('fr-FR') : '')) : v instanceof Date ? v.toLocaleDateString('fr-FR') : v ?? ''))));
+  } else {
+    const txt = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''); const sep = (txt.split('\n')[0].match(/;/g) || []).length >= (txt.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+    for (const line of txt.split(/\r?\n/)) { if (!line.trim()) continue; const cells = []; let cur = '', q = false;
+      for (let i = 0; i < line.length; i++) { const c = line[i]; if (c === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; } else if (c === sep && !q) { cells.push(cur); cur = ''; } else cur += c; }
+      cells.push(cur); rows.push(cells); }
+  }
+  const headers = (rows.shift() || []).map((h, i) => String(h || `Colonne ${i + 1}`).trim());
+  return { file: path.basename(file), headers, rows: rows.map((r) => headers.map((_, i) => String(r[i] ?? '').trim())).filter((r) => r.some(Boolean)) };
+});
+
 // ---------- Fichiers Office protégés ----------
 ipcMain.handle('unlock-office', async (_e, { file, password }) => {
   const bytes = await officeWithPassword(file, password);
@@ -620,21 +661,44 @@ function ttcExtract(buf, index) {
   });
   return out;
 }
+// Index des polices installées (Windows, macOS, Linux) : nom de fichier en minuscules → chemin
+const EXTRA_FONT_DIRS = process.platform === 'darwin' ? ['/System/Library/Fonts', '/System/Library/Fonts/Supplemental', '/Library/Fonts', path.join(os.homedir(), 'Library', 'Fonts')]
+  : process.platform === 'linux' ? ['/usr/share/fonts', '/usr/local/share/fonts', path.join(os.homedir(), '.local', 'share', 'fonts'), path.join(os.homedir(), '.fonts')] : [];
+let fontIndex = null;
+function buildFontIndex() {
+  fontIndex = new Map();
+  const walk = (d, depth) => { let list = []; try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of list) { const p = path.join(d, e.name); if (e.isDirectory() && depth < 4) walk(p, depth + 1); else if (/\.(ttf|otf|ttc)$/i.test(e.name) && !fontIndex.has(e.name.toLowerCase())) fontIndex.set(e.name.toLowerCase(), p); } };
+  [...FONT_DIRS, ...EXTRA_FONT_DIRS].forEach((d) => walk(d, 0));
+}
+// Équivalents macOS / Linux des polices Windows
+const FONT_ALT = {
+  'arial.ttf': ['Arial.ttf', 'LiberationSans-Regular.ttf', 'DejaVuSans.ttf'], 'arialbd.ttf': ['Arial Bold.ttf', 'LiberationSans-Bold.ttf', 'DejaVuSans-Bold.ttf'],
+  'ariali.ttf': ['Arial Italic.ttf', 'LiberationSans-Italic.ttf'], 'arialbi.ttf': ['Arial Bold Italic.ttf', 'LiberationSans-BoldItalic.ttf'],
+  'times.ttf': ['Times New Roman.ttf', 'LiberationSerif-Regular.ttf', 'DejaVuSerif.ttf'], 'timesbd.ttf': ['Times New Roman Bold.ttf', 'LiberationSerif-Bold.ttf'],
+  'timesi.ttf': ['Times New Roman Italic.ttf', 'LiberationSerif-Italic.ttf'], 'timesbi.ttf': ['Times New Roman Bold Italic.ttf', 'LiberationSerif-BoldItalic.ttf'],
+  'cour.ttf': ['Courier New.ttf', 'LiberationMono-Regular.ttf', 'DejaVuSansMono.ttf'], 'courbd.ttf': ['Courier New Bold.ttf', 'LiberationMono-Bold.ttf'],
+  'georgia.ttf': ['Georgia.ttf'], 'georgiab.ttf': ['Georgia Bold.ttf'], 'verdana.ttf': ['Verdana.ttf', 'DejaVuSans.ttf'], 'verdanab.ttf': ['Verdana Bold.ttf'],
+  'tahoma.ttf': ['Tahoma.ttf'], 'trebuc.ttf': ['Trebuchet MS.ttf'], 'comic.ttf': ['Comic Sans MS.ttf'], 'calibri.ttf': ['Carlito-Regular.ttf', 'LiberationSans-Regular.ttf'],
+  'calibrib.ttf': ['Carlito-Bold.ttf'], 'segoeui.ttf': ['Arial Unicode.ttf', 'DejaVuSans.ttf', 'NotoSans-Regular.ttf'], 'seguisym.ttf': ['Apple Symbols.ttf', 'DejaVuSans.ttf', 'NotoSansSymbols-Regular.ttf'],
+  'msyh.ttc': ['PingFang.ttc', 'NotoSansCJK-Regular.ttc', 'Arial Unicode.ttf'], 'ebrima.ttf': ['NotoSansNKo-Regular.ttf', 'NotoSans-Regular.ttf']
+};
+function findFontFile(name) {
+  if (!fontIndex) buildFontIndex();
+  for (const n of [name, ...(FONT_ALT[name.toLowerCase()] || [])]) { const p = fontIndex.get(n.toLowerCase()); if (p) return p; }
+  return null;
+}
 ipcMain.handle('font-file', (_e, spec) => {
   if (fontFiles.has(spec)) return fontFiles.get(spec);
   const [name, idx] = String(spec).split('#');
   let data = null;
   if (/^[\w .-]+\.(ttf|otf|ttc)$/i.test(name)) {
-    for (const d of FONT_DIRS) {
-      const f = path.join(d, name);
-      if (fs.existsSync(f)) { data = fs.readFileSync(f); break; }
-    }
-    if (data && /\.ttc$/i.test(name)) data = ttcExtract(data, +idx || 0);
+    const f = findFontFile(name);
+    if (f) { data = fs.readFileSync(f); if (/\.ttc$/i.test(f)) data = ttcExtract(data, +idx || 0); }
   }
   fontFiles.set(spec, data);
   return data;
-});
-ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) ? shell.openExternal(url) : null));
+});ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) ? shell.openExternal(url) : null));
 ipcMain.handle('show-in-folder', (_e, p) => shell.showItemInFolder(p));
 ipcMain.handle('app-version', () => app.getVersion());
 
@@ -755,7 +819,7 @@ function setupAutoUpdate() {
   const write = (lvl) => (m) => { try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1048576) fs.renameSync(logFile, logFile + '.1'); fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${lvl} ${m}\n`); } catch { /* */ } };
   autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };
   autoUpdater.allowDowngrade = false;
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = process.platform !== 'darwin'; // macOS : l'installation automatique exige une signature Apple
   autoUpdater.autoInstallOnAppQuit = true;
   const send = (status, info) => win && win.webContents.send('update-status', { status, info });
   autoUpdater.on('checking-for-update', () => send('checking'));

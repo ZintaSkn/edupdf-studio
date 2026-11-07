@@ -693,8 +693,20 @@ function fontOfItem(pg, t) {
 
 async function drawTextLayer() {
   const layer = $('#textLayer'); layer.innerHTML = '';
-  const p = curPage(); if (!p || S.tool !== 'edit') return;
+  const p = curPage(); if (!p || (S.tool !== 'edit' && S.tool !== 'editpara')) return;
   const vp = S.vp; const pg = await getPdfPage(p);
+  if (S.tool === 'editpara') { // modification par paragraphe : le texte se recompose dans la largeur d'origine
+    for (const para of groupParagraphs(await getTextItems(p), pg)) {
+      const r = viewRect(vp, para.rect); const fs = para.size * S.scale;
+      const el = document.createElement('div'); el.className = 'tl para'; el.textContent = para.text;
+      Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', minHeight: r.h + 'px', fontSize: fs + 'px', lineHeight: (para.lh * S.scale) + 'px',
+        whiteSpace: 'pre-wrap', fontFamily: cssFont(para.font), fontWeight: para.font.bold ? 'bold' : 'normal', fontStyle: para.font.italic ? 'italic' : 'normal' });
+      el.title = 'Paragraphe : cliquer pour le modifier (le texte se recompose sur la largeur du bloc). Entrée = nouvelle ligne, Ctrl+Entrée = valider, Échap = annuler.';
+      el.onclick = () => startParaEdit(el, para, r);
+      layer.appendChild(el);
+    }
+    return;
+  }
   for (const t of await getTextItems(p)) {
     const r = viewRect(vp, t.rect);
     t.font = fontOfItem(pg, t);
@@ -705,6 +717,72 @@ async function drawTextLayer() {
     sp.onclick = () => startTextEdit(sp, t, r, fs / S.scale);
     layer.appendChild(sp);
   }
+}
+
+/** Regroupe les morceaux de texte en lignes, puis en paragraphes (même marge gauche, interligne régulier, même taille). */
+function groupParagraphs(items, pg) {
+  const runs = items.filter((t) => t.text.trim()).map((t) => { const r = normRect(t.rect); return { t, x1: r[0], x2: r[2], y1: r[1], y2: r[3], base: t.base ? t.base[1] : r[1] + (r[3] - r[1]) * 0.22, size: t.size || (r[3] - r[1]) * 0.8 }; });
+  runs.sort((a, b) => b.base - a.base || a.x1 - b.x1);
+  const lines = [];
+  for (const r of runs) {
+    const l = lines[lines.length - 1];
+    if (l && Math.abs(l.base - r.base) < r.size * 0.35 && r.x1 - l.x2 < r.size * 3) { l.runs.push(r); l.x2 = Math.max(l.x2, r.x2); l.y1 = Math.min(l.y1, r.y1); l.y2 = Math.max(l.y2, r.y2); }
+    else lines.push({ runs: [r], x1: r.x1, x2: r.x2, y1: r.y1, y2: r.y2, base: r.base, size: r.size });
+  }
+  lines.forEach((l) => { l.runs.sort((a, b) => a.x1 - b.x1); l.text = l.runs.map((r, i) => (i && r.x1 - l.runs[i - 1].x2 > r.size * 0.15 && !/\s$/.test(l.runs[i - 1].t.text) ? ' ' : '') + r.t.text).join('').replace(/\s+$/, ''); });
+  const paras = [];
+  for (const l of lines) {
+    const P = paras[paras.length - 1]; const prev = P && P.lines[P.lines.length - 1];
+    const gap = prev ? prev.base - l.base : 0;
+    const same = prev && Math.abs(prev.size - l.size) < prev.size * 0.15 && gap > l.size * 0.8 && gap < l.size * 1.9 &&
+      (Math.abs(prev.x1 - l.x1) < l.size * 1.5 || (l.x1 >= prev.x1 - l.size && l.x1 <= prev.x2)) && (!P.gap || Math.abs(gap - P.gap) < l.size * 0.45);
+    if (same) { P.lines.push(l); P.gap = P.gap || gap; } else paras.push({ lines: [l], gap: 0 });
+  }
+  return paras.map((P) => {
+    const ls = P.lines; const first = ls[0].runs[0].t;
+    let text = ''; ls.forEach((l, i) => { text += i ? (/[-‐]$/.test(text) && /^[a-zà-ÿ]/.test(l.text) ? '' : ' ') + l.text : l.text; });
+    text = text.replace(/([a-zà-ÿ])[-‐] ?(?=[a-zà-ÿ])/g, (m, c) => (m.endsWith(' ') ? c + '-' : m)); // césures conservées si choisies
+    return { lines: ls, text, size: ls[0].size, lh: P.gap || ls[0].size * 1.2, font: fontOfItem(pg, first), keys: ls.flatMap((l) => l.runs.map((r) => r.t.key)),
+      rect: [Math.min(...ls.map((l) => l.x1)), Math.min(...ls.map((l) => l.y1)), Math.max(...ls.map((l) => l.x2)), Math.max(...ls.map((l) => l.y2))],
+      x: Math.min(...ls.map((l) => l.x1)), width: Math.max(...ls.map((l) => l.x2)) - Math.min(...ls.map((l) => l.x1)), base: ls[0].base };
+  });
+}
+/** Découpe un texte en lignes qui tiennent dans la largeur donnée (police, taille d'origine). */
+async function wrapText(text, font, size, width) {
+  const out = [];
+  for (const par of String(text).split('\n')) {
+    let line = '';
+    for (const w of par.split(/ +/)) {
+      const t = line ? line + ' ' + w : w;
+      if (line && await measureText(t, font, size) > width) { out.push(line); line = w; } else line = t;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function startParaEdit(el, para, r) {
+  if (el.isContentEditable) return;
+  const colors = sampleColors({ l: r.l, t: r.t, w: r.w, h: r.h });
+  el.contentEditable = 'true'; el.classList.add('editing'); el.focus(); document.getSelection().selectAllChildren(el);
+  const finish = async (commit) => {
+    el.onblur = null; el.onkeydown = null;
+    const txt = el.innerText.replace(/\n+$/, '');
+    if (!commit || txt === para.text) { el.contentEditable = 'false'; el.classList.remove('editing'); el.textContent = para.text; return; }
+    snapshot(); const p = curPage(); const pad = 1.2;
+    for (const l of para.lines) p.items.push({ type: 'rect', kind: 'whiteout', edit: true, color: colors.bg, rect: [l.x1 - pad, l.y1 - pad, l.x2 + pad, l.y2 + pad] });
+    const lines = txt.trim() ? await wrapText(txt, para.font, para.size, para.width + 0.5) : [];
+    lines.forEach((ln, i) => {
+      if (!ln) return;
+      const baseY = para.base - i * para.lh; // ligne de base dans les coordonnées PDF (texte horizontal)
+      p.items.push({ type: 'text', at: [para.x, baseY + 0.85 * para.size], size: Math.round(para.size * 10) / 10, color: colors.fg, font: para.font, text: ln });
+    });
+    p.edited.push(...para.keys);
+    const extra = lines.length - para.lines.length;
+    drawItems(); drawTextLayer();
+    msg(extra > 0 ? `Paragraphe modifié : il dépasse de ${extra} ligne(s) — vérifiez qu'il ne chevauche pas la suite.` : 'Paragraphe modifié et recomposé dans sa largeur d\'origine.');
+  };
+  el.onblur = () => finish(true).catch((e) => { console.error('Paragraphe :', e); msg('Modification du paragraphe impossible : ' + e.message); });
+  el.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); el.blur(); } if (e.key === 'Escape') finish(false); };
 }
 
 function startTextEdit(sp, t, r, fsPdf) {
@@ -771,8 +849,9 @@ async function paintItems(ctx, vp, p) {
     ctx.translate(vp.width / 2, vp.height / 2); ctx.rotate(-Math.PI / 4); ctx.fillText(S.watermark.text, 0, 0); ctx.restore();
   }
 }
+const thumbObserver = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting && en.target._load) { const f = en.target._load; en.target._load = null; thumbObserver.unobserve(en.target); f(); } }), { root: document.querySelector('#thumbs'), rootMargin: '600px 0px' });
 function renderThumbs() {
-  const box = $('#thumbs'); box.innerHTML = '';
+  const box = $('#thumbs'); thumbObserver.disconnect(); box.innerHTML = '';
   S.pages.forEach((p, i) => {
     const d = document.createElement('div');
     d.className = 'thumb' + (i === S.cur ? ' cur' : '') + (S.sel.has(i) ? ' sel' : '');
@@ -780,7 +859,9 @@ function renderThumbs() {
     // la miniature montre aussi les ajouts (textes, surlignages, signatures, rognage, filigrane)
     const key = `${p.src}:${p.idx}:${p.rot}:${hashStr(JSON.stringify([p.items, p.crop || 0, S.watermark || 0]))}`;
     d.innerHTML = (thumbCache.has(key) ? `<img src="${thumbCache.get(key)}">` : '<div class="ph"></div>') + `<span>${i + 1}</span>` + (p.ocr ? '<b class="badge">OCR</b>' : '');
-    if (!thumbCache.has(key)) thumbQueue = thumbQueue.then(async () => {
+    // miniature calculée seulement quand elle devient visible (gros documents : affichage immédiat)
+    if (!thumbCache.has(key)) d._load = () => thumbQueue = thumbQueue.then(async () => {
+      if (!d.isConnected) return;
       const pg = await getPdfPage(p); const R = (pg.rotate + p.rot + 360) % 360;
       const v0 = pg.getViewport({ scale: 1, rotation: R }); const vp = pg.getViewport({ scale: 240 / v0.width, rotation: R });
       const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
@@ -788,8 +869,9 @@ function renderThumbs() {
       await paintItems(c.getContext('2d'), vp, p);
       if (thumbCache.size > 400) thumbCache.clear();
       thumbCache.set(key, c.toDataURL('image/jpeg', 0.8));
-      const ph = d.querySelector('.ph'); if (ph) ph.outerHTML = `<img src="${thumbCache.get(key)}">`;
+      const ph = d.querySelector('.ph'); if (ph) ph.outerHTML = `<img src="${thumbCache.get(key)}" alt="Page ${i + 1}">`;
     }).catch(() => {});
+    if (d._load) thumbObserver.observe(d);
     d.onclick = (e) => {
       if (e.ctrlKey) { S.sel.has(i) ? S.sel.delete(i) : S.sel.add(i); }
       else if (e.shiftKey) { const [a, b] = [Math.min(S.cur, i), Math.max(S.cur, i)]; for (let k = a; k <= b; k++) S.sel.add(k); }
@@ -956,6 +1038,7 @@ function setTool(t) {
   const tips = {
     select: 'Cliquez un élément pour le déplacer, le redimensionner, ou double-cliquez un texte pour le modifier.',
     edit: 'Cliquez sur un texte de la page pour le corriger (Entrée pour valider, Échap pour annuler).',
+    editpara: 'Cliquez sur un paragraphe pour le réécrire : il se recompose dans sa largeur, avec la police, la taille et la couleur d\'origine (Ctrl+Entrée pour valider).',
     text: 'Cliquez à l\'endroit où ajouter du texte.', image: 'Tracez un cadre puis choisissez une image.',
     highlight: 'Tracez un rectangle pour surligner.', whiteout: 'Tracez un rectangle pour masquer (effacer) une zone.',
     box: 'Tracez un cadre.', ink: 'Dessinez à main levée (annotations, corrections).',
@@ -1662,7 +1745,7 @@ const FEATURE_OF = {
     ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr', toWord: 'convert', toPpt: 'convert', toExcel: 'convert', toImages: 'convert', toText: 'convert', exportAs: 'convert', convertOffice: 'convert',
     aiPanel: 'ai', aiSettings: 'ai', aiSubscription: 'ai',
     protect: 'protect', unprotect: 'protect', signPad: 'sign', certSign: 'sign', compare: 'compare', clearCompare: 'compare', find: 'edit', delItem: 'edit' },
-  tool: { edit: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
+  tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
 };
 function denied(f) {
   const label = (POLICY.labels && POLICY.labels[f]) || f;
@@ -1740,6 +1823,7 @@ const AI_PRESETS = {
   corriger: ['Corriger', 'Relis ce document et liste toutes les fautes d\'orthographe, de grammaire, de conjugaison et de typographie, une par ligne : « erreur » → « correction » (explication courte). Termine par le nombre total de fautes.'],
   traduire: ['Traduire', 'Traduis intégralement ce document en anglais en conservant sa structure (titres, listes, numérotation).'],
   grille: ['Grille d\'évaluation', 'Crée une grille d\'évaluation critériée adaptée à ce document : critères, indicateurs observables, 4 niveaux de maîtrise et barème sur 20.'],
+  latex: ['Formules en LaTeX', 'Retranscris toutes les formules mathématiques, physiques ou chimiques de ce document (y compris manuscrites) en LaTeX, une par ligne, numérotées, avec leur page.'],
   cours: ['Plan de séance', 'Propose un plan de séance de 55 minutes fondé sur ce document : objectifs, prérequis, déroulé minuté (phases, activités, consignes), différenciation et trace écrite.']
 };
 const AI_SITES = [['ChatGPT', 'https://chatgpt.com/'], ['Claude', 'https://claude.ai/new'], ['Gemini', 'https://gemini.google.com/app'], ['Copilot', 'https://copilot.microsoft.com/'], ['Le Chat (Mistral)', 'https://chat.mistral.ai/chat'], ['Perplexity', 'https://www.perplexity.ai/']];
@@ -1966,6 +2050,7 @@ window.api.onOpenPaths(async (paths) => {
 window.api.onUpdate(({ status, info }) => {
   const el = $('#update');
   const t = { checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
+  if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ksehibi/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
   if (status === 'ready') {
     el.innerHTML = `Version ${info} prête — <button id="doUpd">Redémarrer et installer</button>`;
     $('#doUpd').onclick = () => { if (confirmDiscard()) { window.api.setDirty(false); window.api.installUpdate(); } };
@@ -2068,48 +2153,56 @@ let sideMode = 'home';
 function showSide(mode) {
   sideMode = mode;
   $('#homeSide').hidden = mode !== 'home'; $('#thumbs').hidden = mode !== 'pages';
+  $('#leftBar').classList.toggle('rail', mode === 'home');
   $$('#sideSwitch [data-side]').forEach((b) => b.classList.toggle('on', b.dataset.side === mode));
   if (mode === 'home') renderRecent();
 }
 $('#sideSwitch').addEventListener('click', (e) => { const b = e.target.closest('[data-side]'); if (b) showSide(b.dataset.side); });
+// Barre Accueil en icônes seules : le nom et le mode d'emploi s'affichent dans l'info-bulle (et pour les lecteurs d'écran)
+const HOME_ITEMS = [
+  ['Démarrer', [
+    ['data-act="new"', '📄', 'Nouveau document', 'Crée une page A4 vierge (dans un nouvel onglet si un document est ouvert). Raccourci : Ctrl+N.'],
+    ['data-act="open"', '📂', 'Ouvrir un fichier', 'PDF, Word, PowerPoint, Excel, images, EPUB, pages web… Chaque fichier s\'ouvre dans son propre onglet. Raccourci : Ctrl+O.'],
+    ['data-act="cloudOpen"', '🌐', 'Ouvrir depuis le cloud', 'OneDrive, Google Drive, Dropbox, iCloud… via le dossier synchronisé de votre PC.'],
+    ['data-act="scan"', '🖨', 'Scanner un document', 'Numérise une ou plusieurs pages, puis propose de rendre le texte modifiable (OCR).'],
+    ['data-act="fromImages"', '🖼', 'Photos → PDF', 'Assemble des photos (tableau, cahier, polycopié) en un PDF, une photo par page.']]],
+  ['Modèles pour la classe', [
+    ['data-tpl="seyes" data-name="Feuille Seyès"', '📒', 'Feuille Seyès (grands carreaux)', 'Feuille lignée Seyès avec marge, prête à imprimer ou à compléter.'],
+    ['data-tpl="carreaux" data-name="Petits carreaux"', '🔲', 'Petits carreaux 5 mm', 'Quadrillage 5 mm pour la géométrie, les sciences ou les brouillons.'],
+    ['data-tpl="evaluation" data-name="Évaluation"', '📝', 'Évaluation', 'En-tête élève (nom, prénom, classe, date), case de note /20, appréciation et barème par exercice.'],
+    ['data-tpl="exercices" data-name="Fiche d\'exercices"', '✏️', 'Fiche d\'exercices', 'En-tête élève et blocs d\'exercices lignés.']]],
+  ['Outils de l\'enseignant', [
+    ['data-act="grading"', '🧑‍🏫', 'Corriger des copies', 'Scannez un paquet de copies : barème, note et commentaires par copie (manuellement ou proposés par l\'IA), puis export des notes vers Excel.'],
+    ['data-act="diffEval"', '🎯', 'Évaluations différenciées', 'À partir du document : 3 niveaux, sujets A/B et corrigé, export Moodle (GIFT) et tableur.'],
+    ['data-act="mailMerge"', '✉️', 'Publipostage', 'Génère bulletins, attestations ou convocations en lot à partir d\'un fichier Excel ou CSV.'],
+    ['data-act="dys"', '🔠', 'Version adaptée (DYS / malvoyants)', 'Recrée le document avec une police lisible, des interlignes larges et une règle de lecture colorée.'],
+    ['data-act="speak"', '🔊', 'Lire à voix haute', 'Lit la page courante avec les voix de Windows, sans connexion. Cliquer à nouveau pour arrêter.'],
+    ['data-act="classroom"', '📡', 'Classe connectée', 'Partage le document aux élèves par le Wi-Fi de la classe (QR code) et récupère leurs copies, sans Internet.'],
+    ['data-ai="qcm"', '✅', 'Créer un QCM (IA)', 'L\'assistant IA crée un QCM corrigé à partir du document ouvert.'],
+    ['data-act="ocrPage"', '🔍', 'Rendre un scan modifiable', 'Reconnaît le texte de la page (OCR) pour le rechercher, le copier et le corriger.'],
+    ['data-act="slideshow"', '🖥', 'Projeter en diaporama', 'Plein écran, stylo, tableau blanc, minuteur, mode présentateur sur deux écrans. Raccourci : F5.'],
+    ['data-act="compare"', '⚖️', 'Comparer deux versions', 'Surligne les ajouts, modifications et suppressions entre deux fichiers.'],
+    ['data-tool="sign"', '✍️', 'Signer', 'Place votre signature manuscrite ; signature numérique par certificat dans l\'onglet Protéger.']]]
+];
 function initHome() {
-  $('#homeSide').innerHTML = `
-    <section><h4>Démarrer</h4>
-      <button data-act="new">📄 Nouveau document</button>
-      <button data-act="open">📂 Ouvrir un fichier…</button>
-      <button data-act="cloudOpen">🌐 Ouvrir depuis le cloud</button>
-      <button data-act="scan">🖨 Scanner un document</button>
-      <button data-act="fromImages">🖼 Photos → PDF</button></section>
-    <section><h4>Modèles pour la classe</h4>
-      <button data-tpl="seyes">📒 Feuille Seyès (grands carreaux)</button>
-      <button data-tpl="carreaux">🔲 Petits carreaux 5 mm</button>
-      <button data-tpl="evaluation">📝 Évaluation (en-tête élève, barème)</button>
-      <button data-tpl="exercices">✏️ Fiche d'exercices</button></section>
-    <section><h4>Fichiers récents</h4><div id="recentList"><p class="muted">Aucun fichier récent.</p></div></section>
-    <section><h4>Outils de l'enseignant</h4>
-      <button data-ai="qcm">✅ Créer un QCM (IA)</button>
-      <button data-act="ocrPage">🔍 Rendre un scan modifiable (OCR)</button>
-      <button data-act="slideshow">🖥 Projeter en diaporama (F5)</button>
-      <button data-act="compare">⚖️ Comparer deux versions</button>
-      <button data-tool="sign">✍️ Signer</button></section>
-    <section class="tips"><h4>Raccourcis</h4>
-      <p><kbd>Ctrl</kbd>+<kbd>T</kbd> nouvel onglet · <kbd>Ctrl</kbd>+<kbd>W</kbd> fermer · <kbd>Ctrl</kbd>+<kbd>Tab</kbd> onglet suivant</p>
-      <p><kbd>F5</kbd> diaporama · <kbd>Ctrl</kbd>+<kbd>F1</kbd> masquer le ruban · clic droit sur un bouton : barre d'accès rapide</p></section>`;
+  $('#homeSide').innerHTML = HOME_ITEMS.map(([group, items]) => `<section role="group" aria-label="${esc(group)}">${items.map(([attrs, icon, label, help]) =>
+    `<button ${attrs} class="hi" title="${esc(label)}\n${esc(help)}" aria-label="${esc(label)} : ${esc(help)}">${icon}</button>`).join('')}</section>`).join('<hr>') +
+    '<hr><section role="group" aria-label="Fichiers récents" id="recentList"></section>' +
+    `<hr><button class="hi" id="shortcutsHelp" title="Raccourcis clavier\nCtrl+T nouvel onglet · Ctrl+W fermer · Ctrl+Tab onglet suivant\nF5 diaporama · Ctrl+F1 masquer le ruban · Ctrl+F rechercher\nClic droit sur un bouton du ruban : barre d'accès rapide" aria-label="Raccourcis clavier">⌨️</button>`;
   showSide('home');
 }
 async function renderRecent() {
   let list = []; try { list = await window.api.recentList(); } catch { list = []; }
   const box = $('#recentList'); if (!box) return;
-  box.innerHTML = list.length ? list.slice(0, 8).map((r, i) => `<button class="recent" data-recent="${i}" title="${esc(r.path)}"><b>${esc(r.name)}</b><small>${esc(r.dir)}</small></button>`).join('') + '<button class="link" id="recentClear">Effacer la liste</button>'
-    : '<p class="muted">Les fichiers ouverts et enregistrés apparaîtront ici.</p>';
+  box.innerHTML = list.slice(0, 6).map((r, i) => `<button class="hi recent" data-recent="${i}" title="${esc(r.name)}\n${esc(r.dir)}\nFichier récent : cliquer pour l'ouvrir dans un onglet." aria-label="Ouvrir le fichier récent ${esc(r.name)}">🕘</button>`).join('') +
+    (list.length ? '<button class="hi" id="recentClear" title="Effacer la liste des fichiers récents" aria-label="Effacer la liste des fichiers récents">🧹</button>' : '<span class="hi muted" title="Fichiers récents\nLes fichiers ouverts et enregistrés apparaîtront ici." aria-label="Aucun fichier récent">🕘</span>');
   box.querySelectorAll('[data-recent]').forEach((b) => { b.onclick = async () => {
     const r = list[+b.dataset.recent]; busy('Ouverture…');
     try { const files = await window.api.recentOpen(r.path); if (S.pages.length) newTab(); else resetDoc(); await handleLoaded(files, 0); } catch (e) { alert(errMsg(e)); }
     done();
   }; });
   const c = $('#recentClear'); if (c) c.onclick = async () => { await window.api.recentClear(); renderRecent(); };
-}
-// Modèles : feuilles d'école prêtes à remplir ou à imprimer
+}// Modèles : feuilles d'école prêtes à remplir ou à imprimer
 async function templatePdf(kind) {
   const d = await PDFDocument.create(); const pg = d.addPage(A4); const emb = fontEmbedder(d);
   const mm = 72 / 25.4; const [W, H] = A4; const blue = rgb(0, 24 / 255, 113 / 255);
@@ -2148,7 +2241,7 @@ async function templatePdf(kind) {
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-tpl]'); if (!b) return;
   busy('Création du modèle…');
-  try { const bytes = await templatePdf(b.dataset.tpl); if (S.pages.length) newTab(); else resetDoc(); await insertPdf(bytes, 0); S.fileName = b.textContent.replace(/^\S+\s/, '').replace(/[()]/g, '').trim() + '.pdf'; S.cur = 0; S.sel = new Set([0]); setDirty(true); refresh(); showSide('pages'); done('Modèle créé : complétez-le avec « Ajouter du texte », puis enregistrez ou imprimez.'); }
+  try { const bytes = await templatePdf(b.dataset.tpl); if (S.pages.length) newTab(); else resetDoc(); await insertPdf(bytes, 0); S.fileName = (b.dataset.name || 'Modèle') + '.pdf'; S.cur = 0; S.sel = new Set([0]); setDirty(true); refresh(); showSide('pages'); done('Modèle créé : complétez-le avec « Ajouter du texte », puis enregistrez ou imprimez.'); }
   catch (err) { done(); alert(errMsg(err)); }
 });
 
@@ -2232,12 +2325,14 @@ async function renderShow() {
   await pg.render({ canvasContext: ctx, viewport: vp }).promise; await paintItems(ctx, vp, p);
   if (tok !== SHOW.token || !SHOW.on) return;
   c.id = 'showCanvas'; $('#showCanvas').replaceWith(c);
+  if (window.showRenderHook) window.showRenderHook(c, vp, p);
   const info = $('#showInfo'); info.textContent = `${SHOW.i + 1} / ${S.pages.length}`; info.classList.add('vis');
   clearTimeout(info._t); info._t = setTimeout(() => info.classList.remove('vis'), 1500);
 }
 function showGo(i) { const n = Math.max(0, Math.min(S.pages.length - 1, i)); if (n !== SHOW.i) { SHOW.i = n; renderShow(); } }
 function endShow() {
-  if (!SHOW.on) return; SHOW.on = false; $('#show').hidden = true; $('#laser').hidden = true; SHOW.laser = false;
+  if (!SHOW.on) return;
+  if (window.showEndHook) window.showEndHook(); SHOW.on = false; $('#show').hidden = true; $('#laser').hidden = true; SHOW.laser = false;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   S.cur = SHOW.i; S.sel = new Set([S.cur]); refresh();
 }
@@ -2245,6 +2340,7 @@ document.addEventListener('fullscreenchange', () => { if (!document.fullscreenEl
 window.addEventListener('keydown', (e) => {
   if (!SHOW.on) return;
   e.preventDefault(); e.stopImmediatePropagation();
+  if (window.showKeyHook && window.showKeyHook(e)) return; // stylo, tableau blanc, minuteur…
   const k = e.key; const el = $('#show');
   if (/^[0-9]$/.test(k)) { SHOW.digits += k; return; }
   if (k === 'Enter' && SHOW.digits) { showGo(+SHOW.digits - 1); SHOW.digits = ''; return; }
@@ -2258,7 +2354,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'l' || k === 'L') { SHOW.laser = !SHOW.laser; $('#laser').hidden = !SHOW.laser; el.classList.toggle('laser', SHOW.laser); }
   else if (k === 'Escape' || k === 'F5') endShow();
 }, true);
-$('#show').addEventListener('click', () => showGo(SHOW.i + 1));
+$('#show').addEventListener('click', () => { if (window.showPointerBusy && window.showPointerBusy()) return; showGo(SHOW.i + 1); });
 $('#show').addEventListener('contextmenu', (e) => { e.preventDefault(); showGo(SHOW.i - 1); });
 $('#show').addEventListener('wheel', (e) => { showGo(SHOW.i + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
 $('#show').addEventListener('mousemove', (e) => {

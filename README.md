@@ -6,7 +6,7 @@ modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours 
 **Open core** : le logiciel est libre (AGPL-3.0) et complet en édition Communauté ; les éditions Enseignant et
 Établissement financent le projet par des services (voir « Éditions et offres »).
 
-Couleurs : bleu marine **#001871** et or **#F1B434** d'Enko Education ; leur dégradé (bleu → turquoise → vert → or) forme les vagues signature et toutes les nuances de l'interface.
+Couleurs : bleu marine **#001871** et or **#F1B434**, deux couleurs complémentaires ; leur dégradé (bleu → turquoise → vert → or) forme les vagues signature et toutes les nuances de l'interface.
 
 ## Éditions et offres
 
@@ -57,6 +57,11 @@ La clé privée de signature reste dans `%USERPROFILE%\SknEDUpdf-licences` (jama
 | **Assistant IA** | Résumer, créer un QCM, une fiche d'exercices, simplifier (différenciation), corriger les fautes, traduire, grille d'évaluation, plan de séance, ou toute demande libre — sur la page, la sélection ou tout le document ; réponse insérable dans le document ou exportable en Word. Fournisseurs : **Claude** (lit directement le PDF, y compris les scans et schémas), **ChatGPT**, **Gemini**, **Mistral** (avec votre clé API) ou **Ollama** (IA locale gratuite, hors-ligne) ; **abonnements ChatGPT Plus / Claude Pro / Gemini / Copilot** utilisables via le navigateur |
 | **Administration** | Console administrateur : fonctions autorisées par défaut, par utilisateur et par poste (13 fonctions, blocage complet), message aux utilisateurs, journal d'activité, **notifications Windows et sur téléphone** (ntfy) |
 | **Interface** | Onglet **Accueil** avec barre latérale de l'enseignant (démarrer, modèles Seyès / petits carreaux / évaluation / fiche d'exercices, fichiers récents, outils) ; **plusieurs documents en onglets** dans la même fenêtre (Ctrl+T, Ctrl+W, Ctrl+Tab) ; **ruban masquable automatiquement** (Ctrl+F1, ou double-clic sur un onglet ; masqué d'office sur les petits écrans) ; **barre d'accès rapide** personnalisable (clic droit sur un bouton du ruban) ; **diaporama plein écran** (F5, Maj+F5 depuis la page courante ; flèches, clic, molette, numéro + Entrée, B écran noir, W écran blanc, L pointeur laser, Échap) |
+| **Paragraphes** | Outil « Paragraphe » : un bloc de plusieurs lignes se réécrit d'un seul tenant et se **recompose dans sa largeur d'origine**, avec la même police, la même taille, le même interligne et la même couleur |
+| **🎓 Classe** | **Correction de copies assistée** (barème, lecture de l'écriture manuscrite par l'IA, notes et commentaires posés sur les copies, export Excel) ; **évaluations différenciées** (3 niveaux, sujets A/B mélangés, corrigé, export **Moodle GIFT** et tableur) ; **publipostage** depuis Excel/CSV (`{{Nom}}`, `{{Classe}}`… → un PDF par élève : bulletins, attestations, convocations) ; **version DYS** (police OpenDyslexic, interligne, espacement, règle de lecture) et **lecture à voix haute** ; **classe connectée sans Internet** (QR code sur le réseau local : les élèves téléchargent la fiche et rendent leur copie) ; **version bilingue** côte à côte ; **équations LaTeX** |
+| **Diaporama interactif** | Stylo (P), couleurs (C), gomme (E), tableau blanc (T), minuteur (M), **mode présentateur** sur deux écrans ; les annotations peuvent être conservées dans le document |
+| **IA hors ligne** | Installation guidée d'une IA locale (Ollama) : l'assistant fonctionne sans Internet ni abonnement |
+| **Langue** | Interface en français ou en anglais (Aide › Langue) ; navigation au clavier et lecteurs d'écran (rôles ARIA, focus visible, animations réduites) |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
 ### Formats ouverts
@@ -101,7 +106,7 @@ sans le mot de passe administrateur. La clé de l'administrateur est chiffrée p
 
 | Point vérifié | Résultat |
 |---|---|
-| Systèmes | Windows 10 et 11, 64 bits (x64) ; PC ARM Windows 11 en émulation. Windows 7/8 et 32 bits non pris en charge (moteur Electron). |
+| Systèmes | Windows 10 et 11, 64 bits (x64) ; PC ARM Windows 11 en émulation. **macOS** (Intel et Apple Silicon, .dmg) et **Linux** (AppImage) construits à chaque version. Windows 7/8 et 32 bits non pris en charge (moteur Electron). |
 | Antivirus | Installateur analysé sans détection par Kaspersky (7 164 éléments) et Microsoft Defender. |
 | Contrôle intelligent des applications (Windows 11) | Installateur et application autorisés : l'exécutable Electron est laissé intact. |
 | SmartScreen | Avertissement « Windows a protégé votre ordinateur » au premier lancement d'un fichier téléchargé, tant que l'installateur n'est pas signé : « Informations complémentaires › Exécuter quand même ». |
@@ -143,6 +148,11 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 - `src/selftest.js` — auto-test : `set EDUPDF_SELFTEST=C:\dossier` puis `npx electron .`
 
 ## Bon à savoir
+
+- macOS : l'application n'est pas encore signée par Apple ; à la première ouverture, clic droit › Ouvrir. La mise à jour automatique y affiche un lien de téléchargement au lieu de s'installer seule. Le scanner WIA et la lecture des fichiers XPS sont propres à Windows.
+- Signature : la signature avec certificat est une signature électronique avancée ; une signature **qualifiée** (eIDAS) exige un prestataire qualifié et un support matériel, hors de portée d'un logiciel seul.
+- Anglais : menus, boutons et info-bulles sont traduits ; certains messages détaillés restent en français.
+- Correction de copies et lecture de l'écriture manuscrite : l'IA propose, l'enseignant valide chaque note avant de l'appliquer.
 
 - Un PDF chiffré avec un **mot de passe d'ouverture** ne peut être lu qu'avec ce mot de passe (c'est le principe du chiffrement).
 - Sécurité : PDF.js n'exécute jamais de code venant d'un PDF, l'interface est isolée (sandbox) et ne peut écrire que dans les fichiers que vous avez choisis.

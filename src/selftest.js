@@ -29,7 +29,7 @@ module.exports = (win, outDir) => {
       const enc = await require('officecrypto-tool').encrypt(plain, { password: 'mdp' });
       fs.writeFileSync(path.join(outDir, 'devoir.docx'), enc);
     } catch (e) { log('fixture docx', e.message); }
-    await new Promise((res) => require('child_process').execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', `
+    if (process.platform === 'win32') await new Promise((res) => require('child_process').execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', `
 Add-Type -AssemblyName PresentationFramework, ReachFramework, System.Printing
 $doc = New-Object System.Windows.Documents.FixedDocument; $pc = New-Object System.Windows.Documents.PageContent
 $fp = New-Object System.Windows.Documents.FixedPage; $fp.Width = 816; $fp.Height = 1056
@@ -45,6 +45,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
     await new Promise((r) => setTimeout(r, 600)); try { fs.writeFileSync(path.join(outDir, 'accueil.png'), (await win.webContents.capturePage()).toPNG()); } catch { /* capture facultative */ }
     const results = {};
     const step = async (name, code, ms = 60000) => {
+      if (process.env.EDUPDF_SMOKE && ['unicode+fonts', 'xps+locked-docx'].includes(name)) { log('SKIP', name, '(propre à Windows)'); return; }
       try { results[name] = await timeout(js(code), ms, name); log('OK  ', name, JSON.stringify(results[name]).slice(0, 600)); }
       catch (e) { results[name] = { error: e.message }; log('FAIL', name, e.message); }
     };
@@ -315,7 +316,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const T = window.__edupdf; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
         T.S.dirty = false; T.actions.close();
         out.titre = document.title; out.marque = q('#tabs .brand').textContent;
-        out.accueilVisible = !q('#homeSide').hidden && q('#homeSide').textContent.includes('Modèles pour la classe');
+        out.accueilVisible = !q('#homeSide').hidden && !!q('#homeSide [data-tpl=seyes]') && q('#homeSide [data-tpl=seyes]').textContent.trim() === '📒' && q('#homeSide [data-tpl=seyes]').title.includes('Seyès');
         // modèle Seyès dans l'onglet courant, puis un 2e document dans un nouvel onglet
         q('[data-tpl=seyes]').click(); for (let i = 0; i < 40 && !T.S.pages.length; i++) await wait(100);
         out.modele = T.S.fileName + ' / ' + T.S.pages.length + ' p.';
@@ -358,6 +359,75 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         log('INFO memoire processus principal', m ? Math.round(m.private / 1024) + ' Mo' : '?');
       }
 
+      // ---------- Nouveautés : paragraphes, correction, évaluations, publipostage, DYS, équations, bilingue, classe connectée, diaporama, anglais ----------
+      await step('nouveautes', `(async () => {
+        const T = window.__edupdf; const F = window.__features; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        T.S.dirty = false; T.actions.close();
+        // 1. modification d'un paragraphe : recomposition dans la largeur d'origine
+        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([595, 842]); const f = await d.embedFont(PDFLib.StandardFonts.TimesRoman);
+        ['La photosynthèse permet aux plantes de fabriquer', 'leur matière organique à partir de la lumière,', 'de l\\'eau et du dioxyde de carbone.'].forEach((t, i) => pg.drawText(t, { x: 60, y: 700 - i * 16, size: 13, font: f }));
+        pg.drawText('Titre suivant', { x: 60, y: 600, size: 18, font: f });
+        await T.insertPdf(await d.save()); T.setTool('editpara'); T.refresh();
+        for (let i = 0; i < 50 && !q('#textLayer .tl.para'); i++) await wait(80);
+        await wait(800);
+        const paras = [...document.querySelectorAll('#textLayer .tl.para')]; out.paragraphes = paras.length;
+        const para = paras.find((x) => x.textContent.startsWith('La photosynthèse'));
+        out.texteParagraphe = para && para.textContent.slice(0, 80);
+        para.click(); para.innerText = 'La photosynthèse permet aux plantes vertes de produire leur propre matière organique grâce à la lumière du soleil, à l\\'eau et au dioxyde de carbone de l\\'air.'; para.blur(); if (para.onblur) para.onblur(); // fenêtre de test sans focus système : l'évènement blur n'est pas émis
+        let lines = []; for (let i = 0; i < 100 && !lines.length; i++) { await wait(100); lines = T.S.pages[0].items.filter((o) => o.type === 'text'); }
+        out.whiteouts = T.S.pages.flatMap((p) => p.items).filter((o) => o.kind === 'whiteout').length;
+        out.lignesRecomposees = lines.length; out.memePolice = lines.every((o) => o.font && o.font.family === 'Times New Roman');
+        out.largeurRespectee = lines.every((o) => o.at[0] === lines[0].at[0]);
+        T.setTool('select');
+        // 2. correction de copies (saisie manuelle) : application et export
+        F.GR.questions = F.gradingParseScale('Q1:5; Q2:15'); F.GR.copies = [{ pages: [T.S.pages[0].uid], name: 'Awa', pts: { Q1: '4', Q2: '12,5' }, comment: 'Bon travail' }];
+        F.gradingApply(); out.noteCopie = T.S.pages[0].items.filter((o) => o.tag === 'grade' && o.type === 'text').map((o) => o.text)[0];
+        // 3. évaluations différenciées à partir d'une réponse d'IA simulée
+        const evalData = { titre: 'Fractions', niveaux: [{ nom: 'Soutien', questions: [{ type: 'qcm', enonce: '1/2 = ?', choix: ['0,5', '2', '0,2', '1'], reponse: '0,5', points: 1 }, { type: 'vf', enonce: '3/4 > 1', reponse: 'Faux', points: 1 }] }, { nom: 'Approfondissement', questions: [{ type: 'courte', enonce: 'Simplifier 6/8', reponse: '3/4', points: 2 }] }] };
+        const giftTxt = F.toGift(evalData); out.gift = giftTxt.includes('{=0,5 ~2') && giftTxt.includes('{FALSE}') && giftTxt.includes('{=3/4}');
+        const tabsAvant = document.querySelectorAll('#docTabs .dtab').length;
+        const p2 = F.diffEvalBuild(evalData, true); await wait(1500); if (!q('#modal').hidden) q('#mBtns button.primary').click(); await p2;
+        out.sujetsPages = T.S.pages.length; out.ongletSujets = document.querySelectorAll('#docTabs .dtab').length === tabsAvant + 1;
+        // 4. publipostage : balises {{Nom}} remplacées ligne par ligne
+        T.S.pages = T.S.pages.slice(0, 1); T.S.pages[0].items.push({ type: 'text', at: [60, 500], size: 14, color: '#000000', text: 'Attestation : {{Nom}} — {{Classe}}' });
+        const files = await F.mergeRows(['Nom', 'Classe'], [['Awa Koné', '5e B'], ['Yao Kouassi', '4e A']], 'Nom');
+        const dm = await pdfjsLib.getDocument({ data: files[1].bytes }).promise; const tx = (await (await dm.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ');
+        out.publipostage = files.length + ' fichiers ; ' + files[1].name + ' ; ' + (tx.includes('Yao Kouassi') && tx.includes('4e A') && !tx.includes('{{'));
+        out.modeleIntact = T.S.pages[0].items.some((o) => o.text && o.text.includes('{{Nom}}'));
+        // 5. version adaptée DYS (police OpenDyslexic, règle de lecture)
+        const dy = await F.dysPdf({ font: 'OpenDyslexic', size: 16, lh: 1.8, cs: 0.6, ruler: true }); const dd = await pdfjsLib.getDocument({ data: dy }).promise;
+        out.dys = dd.numPages + ' p. ; ' + (await (await dd.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ').slice(0, 40);
+        // 6. équation LaTeX
+        const eq = await F.texToPng('\\\\frac{a}{b}=\\\\sqrt{x^2+1}'); out.equation = eq.url.startsWith('data:image/png') && eq.w > 20;
+        // 7. version bilingue (traductions simulées)
+        const bi = await F.bilingualPdf([['Bonjour à tous.', 'Hello everyone.'], ['La cellule est l\\'unité du vivant.', 'The cell is the unit of life.']], 'anglais');
+        const bd = await pdfjsLib.getDocument({ data: bi }).promise; const bt = (await (await bd.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ');
+        out.bilingue = bt.includes('Bonjour') && bt.includes('Hello everyone');
+        // 8. diaporama : annotation au stylo conservée dans le document
+        await T.startShow(false); await wait(600);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p' })); await wait(100);
+        F.INK.strokes[0] = [{ color: '#e53935', w: 3, pts: [[50, 50], [120, 90], [200, 60]] }];
+        window.confirm = () => true; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await wait(400);
+        out.encreConservee = T.S.pages[0].items.some((o) => o.type === 'ink');
+        // 9. accessibilité et anglais
+        out.aria = q('#tabs').getAttribute('role') === 'tablist' && q('#modal').getAttribute('role') === 'dialog';
+        out.anglais = F.tr('Fichier') === 'File' && F.tr('Corriger des copies') === 'Grade papers';
+        return out;
+      })()`, 120000);
+
+      // ---------- Classe connectée : un « élève » télécharge le document et rend sa copie par le réseau ----------
+      try {
+        const st = await js(`(async () => window.api.classroomStart({ bytes: new Uint8Array(await window.__edupdf.buildPdf()), title: 'Test', collect: true, fileName: 'fiche.pdf' }).then((s) => ({ url: s.url, qr: !!s.qr })))()`.replace('new Uint8Array(await', '(await').replace('buildPdf())', 'buildPdf())'));
+        const http = require('http'); const get = (u) => new Promise((res, rej) => http.get(u, (r) => { const c = []; r.on('data', (d) => c.push(d)); r.on('end', () => res({ code: r.statusCode, body: Buffer.concat(c) })); }).on('error', rej));
+        const page = await get(st.url); const doc = await get(st.url + 'document.pdf');
+        const boundary = '----edupdf' + Date.now(); const pdf = doc.body;
+        const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="eleve"\r\n\r\nAwa Koné\r\n--${boundary}\r\nContent-Disposition: form-data; name="copie"; filename="copie.pdf"\r\nContent-Type: application/pdf\r\n\r\n`), pdf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
+        const u = new URL(st.url + 'rendre');
+        const post = await new Promise((res, rej) => { const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, (rs) => { const c = []; rs.on('data', (d) => c.push(d)); rs.on('end', () => res({ code: rs.statusCode, body: Buffer.concat(c).toString() })); }); r.on('error', rej); r.end(body); });
+        const bad = await get(st.url.replace(/\/c\/[^/]+\//, '/c/mauvais-jeton/'));
+        const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
+        log('OK   classe-connectee', JSON.stringify({ qr: st.qr, page: page.code, pdf: doc.body.subarray(0, 5).toString(), rendu: post.code, merci: post.body.includes('Copie reçue'), recues: status.received.map((r) => r.eleve), jetonInvalide: bad.code }));
+      } catch (e) { log('FAIL classe-connectee', e.stack); results.classe = { error: e.message }; }
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;

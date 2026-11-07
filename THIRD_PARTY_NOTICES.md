@@ -10,6 +10,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | @babel/runtime | 7.29.13 | MIT |
 | @fast-csv/format | 4.3.5 | MIT |
 | @fast-csv/parse | 4.3.6 | MIT |
+| @fontsource/opendyslexic | 5.3.0 | OFL-1.1 |
 | @napi-rs/canvas | 1.1.0 | MIT |
 | @napi-rs/canvas-win32-x64-msvc | 1.1.0 | MIT |
 | @opentelemetry/api | 1.10.0 | Apache-2.0 |
@@ -33,6 +34,8 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | @types/node | 22.20.5 | MIT |
 | @xmldom/xmldom | 0.8.15 | MIT |
 | adler-32 | 1.3.1 | Apache-2.0 |
+| ansi-regex | 5.0.1 | MIT |
+| ansi-styles | 4.3.0 | MIT |
 | archiver | 5.3.2 | MIT |
 | archiver-utils | 2.1.0 | MIT |
 | archiver-utils | 3.0.4 | MIT |
@@ -60,8 +63,12 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | call-bind | 1.0.9 | MIT |
 | call-bind-apply-helpers | 1.0.2 | MIT |
 | call-bound | 1.0.4 | MIT |
+| camelcase | 5.3.1 | MIT |
 | cfb | 1.2.2 | Apache-2.0 |
 | chainsaw | 0.1.0 | MIT/X11 |
+| cliui | 6.0.0 | ISC |
+| color-convert | 2.0.1 | MIT |
+| color-name | 1.1.4 | MIT |
 | compress-commons | 4.1.2 | MIT |
 | concat-map | 0.0.1 | MIT |
 | core-util-is | 1.0.2 | MIT |
@@ -73,14 +80,17 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | data-view-byte-offset | 1.0.1 | MIT |
 | dayjs | 1.11.23 | MIT |
 | debug | 4.4.3 | MIT |
+| decamelize | 1.2.0 | MIT |
 | define-data-property | 1.1.4 | MIT |
 | define-properties | 1.2.1 | MIT |
+| dijkstrajs | 1.0.3 | MIT |
 | dingbat-to-unicode | 1.0.2 | BSD-2-Clause |
 | docx | 8.5.0 | MIT |
 | duck | 0.1.12 | BSD |
 | dunder-proto | 1.0.1 | MIT |
 | duplexer2 | 0.1.4 | BSD-3-Clause |
 | electron-updater | 6.8.11 | MIT |
+| emoji-regex | 8.0.0 | MIT |
 | end-of-stream | 1.4.5 | MIT |
 | es-abstract | 1.24.2 | MIT |
 | es-abstract-get | 1.0.0 | MIT |
@@ -92,6 +102,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | exceljs | 4.4.0 | MIT |
 | fast-csv | 4.3.6 | MIT |
 | fast-sha256 | 1.3.0 | Unlicense |
+| find-up | 4.1.0 | MIT |
 | for-each | 0.3.5 | MIT |
 | fs-constants | 1.0.0 | MIT |
 | fs-extra | 10.1.0 | MIT |
@@ -101,6 +112,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | function.prototype.name | 1.2.0 | MIT |
 | functions-have-names | 1.2.3 | MIT |
 | generator-function | 2.0.1 | MIT |
+| get-caller-file | 2.0.5 | ISC |
 | get-intrinsic | 1.3.0 | MIT |
 | get-proto | 1.0.1 | MIT |
 | get-symbol-description | 1.1.0 | MIT |
@@ -134,6 +146,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | is-document.all | 1.0.0 | MIT |
 | is-electron | 2.2.2 | MIT |
 | is-finalizationregistry | 1.1.1 | MIT |
+| is-fullwidth-code-point | 3.0.0 | MIT |
 | is-generator-function | 1.1.2 | MIT |
 | is-map | 2.0.3 | MIT |
 | is-negative-zero | 2.0.3 | MIT |
@@ -160,6 +173,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | libheif-js | 1.23.5 | LGPL-3.0 |
 | lie | 3.3.0 | MIT |
 | listenercount | 1.0.1 | ISC |
+| locate-path | 5.0.0 | MIT |
 | lodash.defaults | 4.2.0 | MIT |
 | lodash.difference | 4.5.0 | MIT |
 | lodash.escaperegexp | 4.1.2 | MIT |
@@ -176,6 +190,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | lop | 0.4.2 | BSD-2-Clause |
 | mammoth | 1.13.0 | BSD-2-Clause |
 | math-intrinsics | 1.1.0 | MIT |
+| mathjax | 3.2.2 | Apache-2.0 |
 | minimatch | 3.1.5 | BlueOak-1.0.0 |
 | minimatch | 5.1.9 | BlueOak-1.0.0 |
 | minimist | 1.2.8 | MIT |
@@ -194,20 +209,28 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | opencollective-postinstall | 2.0.3 | MIT |
 | option | 0.2.4 | BSD-2-Clause |
 | own-keys | 1.0.2 | MIT |
+| p-limit | 2.3.0 | MIT |
+| p-locate | 4.1.0 | MIT |
+| p-try | 2.2.0 | MIT |
 | pako | 1.0.11 | (MIT AND Zlib) |
+| path-exists | 4.0.0 | MIT |
 | path-is-absolute | 1.0.1 | MIT |
 | pdf-lib | 1.17.1 | MIT |
 | pdfjs-dist | 6.5.438 | Apache-2.0 |
 | pngjs | 6.0.0 | MIT |
+| pngjs | 5.0.0 | MIT |
 | possible-typed-array-names | 1.1.0 | MIT |
 | pptxgenjs | 4.0.1 | MIT |
 | process-nextick-args | 2.0.1 | MIT |
+| qrcode | 1.5.4 | MIT |
 | readable-stream | 2.3.8 | MIT |
 | readable-stream | 3.6.2 | MIT |
 | readdir-glob | 1.1.3 | Apache-2.0 |
 | reflect.getprototypeof | 1.0.10 | MIT |
 | regenerator-runtime | 0.13.11 | MIT |
 | regexp.prototype.flags | 1.5.4 | MIT |
+| require-directory | 2.1.1 | MIT |
+| require-main-filename | 2.0.0 | ISC |
 | rimraf | 2.7.1 | ISC |
 | safe-array-concat | 1.1.4 | MIT |
 | safe-buffer | 5.1.2 | MIT |
@@ -217,6 +240,7 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | sax | 1.6.1 | BlueOak-1.0.0 |
 | saxes | 5.0.1 | ISC |
 | semver | 7.7.4 | ISC |
+| set-blocking | 2.0.0 | ISC |
 | set-function-length | 1.2.2 | MIT |
 | set-function-name | 2.0.2 | MIT |
 | set-proto | 1.0.0 | MIT |
@@ -230,9 +254,11 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | stop-iteration-iterator | 1.1.0 | MIT |
 | string_decoder | 1.1.1 | MIT |
 | string_decoder | 1.3.0 | MIT |
+| string-width | 4.2.3 | MIT |
 | string.prototype.trim | 1.2.11 | MIT |
 | string.prototype.trimend | 1.0.10 | MIT |
 | string.prototype.trimstart | 1.0.8 | MIT |
+| strip-ansi | 6.0.1 | MIT |
 | tar-stream | 2.2.0 | MIT |
 | tesseract.js | 5.1.1 | Apache-2.0 |
 | tesseract.js-core | 5.1.1 | Apache-2.0 |
@@ -260,7 +286,9 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | which-boxed-primitive | 1.1.1 | MIT |
 | which-builtin-type | 1.2.1 | MIT |
 | which-collection | 1.0.2 | MIT |
+| which-module | 2.0.1 | ISC |
 | which-typed-array | 1.1.24 | MIT |
+| wrap-ansi | 6.2.0 | MIT |
 | wrappy | 1.0.2 | ISC |
 | xml | 1.0.1 | MIT |
 | xml-js | 1.6.11 | MIT |
@@ -268,7 +296,10 @@ Code source complet : https://github.com/ksehibi/edupdf-studio
 | xmlbuilder | 10.1.1 | MIT |
 | xmlbuilder | 11.0.1 | MIT |
 | xmlchars | 2.2.0 | MIT |
+| y18n | 4.0.3 | ISC |
+| yargs | 15.4.1 | MIT |
+| yargs-parser | 18.1.3 | ISC |
 | zip-stream | 4.1.1 | MIT |
 | zlibjs | 0.3.1 | MIT |
 
-Total : 264 composants.
+Total : 295 composants.

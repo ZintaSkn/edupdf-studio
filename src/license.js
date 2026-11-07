@@ -50,7 +50,7 @@ function remove() { try { fs.rmSync(P.user, { force: true }); } catch { /* */ } 
 function init(deps) {
   A = deps;
   P.user = path.join(A.app.getPath('userData'), 'licence.sknlic');
-  P.machine = path.join(process.env.EDUPDF_MACHINE_DIR || path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF'), 'licence.sknlic');
+  P.machine = path.join(process.env.EDUPDF_MACHINE_DIR || (process.platform === 'win32' ? path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF') : process.platform === 'darwin' ? '/Users/Shared/EduPDF' : '/var/tmp/EduPDF'), 'licence.sknlic');
   A.ipcMain.handle('license-status', () => status());
   A.ipcMain.handle('license-activate', (_e, { text, scope }) => activate(text, scope));
   A.ipcMain.handle('license-remove', () => remove());

@@ -56,11 +56,12 @@ async function ollamaModels() {
 }
 
 // ---------------------------------------------------------------- Claude (SDK officiel)
-async function runClaude({ id, model, key, system, prompt, pdfBase64, send, signal }) {
+async function runClaude({ id, model, key, system, prompt, pdfBase64, images, send, signal }) {
   const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey: key, maxRetries: 2 });
   const content = [];
   if (pdfBase64) content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } });
+  for (const im of images || []) { const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(im); if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }); }
   content.push({ type: 'text', text: prompt });
   const params = {
     model, max_tokens: 16000, system,
@@ -90,12 +91,12 @@ function claudeError(e) {
 }
 
 // ---------------------------------------------------------------- ChatGPT, Gemini, Mistral, Ollama (format « chat completions »)
-async function runCompatible({ id, provider, model, key, system, prompt, send, signal }) {
+async function runCompatible({ id, provider, model, key, system, prompt, images, send, signal }) {
   const P = PROVIDERS[provider];
   const r = await fetch(`${P.base}/chat/completions`, {
     method: 'POST', signal,
     headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) },
-    body: JSON.stringify({ model, stream: true, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] })
+    body: JSON.stringify({ model, stream: true, messages: [{ role: 'system', content: system }, { role: 'user', content: images && images.length ? [{ type: 'text', text: prompt }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] : prompt }] })
   });
   if (!r.ok) {
     const t = await r.text().catch(() => '');
@@ -119,7 +120,7 @@ async function runCompatible({ id, provider, model, key, system, prompt, send, s
   return { model };
 }
 
-async function chat(evt, { id, system, prompt, pdfBase64 }) {
+async function chat(evt, { id, system, prompt, pdfBase64, images }) {
   const c = readCfg(); const provider = c.provider || 'anthropic'; const P = PROVIDERS[provider];
   const model = (c.models && c.models[provider]) || P.models[0];
   const key = getKey(provider);
@@ -128,7 +129,7 @@ async function chat(evt, { id, system, prompt, pdfBase64 }) {
   const ctrl = new AbortController(); running.set(id, ctrl);
   const send = (ch, payload) => { if (!evt.sender.isDestroyed()) evt.sender.send(ch, payload); };
   try {
-    const args = { id, provider, model, key, system, prompt, send, signal: ctrl.signal };
+    const args = { id, provider, model, key, system, prompt, images, send, signal: ctrl.signal };
     const r = provider === 'anthropic' ? await runClaude({ ...args, pdfBase64: c.sendPdf !== false ? pdfBase64 : null }) : await runCompatible(args);
     return { ok: true, provider: P.name, ...r };
   } catch (e) {
@@ -146,7 +147,30 @@ function init(deps) {
   ip.handle('ai-save', (_e, a) => saveSettings(a || {}));
   ip.handle('ai-ollama-models', () => ollamaModels());
   ip.handle('ai-chat', (e, a) => { A.guard('ai', 'Assistant IA'); A.logEvent('ai', { provider: PROVIDERS[readCfg().provider || 'anthropic'].name }); return chat(e, a); });
-  ip.handle('ai-cancel', (_e, { id }) => { const c = running.get(id); if (c) c.abort(); return true; });
+  // IA locale (Ollama) : installation guidée et téléchargement d'un modèle, avec progression
+  ip.handle('ai-install-local', async (e, { model }) => {
+    const send = (m) => { if (!e.sender.isDestroyed()) e.sender.send('ai-install-progress', m); };
+    const mdl = String(model || 'llama3.2:3b').replace(/[^\w.:-]/g, '');
+    if (!(await ollamaModels())) {
+      if (process.platform !== 'win32') throw new Error('Installez Ollama depuis ollama.com, lancez-le, puis recommencez.');
+      send('Installation d\'Ollama (moteur d\'IA locale)…');
+      await new Promise((res) => require('child_process').execFile('winget', ['install', '-e', '--id', 'Ollama.Ollama', '--silent', '--accept-package-agreements', '--accept-source-agreements'], { timeout: 1800000, windowsHide: true }, () => res()));
+      for (let i = 0; i < 30 && !(await ollamaModels()); i++) await new Promise((r) => setTimeout(r, 2000));
+      if (!(await ollamaModels())) throw new Error('Ollama est installé mais ne répond pas encore : ouvrez-le une fois depuis le menu Démarrer, puis recommencez.');
+    }
+    send(`Téléchargement du modèle ${mdl}…`);
+    const r = await fetch('http://127.0.0.1:11434/api/pull', { method: 'POST', body: JSON.stringify({ name: mdl, stream: true }) });
+    const dec = new TextDecoder(); let buf = '';
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true }); let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        try { const j = JSON.parse(line); if (j.error) throw new Error(j.error); if (j.total) send(`Téléchargement du modèle ${mdl} : ${Math.round((j.completed || 0) / j.total * 100)} %`); else if (j.status) send(j.status); } catch (err) { if (/error|Erreur/i.test(err.message)) throw err; }
+      }
+    }
+    saveSettings({ provider: 'ollama', model: mdl });
+    return { ok: true, model: mdl };
+  });  ip.handle('ai-cancel', (_e, { id }) => { const c = running.get(id); if (c) c.abort(); return true; });
 }
 
 module.exports = { init, PROVIDERS };

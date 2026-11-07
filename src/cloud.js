@@ -42,6 +42,17 @@ function detect(custom = []) {
   add('nextcloud', 'Nextcloud', path.join(home, 'Nextcloud'));
   add('mega', 'MEGA', path.join(home, 'MEGA'));
 
+  // macOS : services cloud dans ~/Library/CloudStorage et iCloud Drive
+  const cs = path.join(home, 'Library', 'CloudStorage');
+  for (const d of safeReaddir(cs)) {
+    const p = path.join(cs, d);
+    if (/^OneDrive/i.test(d)) add(/-.+-/.test(d) ? 'onedrive-pro' : 'onedrive', d.replace(/^OneDrive-?/, 'OneDrive ').trim(), p);
+    else if (/^GoogleDrive/i.test(d)) { add('gdrive', 'Google Drive', path.join(p, 'My Drive')); add('gdrive', 'Google Drive', path.join(p, 'Mon Drive')); }
+    else if (/^Dropbox/i.test(d)) add('dropbox', 'Dropbox', p);
+    else if (/^Box/i.test(d)) add('box', 'Box', p);
+  }
+  add('icloud', 'iCloud Drive', path.join(home, 'Library', 'Mobile Documents', 'com~apple~CloudDocs'));
+
   for (const c of custom) add('custom', c.name || path.basename(c.path), c.path, { custom: true });
   return list;
 }
