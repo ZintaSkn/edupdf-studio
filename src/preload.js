@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('api', {
   exportPptxImages: (slides, defaultName) => ipcRenderer.invoke('export-pptx-images', { slides, defaultName }),
   convertOfficeFile: (target) => ipcRenderer.invoke('convert-office-file', { target }),
   officeTargets: () => ipcRenderer.invoke('office-targets'),
+  // licence (éditions commerciales) et mentions légales
+  licenseStatus: () => ipcRenderer.invoke('license-status'),
+  licenseActivate: (text, scope) => ipcRenderer.invoke('license-activate', { text, scope }),
+  licenseRemove: () => ipcRenderer.invoke('license-remove'),
+  licensePick: () => ipcRenderer.invoke('license-pick'),
+  notices: () => ipcRenderer.invoke('notices'),
   // fichiers récents
   recentList: () => ipcRenderer.invoke('recent-list'),
   recentClear: () => ipcRenderer.invoke('recent-clear'),

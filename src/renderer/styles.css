@@ -294,3 +294,10 @@ body.ribbon-auto.ribbon-show #tabs button.on { box-shadow: inset 0 -3px 0 var(--
 #show.laser { cursor: none; }
 @media (max-width: 1250px) { #leftBar { width: 200px; } }
 @media (max-width: 1000px) { #leftBar { width: 170px; } #leftBar #thumbs { width: auto; } }
+
+/* ---- Édition / licence ---- */
+#editionTag { opacity: .85; cursor: default; }
+#editionTag.pro { color: var(--enko-gold); font-weight: 600; opacity: 1; }
+#editionTag.expired { color: #ffb3b3; }
+pre.notices { max-height: 55vh; overflow: auto; font-size: 11px; white-space: pre-wrap; background: #f7f9fc; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+

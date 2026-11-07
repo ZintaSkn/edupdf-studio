@@ -1,11 +1,41 @@
 # SknEDUpdf-studio
 
-Éditeur PDF **hors-ligne** pour enseignants (Windows), dans l'esprit de PDFelement :
-créer, modifier, organiser, scanner, rendre le texte des scans modifiable (OCR), protéger, signer,
-comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL-3.0) : aucun abonnement, aucun compte.
+Éditeur PDF **hors-ligne** pour enseignants (Windows) : créer, modifier, organiser, scanner, rendre le texte des scans
+modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours avec l'IA.
+
+**Open core** : le logiciel est libre (AGPL-3.0) et complet en édition Communauté ; les éditions Enseignant et
+Établissement financent le projet par des services (voir « Éditions et offres »).
 
 Couleurs : bleu marine **#001871** et or **#F1B434** d'Enko Education ; leur dégradé (bleu → turquoise → vert → or) forme les vagues signature et toutes les nuances de l'interface.
 
+## Éditions et offres
+
+| | **Communauté** | **Enseignant** | **Établissement** |
+|---|---|---|---|
+| Prix | Gratuit | Abonnement annuel ou licence perpétuelle | Licence par poste et par an |
+| Toutes les fonctions (édition, OCR, IA, conversions, administration…) | ✔ | ✔ | ✔ |
+| Mises à jour automatiques | ✔ | ✔ | ✔ |
+| Nom de l'établissement dans l'application et les modèles | | ✔ | ✔ |
+| Support prioritaire | | ✔ | ✔ (avec délai garanti) |
+| Aide au déploiement sur les postes, console d'administration accompagnée | | | ✔ |
+| Formation des enseignants, modèles personnalisés à l'établissement | | | ✔ |
+| Crédits IA, installateur signé, développements sur mesure | | En option | En option |
+
+Activation : Aide › **Licence et édition** (clé `SKN1.…` ou fichier `.sknlic`, vérifiée hors ligne ; option « pour tous
+les comptes Windows de ce PC »). Une licence expirée ne bloque rien : le logiciel repasse en édition Communauté.
+
+**Licence et marque.** Le code est sous **GNU AGPL-3.0** ([LICENSE](LICENSE)) : utilisation, étude, modification et
+redistribution libres, à condition de publier le code source des versions modifiées. Le nom et le logo
+« SknEDUpdf-studio » sont des marques réservées ([TRADEMARK.md](TRADEMARK.md)). Contributions : [CONTRIBUTING.md](CONTRIBUTING.md).
+Composants tiers : [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+### Émettre une licence (éditeur uniquement)
+
+```bash
+node tools/licence.js emettre "%USERPROFILE%\SknEDUpdf-licences" --org "Lycée X" --edition etablissement --postes 50 --fin 2027-09-30 --ref FACT-2026-001
+```
+
+La clé privée de signature reste dans `%USERPROFILE%\SknEDUpdf-licences` (jamais dans le dépôt) : sauvegardez-la en lieu sûr.
 ## Fonctions
 
 | Domaine | Ce que fait le logiciel |

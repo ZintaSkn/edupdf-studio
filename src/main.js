@@ -20,6 +20,7 @@ const mu = require('./mu');
 const admin = require('./admin');
 const cloud = require('./cloud');
 const ai = require('./ai');
+const license = require('./license');
 const { Notification, Tray, nativeImage } = require('electron');
 const ICON = path.join(__dirname, 'renderer', 'icon.png');
 
@@ -313,6 +314,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(() => {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
+    license.init({ app, ipcMain, dialog });
     ai.init({ app, ipcMain, safeStorage: require('electron').safeStorage, guard: admin.guard, logEvent: admin.logEvent });
     admin.logEvent('app_start', {});
     if (admin.effective().blocked) admin.logEvent('user_blocked', {});

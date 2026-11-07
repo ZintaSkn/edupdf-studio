@@ -1902,7 +1902,7 @@ const actions = {
     if (await window.api.officeStatus()) alert('LibreOffice est installé : la conversion Word / PowerPoint / Excel → PDF est disponible hors-ligne.');
     else officeMissing('Word / PowerPoint / Excel');
   },
-  async about() { alert(`SknEDUpdf-studio ${await window.api.version()}\n\nÉditeur PDF hors-ligne pour l'enseignement.\nLogiciel libre et perpétuel (AGPL-3.0) — aucun abonnement.\nOCR : Tesseract • Rendu : PDF.js • Édition : pdf-lib • Protection et formats : MuPDF`); }
+  about: () => aboutDialog(), license: () => licenseDialog(),
 };
 
 document.addEventListener('click', (e) => {
@@ -2134,6 +2134,7 @@ async function templatePdf(kind) {
       await text('Note', W - m - 38 * mm, H - m - 10 * mm, 10, true); await text('/ 20', W - m - 16 * mm, H - m - 26 * mm, 14, true);
       await text('Appréciation :', W / 2 - 10 * mm, H - m - 17 * mm, 11, true);
     }
+    if (LIC.org) await text(LIC.org, m, H - m + 3 * mm, 10, true); // édition Établissement : nom de l'établissement
     await text(kind === 'evaluation' ? 'Évaluation — titre :' : 'Fiche d\'exercices — thème :', m, H - m - 46 * mm, 15, true);
     let y = H - m - 58 * mm;
     for (let n = 1; n <= (kind === 'evaluation' ? 4 : 5) && y > 30 * mm; n++) {
@@ -2266,8 +2267,50 @@ $('#show').addEventListener('mousemove', (e) => {
 });
 window.addEventListener('resize', () => { if (SHOW.on) renderShow(); });
 
+// ================= Éditions (open core), à propos, mentions légales =================
+let LIC = { edition: 'communaute', label: 'Communauté', org: '' };
+async function applyLicense() {
+  try { LIC = await window.api.licenseStatus(); } catch { return; }
+  const tag = $('#editionTag');
+  tag.textContent = LIC.edition === 'communaute' ? 'Édition Communauté' : `Édition ${LIC.label}${LIC.org ? ' — ' + LIC.org : ''}${LIC.expired ? ' (licence expirée)' : ''}`;
+  tag.classList.toggle('pro', LIC.edition !== 'communaute' && !LIC.expired);
+  tag.classList.toggle('expired', !!LIC.expired);
+}
+async function licenseDialog() {
+  await applyLicense();
+  const L = LIC;
+  const etat = L.edition === 'communaute'
+    ? '<p>Vous utilisez l\'<b>édition Communauté</b> : gratuite, complète et libre (AGPL-3.0).</p>'
+    : `<p><b>Édition ${esc(L.label)}</b> — ${esc(L.org)}<br>${L.seats ? esc(L.seats) + ' poste(s) — ' : ''}${L.expired ? '<span class="err">expirée le ' + esc(L.expires) + '</span>' : 'valable jusqu\'au ' + esc(L.expires) + (L.daysLeft <= 30 ? ` <span class="err">(${L.daysLeft} jour(s) restant(s))</span>` : '')}<br><span class="muted">Référence ${esc(L.ref || '')} · ${L.scope === 'machine' ? 'installée pour tout le PC' : 'installée pour ce compte'}</span></p>`;
+  const r = await modal('Licence et édition', `${etat}
+    <p class="muted">Les éditions <b>Enseignant</b> et <b>Établissement</b> ajoutent le nom de l'établissement dans l'application et les modèles,
+    le support prioritaire, l'aide au déploiement sur les postes et la formation. Toutes les fonctions restent disponibles dans l'édition Communauté.</p>
+    <label class="blk">Clé de licence <textarea id="licKey" rows="3" style="width:100%;box-sizing:border-box" placeholder="SKN1.…"></textarea></label>
+    <div class="row"><button class="small" id="licFile">Importer un fichier .sknlic…</button>
+    <label class="ck"><input type="checkbox" id="licMachine"> Pour tous les comptes Windows de ce PC</label></div>
+    ${L.support ? `<p><a href="${esc(L.support)}" target="_blank">Support prioritaire</a></p>` : ''}`,
+  [...(L.edition !== 'communaute' && L.scope === 'user' ? [['Retirer la licence', 'remove']] : []), ['Fermer', null], ['Activer', () => ({ text: $('#licKey').value, scope: $('#licMachine').checked ? 'machine' : 'user' }), true]]);
+  if (r === 'remove') { if (confirm('Retirer la licence de ce compte ? Le logiciel repasse en édition Communauté.')) { await window.api.licenseRemove(); await applyLicense(); } return; }
+  if (!r) return;
+  try { await window.api.licenseActivate(r.text, r.scope); await applyLicense(); alert(`Licence activée : édition ${LIC.label}${LIC.org ? ' — ' + LIC.org : ''}.`); }
+  catch (e) { alert(errMsg(e)); }
+}
+document.addEventListener('click', async (e) => { if (e.target.id !== 'licFile') return; const t = await window.api.licensePick(); if (t) $('#licKey').value = t.trim(); });
+async function aboutDialog() {
+  await applyLicense();
+  const v = await window.api.version();
+  const r = await modal('À propos de SknEDUpdf-studio', `<p><b>SknEDUpdf-studio ${esc(v)}</b> — éditeur PDF hors-ligne pour l'enseignement.<br>
+    Édition : <b>${esc(LIC.edition === 'communaute' ? 'Communauté' : LIC.label + (LIC.org ? ' — ' + LIC.org : ''))}</b></p>
+    <p>Logiciel libre sous licence <b>GNU AGPL-3.0</b> : vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer selon cette licence.
+    Le code source complet est publié. Le nom et le logo « SknEDUpdf-studio » sont des marques réservées (voir la politique de marque).</p>
+    <p class="muted">Rendu PDF.js · Édition pdf-lib · Protection et formats MuPDF · OCR Tesseract · IA : Claude, ChatGPT, Gemini, Mistral, Ollama.</p>`,
+  [['Licences des composants', 'notices'], ['Code source', 'source'], ['Politique de marque', 'tm'], ['Fermer', null, true]]);
+  if (r === 'source') window.api.openExternal('https://github.com/ksehibi/edupdf-studio');
+  if (r === 'tm') window.api.openExternal('https://github.com/ksehibi/edupdf-studio/blob/main/TRADEMARK.md');
+  if (r === 'notices') { const n = await window.api.notices(); await modal('Composants tiers et licences', `<pre class="notices">${esc(n)}</pre>`, [['Fermer', null, true]]); }
+}
 // Démarrage de l'interface : onglets de documents, Accueil, ruban, accès rapide
-initDocs(); initHome(); initRibbonMode(); renderQat(); switchTab('accueil');
+initDocs(); initHome(); initRibbonMode(); renderQat(); switchTab('accueil'); applyLicense();
 
 // Accès pour les tests
-window.__edupdf = { renderPage, newTab, switchDoc, closeTab, toggleRibbon, startShow, aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };
+window.__edupdf = { applyLicense, LIC: () => LIC, templatePdf, renderPage, newTab, switchDoc, closeTab, toggleRibbon, startShow, aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

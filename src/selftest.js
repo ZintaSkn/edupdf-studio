@@ -358,6 +358,32 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         log('INFO memoire processus principal', m ? Math.round(m.private / 1024) + ' Mo' : '?');
       }
 
+      // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
+      {
+        let realKey = null;
+        const priv = path.join(require('os').homedir(), 'SknEDUpdf-licences', 'cle-privee-licences.pem');
+        if (fs.existsSync(priv)) {
+          const crypto = require('crypto');
+          const data = Buffer.from(JSON.stringify({ v: 1, product: 'SknEDUpdf-studio', edition: 'etablissement', org: 'Lycée de démonstration', seats: 25, ref: 'TEST', issued: '2026-11-07', expires: '2099-12-31' })).toString('base64url');
+          realKey = `SKN1.${data}.${crypto.sign(null, Buffer.from(data), crypto.createPrivateKey(fs.readFileSync(priv))).toString('base64url')}`;
+        }
+        await step('licence', `(async () => {
+          const out = {};
+          out.depart = (await window.api.licenseStatus()).label;
+          try { await window.api.licenseActivate('SKN1.abc.def', 'user'); out.fausseCle = 'ACCEPTÉE (anomalie)'; } catch (e) { out.fausseCle = 'refusée'; }
+          const real = ${JSON.stringify(realKey)};
+          if (real) {
+            const st = await window.api.licenseActivate(real, 'user'); out.vraieCle = st.label + ' — ' + st.org;
+            const T = window.__edupdf; await T.applyLicense(); out.barre = document.querySelector('#editionTag').textContent;
+            const d = await pdfjsLib.getDocument({ data: await T.templatePdf('evaluation') }).promise;
+            out.modeleAvecEtablissement = (await (await d.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ').includes('Lycée de démonstration');
+            await window.api.licenseRemove(); out.apresRetrait = (await window.api.licenseStatus()).label;
+          } else out.vraieCle = "non testée (clé de l'éditeur absente sur ce PC)";
+          out.mentions = (await window.api.notices()).includes('mupdf');
+          return out;
+        })()`);
+      }
+
       await step('thumbs', `(async () => {
         const T = window.__edupdf; T.refresh(); await new Promise(r => setTimeout(r, 2500));
         return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };
