@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "EduPDF Studio",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -33,7 +33,7 @@
     "node-forge": "^1.4.3",
     "officecrypto-tool": "^0.0.19",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "3.11.174",
+    "pdfjs-dist": "^6.5.438",
     "pptxgenjs": "^4.0.1",
     "tesseract.js": "5.1.1"
   },
@@ -49,7 +49,10 @@
     },
     "npmRebuild": false,
     "disableAsarIntegrity": true,
-    "electronLanguages": ["fr", "en-US"],
+    "electronLanguages": [
+      "fr",
+      "en-US"
+    ],
     "compression": "maximum",
     "files": [
       "src/**/*",
@@ -74,9 +77,9 @@
       "!node_modules/pdf-lib/{es,src,ts3.4}/**",
       "!node_modules/pdf-lib/dist/pdf-lib.{js,esm.js,esm.min.js}",
       "!node_modules/@pdf-lib/fontkit/dist/fontkit.{es,es.min,umd}.js",
-      "!node_modules/pdfjs-dist/build/{pdf.js,pdf.worker.js,pdf.sandbox.js,pdf.sandbox.min.js,pdf.worker.entry.js}",
       "!node_modules/pdfjs-dist/image_decoders/**",
-      "!node_modules/exceljs/dist/**"
+      "!node_modules/exceljs/dist/**",
+      "!node_modules/pdfjs-dist/build/{pdf.mjs,pdf.worker.mjs,pdf.renderer.mjs,pdf.sandbox.mjs,pdf.sandbox.min.mjs}"
     ],
     "asarUnpack": [
       "node_modules/tesseract.js/**",
@@ -114,5 +117,9 @@
   },
   "allowScripts": {
     "electron@45.2.3": true
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "image-size": "^2.1.0"
   }
 }

@@ -41,6 +41,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
   })();  win.webContents.once('did-finish-load', async () => {
     await fixtures;
     const js = (code) => win.webContents.executeJavaScript(code);
+    for (let i = 0; i < 100 && !(await js('!!window.__edupdf')); i++) await new Promise((r) => setTimeout(r, 100)); // éditeur chargé (module PDF.js)
     const results = {};
     const step = async (name, code, ms = 60000) => {
       try { results[name] = await timeout(js(code), ms, name); log('OK  ', name, JSON.stringify(results[name]).slice(0, 600)); }
@@ -303,9 +304,9 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         await cw.webContents.executeJavaScript(`document.querySelector('#pw').value = 'admin123'; document.querySelector('#go').click(); 1`);
         await new Promise((r) => setTimeout(r, 1500));
         await cw.webContents.executeJavaScript(`document.querySelector('[data-t=users]').click(); 1`); await new Promise((r) => setTimeout(r, 500));
-        fs.writeFileSync(path.join(outDir, 'admin-users.png'), (await cw.webContents.capturePage()).toPNG());
+        try { cw.show(); cw.focus(); fs.writeFileSync(path.join(outDir, 'admin-users.png'), (await cw.webContents.capturePage()).toPNG()); } catch (e) { log('note capture console', e.message); }
         await cw.webContents.executeJavaScript(`document.querySelector('[data-t=journal]').click(); 1`); await new Promise((r) => setTimeout(r, 800));
-        fs.writeFileSync(path.join(outDir, 'admin-journal.png'), (await cw.webContents.capturePage()).toPNG());
+        try { fs.writeFileSync(path.join(outDir, 'admin-journal.png'), (await cw.webContents.capturePage()).toPNG()); } catch (e) { log('note capture console', e.message); }
         log('OK   admin-console', await cw.webContents.executeJavaScript(`document.querySelectorAll('#journalTbl tr').length + ' lignes de journal'`));
       } catch (e) { log('FAIL admin-console', e.message); results.cons = { error: e.message }; }
 
@@ -314,7 +315,44 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };
       })()`);
 
-      await new Promise((res) => setTimeout(res, 800));      fs.writeFileSync(path.join(outDir, 'ui.png'), (await win.webContents.capturePage()).toPNG());
+      // ---------- Affichage : tailles d'écran (CSS px = résolution ÷ mise à l'échelle Windows) ----------
+      try {
+        const sizes = [[800, 560, '800x600'], [1093, 614, '1366x768 à 125 %'], [1280, 680, '1280x720'], [1536, 824, '1920x1080 à 125 %'], [1920, 1040, '1920x1080'], [2560, 1400, '2560x1440']];
+        if (win.isMaximized()) win.unmaximize();
+        const minSize = win.getMinimumSize();
+        for (const [w, h, label] of sizes) {
+          win.setMinimumSize(320, 320); win.setContentSize(w, h); await new Promise((r) => setTimeout(r, 900));
+          const m = await win.webContents.executeJavaScript(`(async () => {
+            const q = (s) => document.querySelector(s); const out = {};
+            out.viewport = innerWidth + 'x' + innerHeight;
+            out.pageScrollX = document.documentElement.scrollWidth > innerWidth + 1;
+            out.tabsClipped = [...document.querySelectorAll('#tabs [data-tab]')].filter((t) => t.getBoundingClientRect().right > innerWidth + 1).length;
+            let maxRibbon = 0, clipped = 0;
+            for (const t of document.querySelectorAll('#tabs [data-tab]')) {
+              t.click(); await new Promise((r) => setTimeout(r, 30));
+              maxRibbon = Math.max(maxRibbon, q('#ribbon').offsetHeight);
+              const p = q('.panel.on'); const scrollable = getComputedStyle(p).overflowX === 'auto';
+              p.querySelectorAll('button').forEach((b) => { if (b.getBoundingClientRect().right > innerWidth + 1 && !scrollable) clipped++; });
+            }
+            q('[data-tab=fichier]').click();
+            out.maxRibbonH = maxRibbon; out.clippedButtons = clipped;
+            const vw = q('#viewWrap').getBoundingClientRect(); out.docArea = Math.round(vw.width) + 'x' + Math.round(vw.height);
+            out.side = q('#side').offsetWidth; out.thumbs = q('#thumbs').offsetWidth;
+            out.footerVisible = q('footer').getBoundingClientRect().bottom <= innerHeight + 1;
+            return out;
+          })()`);
+          log('OK   layout', label, JSON.stringify(m));
+          if (w <= 1093 || w >= 2560) {
+            await win.webContents.executeJavaScript(`document.querySelector('[data-tab=modifier]').click(); 1`); await new Promise((r) => setTimeout(r, 400));
+            fs.writeFileSync(path.join(outDir, `ecran-${w}x${h}.png`), (await win.webContents.capturePage()).toPNG());
+            await win.webContents.executeJavaScript(`document.querySelector('[data-tab=fichier]').click(); 1`);
+          }
+        }
+        win.setMinimumSize(...minSize);
+      } catch (e) { log('FAIL layout', e.stack); }
+
+      await new Promise((res) => setTimeout(res, 800));
+      fs.writeFileSync(path.join(outDir, 'ui.png'), (await win.webContents.capturePage()).toPNG());
       log(Object.values(results).some((r) => r && r.error) ? 'DONE WITH FAILURES' : 'ALL OK');
     } catch (e) {
       log('ECHEC', e.stack || e.message);

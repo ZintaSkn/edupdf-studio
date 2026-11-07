@@ -21,6 +21,7 @@
       <button data-tab="ia">✨ Assistant IA</button>
       <button data-tab="aide">Aide</button>
     </nav>
+    <div id="policyBar" hidden></div>
     <div id="ribbon">
       <div class="panel on" data-panel="fichier">
         <button data-act="new"><i>📄</i>Nouveau</button>
@@ -194,6 +195,7 @@
 
   <footer>
     <span id="msg">Prêt.</span>
+    <button id="sideToggle" title="Afficher / masquer les propriétés">⚙ Propriétés</button>
     <span id="managedTag" hidden title="Les fonctions disponibles sont définies par l'administrateur">🛡️ Poste géré</span>
     <span id="update"></span>
     <span id="ver"></span>
@@ -206,15 +208,12 @@
     <div id="aiOut" tabindex="0"></div>
     <div class="row wrap"><button id="aiCopy" class="small">Copier</button><button id="aiInsert" class="small">Insérer dans le document</button><button id="aiWordBtn" class="small">Exporter en Word</button><button id="aiPaste" class="small" title="Coller une réponse obtenue avec votre abonnement">Coller la réponse</button></div>
   </aside>
-  <div id="policyBar" hidden></div>
   <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé EduPDF Studio pour <b id="blockedWho"></b>.</p>
     <p>Contactez votre administrateur si vous pensez qu'il s'agit d'une erreur.</p><button data-act="admin">Administration…</button></div></div>
   <div id="busy" hidden><div><span class="spin"></span><span id="busyMsg">Traitement…</span></div></div>
   <div id="modal" hidden><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><div id="mBtns"></div></div></div>
 
-  <script src="../../node_modules/pdfjs-dist/build/pdf.min.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
-  <script src="fonts.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="boot.mjs"></script>
 </body>
 </html>

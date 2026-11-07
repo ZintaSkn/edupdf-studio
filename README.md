@@ -64,6 +64,21 @@ Aide › **Administration** :
 
 Sécurité : les règles sont **signées numériquement** (Ed25519) ; un utilisateur ne peut ni les modifier ni retirer son poste
 sans le mot de passe administrateur. La clé de l'administrateur est chiffrée par son mot de passe.
+## Compatibilité, confiance et sécurité
+
+| Point vérifié | Résultat |
+|---|---|
+| Systèmes | Windows 10 et 11, 64 bits (x64) ; PC ARM Windows 11 en émulation. Windows 7/8 et 32 bits non pris en charge (moteur Electron). |
+| Antivirus | Installateur analysé sans détection par Kaspersky (7 164 éléments) et Microsoft Defender. |
+| Contrôle intelligent des applications (Windows 11) | Installateur et application autorisés : l'exécutable Electron est laissé intact. |
+| SmartScreen | Avertissement « Windows a protégé votre ordinateur » au premier lancement d'un fichier téléchargé, tant que l'installateur n'est pas signé : « Informations complémentaires › Exécuter quand même ». |
+| Mises à jour | Testé de bout en bout : la 1.3.0 installée a trouvé, téléchargé (mise à jour différentielle) et installé la 1.4.0 à la fermeture. Journal : `%APPDATA%\EduPDF Studio\logs\mises-a-jour.log`. Chaque version passe l'audit de sécurité et l'auto-test complet avant publication. |
+| Écrans | Testé de 800×600 à 2560×1440 et avec mise à l'échelle Windows 125 % : fenêtre adaptée à l'écran au démarrage (agrandie sur les petits écrans, taille mémorisée), ruban sur une ligne défilant à la molette, panneau Propriétés repliable sur petit écran. |
+| Comptes Windows | Noms d'utilisateur accentués et avec espaces pris en charge. |
+| Code source | Aucun secret dans l'historique ; 0 vulnérabilité connue dans les dépendances (`npm audit`) ; CodeQL, Dependabot et détection de secrets à l'envoi. Voir [SECURITY.md](SECURITY.md). |
+
+Pour supprimer l'avertissement SmartScreen, il faut signer l'installateur : certificat gratuit pour les projets libres
+via **SignPath Foundation**, ou **Azure Trusted Signing** (environ 10 $/mois).
 ## Lancer en développement
 
 ```bash

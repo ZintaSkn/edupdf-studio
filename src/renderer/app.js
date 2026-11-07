@@ -1,7 +1,6 @@
 /* EduPDF Studio — interface et moteur d'édition */
 'use strict';
 const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
-pdfjsLib.GlobalWorkerOptions.workerSrc = '../../node_modules/pdfjs-dist/build/pdf.worker.min.js';
 
 const A4 = [595.28, 841.89];
 const $ = (s) => document.querySelector(s);
@@ -62,7 +61,8 @@ function bytesToDataUrl(bytes, mime = 'application/octet-stream') {
 const PDFJS_DIR = '../../node_modules/pdfjs-dist/';
 function openPdfJs(data, password) {
   return pdfjsLib.getDocument({ data, password, isEvalSupported: false, enableXfa: false,
-    cMapUrl: PDFJS_DIR + 'cmaps/', cMapPacked: true, standardFontDataUrl: PDFJS_DIR + 'standard_fonts/' }).promise; // polices et encodages asiatiques non intégrés
+    cMapUrl: PDFJS_DIR + 'cmaps/', cMapPacked: true, standardFontDataUrl: PDFJS_DIR + 'standard_fonts/',
+    wasmUrl: PDFJS_DIR + 'wasm/', iccUrl: PDFJS_DIR + 'iccs/', verbosity: 0 }).promise; // polices et encodages asiatiques non intégrés
 }
 // Images (signatures, photos) stockées une seule fois : l'historique d'annulation reste léger
 const imgStore = new Map();
@@ -71,7 +71,7 @@ const srcOf = (o) => (o.ref ? imgStore.get(o.ref) : o.src);
 const errMsg = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '').replace(/^BLOQUE_ADMIN: /, '');
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function normRect(r) { return [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])]; }
-function viewRect(vp, rect) { const [a, b, c, d] = normRect(vp.convertToViewportRectangle(rect)); return { l: a, t: b, w: c - a, h: d - b }; }
+function viewRect(vp, rect) { const [a, b, c, d] = normRect([...vp.convertToViewportPoint(rect[0], rect[1]), ...vp.convertToViewportPoint(rect[2], rect[3])]); return { l: a, t: b, w: c - a, h: d - b }; }
 function viewToPdfRect(vp, l, t, w, h) { return normRect([...vp.convertToPdfPoint(l, t), ...vp.convertToPdfPoint(l + w, t + h)]); }
 const baseName = () => S.fileName.replace(/\.pdf$/i, '');
 
@@ -1998,6 +1998,12 @@ $('#aiInsert').onclick = aiInsert; $('#aiWordBtn').onclick = aiWord;
 $('#aiBadge').onclick = aiSettings;
 $('#aiPrompt').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && e.ctrlKey) aiRun(); });
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-ai]'); if (b) { if (!can('ai')) return denied('ai'); aiRun(b.dataset.ai); } });
+
+// Mise en page adaptative : hauteur réelle de l'en-tête, panneau Propriétés repliable, ruban défilant à la molette
+new ResizeObserver(() => document.documentElement.style.setProperty('--hdr', document.querySelector('header').offsetHeight + 'px')).observe(document.querySelector('header'));
+$('#sideToggle').onclick = () => document.body.classList.toggle('side-open');
+$$('.panel').forEach((p) => p.addEventListener('wheel', (e) => { if (p.scrollWidth > p.clientWidth && !e.ctrlKey) { e.preventDefault(); p.scrollLeft += e.deltaY || e.deltaX; } }, { passive: false }));
+window.addEventListener('resize', () => { if (innerWidth > 1000) document.body.classList.remove('side-open'); });
 
 // Accès pour les tests
 window.__edupdf = { aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

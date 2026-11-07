@@ -81,7 +81,8 @@ function convertWithOffice(file, target = 'pdf', infilter = null) {
     const soffice = findSoffice();
     if (!soffice) return reject(new Error('LIBREOFFICE_MISSING'));
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-'));
-    const profile = 'file:///' + path.join(app.getPath('userData'), 'lo-profile').replace(/\\/g, '/');
+    // URL encodée : fonctionne aussi avec un nom d'utilisateur accentué (ex. C:\Users\Aïcha)
+    const profile = require('url').pathToFileURL(path.join(app.getPath('userData'), 'lo-profile')).href;
     const args = [`-env:UserInstallation=${profile}`, '--headless', '--norestore', '--nologo'];
     if (infilter) args.push(`--infilter=${infilter}`);
     args.push('--convert-to', target, '--outdir', outDir, file);
@@ -225,10 +226,31 @@ async function loadFile(file) {
   return { name, path: null, kind, bytes: buf };
 }
 
+/**
+ * Affichage adapté à l'écran au démarrage :
+ * - reprend la taille de la dernière session si elle tient entièrement dans un écran actuel ;
+ * - sinon : plein écran utile sur les petits écrans (portables 1366×768, mise à l'échelle 125–150 %),
+ *   fenêtre centrée de taille confortable sur les grands écrans.
+ */
+function fitWindowToScreen(w) {
+  const { screen } = require('electron');
+  const saved = readSettings().window;
+  if (saved && saved.bounds) {
+    const b = saved.bounds;
+    const d = screen.getDisplayMatching(b).workArea;
+    const fits = b.width >= 760 && b.height >= 520 && b.x >= d.x - 8 && b.y >= d.y - 8 && b.x + b.width <= d.x + d.width + 8 && b.y + b.height <= d.y + d.height + 8;
+    if (fits) { w.setBounds(b); if (saved.maximized) w.maximize(); return; }
+  }
+  const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  if (wa.width < 1500 || wa.height < 950) { w.setBounds(wa); w.maximize(); return; }
+  const width = Math.min(1600, Math.round(wa.width * 0.85)), height = Math.min(1050, Math.round(wa.height * 0.9));
+  w.setBounds({ x: wa.x + Math.round((wa.width - width) / 2), y: wa.y + Math.round((wa.height - height) / 2), width, height });
+}
+
 // ---------- Fenêtre ----------
 function createWindow() {
   win = new BrowserWindow({
-    width: 1400, height: 900, minWidth: 1000, minHeight: 650,
+    width: 1400, height: 900, minWidth: 760, minHeight: 520, show: false,
     title: 'EduPDF Studio',
     icon: ICON,
     webPreferences: {
@@ -240,6 +262,12 @@ function createWindow() {
     }
   });
   Menu.setApplicationMenu(null);
+  // Taille adaptée à l'écran (portables 1366×768, écrans 4K…) : plein écran utile si l'écran est petit
+  fitWindowToScreen(win);
+  win.once('ready-to-show', () => win.show());
+  // mémorise la taille et la position pour la prochaine ouverture (si l'écran est toujours le même)
+  const remember = () => { try { const s = readSettings(); s.window = { bounds: win.getNormalBounds(), maximized: win.isMaximized() }; writeSettings(s); } catch { /* */ } };
+  win.on('close', remember);
   win.on('close', (e) => {
     if (!dirty) return;
     const c = dialog.showMessageBoxSync(win, {
@@ -701,6 +729,11 @@ function setupAutoUpdate() {
   if (!app.isPackaged) return;
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
+  // Journal des mises à jour (diagnostic) : %APPDATA%\EduPDF Studio\logs\mises-a-jour.log, limité à 1 Mo
+  const logFile = path.join(app.getPath('userData'), 'logs', 'mises-a-jour.log');
+  const write = (lvl) => (m) => { try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1048576) fs.renameSync(logFile, logFile + '.1'); fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${lvl} ${m}\n`); } catch { /* */ } };
+  autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };
+  autoUpdater.allowDowngrade = false;
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   const send = (status, info) => win && win.webContents.send('update-status', { status, info });

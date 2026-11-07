@@ -1,4 +1,5 @@
 # Construit l'installateur Windows et publie la mise à jour à chaque tag vX.Y.Z
+# Une version n'est publiée que si l'audit de sécurité et l'auto-test complet réussissent.
 name: Publier une version
 on:
   push:
@@ -15,7 +16,18 @@ jobs:
           node-version: 22
       # --omit=optional : évite « canvas » (dépendance facultative de pdf.js, inutile ici)
       - run: npm ci --omit=optional
-      # La version est créée d'abord : evite que les envois en parallèle créent deux versions identiques
+      # Aucune faille élevée ou critique tolérée dans les dépendances de l'application
+      - run: npm audit --omit=dev --audit-level=high
+      # Auto-test complet (édition, polices, PDF protégés, OCR, formulaires, conversions, IA, administration, affichage)
+      - name: Auto-test
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'selftest'; New-Item -ItemType Directory -Force $dir | Out-Null
+          $env:EDUPDF_SELFTEST = $dir
+          $p = Start-Process -FilePath "node_modules\electron\dist\electron.exe" -ArgumentList '.' -PassThru -Wait
+          Get-Content "$dir\selftest.log"
+          if (-not (Select-String -Path "$dir\selftest.log" -Pattern '^ALL OK' -Quiet)) { Write-Error 'Auto-test en échec : version non publiée.'; exit 1 }
+      # La version est créée d'abord : évite que les envois en parallèle créent deux versions identiques
       - run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Mise à jour automatique d'EduPDF Studio." || echo "version déjà créée"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
