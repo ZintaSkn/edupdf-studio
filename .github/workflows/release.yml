@@ -30,7 +30,16 @@ jobs:
           Get-Content "$dir\selftest.log"
           if (-not (Select-String -Path "$dir\selftest.log" -Pattern '^ALL OK' -Quiet)) { Write-Error 'Auto-test en échec : version non publiée.'; exit 1 }
       # La version est créée d'abord : évite que les envois en parallèle créent deux versions identiques
-      - run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Mise à jour automatique de SknEDU-studio." || echo "version déjà créée"
+      # Titre et notes tirés de CHANGELOG.md (section de la version publiée)
+      - name: Version GitHub et notes
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}"
+          $title = node tools/release-notes.js $v --title
+          node -e "require('fs').writeFileSync('notes.md', require('child_process').execFileSync('node', ['tools/release-notes.js', process.argv[1]]))" $v
+          gh release create $v --title "$title" --notes-file notes.md
+          if ($LASTEXITCODE -ne 0) { Write-Host 'version déjà créée : notes mises à jour'; gh release edit $v --title "$title" --notes-file notes.md }
+          $global:LASTEXITCODE = 0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Signature de code SignPath (si les secrets SIGNPATH_* sont définis) : application, désinstalleur et installateur

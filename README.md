@@ -5,7 +5,7 @@
 Éditeur PDF **hors-ligne** pour enseignants (Windows) : créer, modifier, organiser, scanner, rendre le texte des scans
 modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours avec l'IA.
 
-Liens : [Politique de signature de code](CODE_SIGNING.md) · [Confidentialité](PRIVACY.md) · [Sécurité](SECURITY.md) · [Téléchargements](https://github.com/ksehibi/edupdf-studio/releases/latest)
+Liens : [Historique des versions](CHANGELOG.md) · [Politique de signature de code](CODE_SIGNING.md) · [Confidentialité](PRIVACY.md) · [Sécurité](SECURITY.md) · [Téléchargements](https://github.com/ksehibi/edupdf-studio/releases/latest)
 
 **Open core** : le logiciel est libre (AGPL-3.0) et complet en édition Communauté ; les éditions Enseignant et
 Établissement financent le projet par des services (voir « Éditions et offres »).
@@ -151,7 +151,7 @@ npm run dist
 
 Dépôt : https://github.com/ksehibi/edupdf-studio — téléchargement : onglet **Releases**.
 
-Pour chaque nouvelle version : augmentez `"version"` dans `package.json`, commitez, puis
+Pour chaque nouvelle version : augmentez `"version"` dans `package.json`, ajoutez sa section en tête de `CHANGELOG.md` (elle devient les notes de la version sur GitHub), commitez, puis
 `git tag vX.Y.Z` et `git push origin main vX.Y.Z`. Le workflow `.github/workflows/release.yml` construit
 l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés installent la mise à jour tout seuls.
 
