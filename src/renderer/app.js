@@ -68,7 +68,7 @@ function openPdfJs(data, password) {
 const imgStore = new Map();
 function putImg(dataUrl) { for (const [k, v] of imgStore) if (v === dataUrl) return k; const id = 'img' + (imgStore.size + 1); imgStore.set(id, dataUrl); return id; }
 const srcOf = (o) => (o.ref ? imgStore.get(o.ref) : o.src);
-const errMsg = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+const errMsg = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '').replace(/^BLOQUE_ADMIN: /, '');
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function normRect(r) { return [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])]; }
 function viewRect(vp, rect) { const [a, b, c, d] = normRect(vp.convertToViewportRectangle(rect)); return { l: a, t: b, w: c - a, h: d - b }; }
@@ -496,6 +496,7 @@ async function buildPdf(list = S.pages) {
 
 async function save(asNew) {
   if (!S.pages.length) return;
+  if (!can('save')) return denied('save');
   busy('Enregistrement…');
   try {
     let bytes = await buildPdf();
@@ -629,7 +630,7 @@ async function drawFormLayer(pg, p) {
       if (v !== undefined) el.value = v;
       el.onchange = () => set({ t: 'ch', v: el.value });
     } else continue;
-    if (a.readOnly) el.disabled = true;
+    if (a.readOnly || !can('forms')) el.disabled = true;
     el.className = 'fw'; el.title = a.alternativeText || a.fieldName || '';
     Object.assign(el.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
     el.addEventListener('keydown', (e) => e.stopPropagation());
@@ -800,6 +801,7 @@ function renderThumbs() {
     d.ondrop = (e) => {
       const from = +e.dataTransfer.getData('text/page'); d.classList.remove('drop');
       if (isNaN(from) || from === i) return;
+      if (!can('pages')) return denied('pages');
       e.preventDefault(); e.stopPropagation(); snapshot();
       const [pg] = S.pages.splice(from, 1); const to = from < i ? i - 1 : i;
       S.pages.splice(to, 0, pg); S.cur = to; S.sel = new Set([to]); refresh();
@@ -1177,23 +1179,83 @@ async function pageJpeg(p, scale = 1.6) {
   await pg.render({ canvasContext: ctx, viewport: vp }).promise; await paintItems(ctx, vp, p);
   return { bytes: dataUrlToBytes(c.toDataURL('image/jpeg', 0.9)), w: c.width, h: c.height };
 }
-async function toOffice(format) {
+// Formats d'export : famille (texte, présentation, tableur) et faisabilité sans LibreOffice
+const EXPORTS = {
+  docx: { fam: 'text', label: 'Word (.docx)', alone: true }, doc: { fam: 'text', label: 'Word 97-2003 (.doc)' }, odt: { fam: 'text', label: 'OpenDocument Texte (.odt)' },
+  rtf: { fam: 'text', label: 'Texte enrichi (.rtf)' }, html: { fam: 'text', label: 'Page web (.html)' },
+  xlsx: { fam: 'sheet', label: 'Excel (.xlsx)', alone: true }, csv: { fam: 'sheet', label: 'CSV (.csv)', alone: true }, ods: { fam: 'sheet', label: 'OpenDocument Tableur (.ods)' }, xls: { fam: 'sheet', label: 'Excel 97-2003 (.xls)' },
+  pptx: { fam: 'slides', label: 'PowerPoint (.pptx)', alone: true }, ppt: { fam: 'slides', label: 'PowerPoint 97-2003 (.ppt)' }, odp: { fam: 'slides', label: 'OpenDocument Présentation (.odp)' }
+};
+/** Lignes et colonnes reconstituées à partir de la position du texte (tableaux → tableur). */
+async function pageTable(p) {
+  const items = (await getTextItems(p)).map((t) => ({ text: t.text.trim(), x: normRect(t.rect)[0], x2: normRect(t.rect)[2], y: normRect(t.rect)[1], size: t.size || 10 })).filter((t) => t.text);
+  if (!items.length) return [];
+  items.sort((a, b) => b.y - a.y || a.x - b.x);
+  const rows = [];
+  for (const t of items) { const r = rows[rows.length - 1]; if (r && Math.abs(r.y - t.y) < t.size * 0.5) r.cells.push(t); else rows.push({ y: t.y, cells: [t] }); }
+  // fusion des morceaux proches d'une même cellule
+  rows.forEach((r) => {
+    r.cells.sort((a, b) => a.x - b.x); const m = [];
+    for (const c of r.cells) { const l = m[m.length - 1]; if (l && c.x - l.x2 < c.size * 0.9) { l.text += (c.x - l.x2 > c.size * 0.15 ? ' ' : '') + c.text; l.x2 = c.x2; } else m.push({ ...c }); }
+    r.cells = m;
+  });
+  // colonnes : regroupement des débuts de cellules
+  const starts = rows.flatMap((r) => r.cells.map((c) => c.x)).sort((a, b) => a - b); const cols = [];
+  for (const x of starts) { if (!cols.length || x - cols[cols.length - 1].max > 12) cols.push({ min: x, max: x }); else cols[cols.length - 1].max = x; }
+  const colOf = (x) => { let best = 0, d = Infinity; cols.forEach((c, i) => { const dd = x < c.min ? c.min - x : x > c.max ? x - c.max : 0; if (dd < d) { d = dd; best = i; } }); return best; };
+  const num = (s) => { const t = s.replace(/\s| /g, '').replace(/€|%$/g, ''); return /^-?\d+([.,]\d+)?$/.test(t) ? parseFloat(t.replace(',', '.')) : s; };
+  return rows.map((r) => { const out = new Array(cols.length).fill(''); r.cells.forEach((c) => { const i = colOf(c.x); out[i] = out[i] ? out[i] + ' ' + c.text : num(c.text); }); return out; });
+}
+async function exportDialog() {
   if (!S.pages.length) return;
   const office = await window.api.officeStatus();
-  let mode = 'simple';
-  if (format === 'pptx') { if (!office) return officeMissing('PDF → PowerPoint'); mode = 'fidele'; }
-  else if (office) {
-    mode = await modal('PDF → Word', `<p><b>Mise en page fidèle</b> : textes, images et positions conservés (LibreOffice) — idéal pour retoucher un document.</p>
-      <p><b>Texte simple</b> : paragraphes avec police, taille et gras, sans mise en page — idéal pour réutiliser le contenu.</p>`,
-    [['Annuler', null], ['Texte simple', 'simple'], ['Mise en page fidèle', 'fidele', true]]);
-    if (!mode) return;
-  }
-  if (mode === 'fidele') {
-    busy(format === 'pptx' ? 'Conversion en PowerPoint… (LibreOffice)' : 'Conversion en Word… (LibreOffice)');
-    try { const r = await window.api.pdfToOffice(await buildPdf(), format, `${baseName()}.${format}`); done(r ? `Fichier créé : ${r}` : ''); }
-    catch (e) { done(); alert('Conversion impossible : ' + errMsg(e)); }
-    return;
-  }
+  const opt = (k) => `<label class="ck"><input type="radio" name="fmt" value="${k}" ${k === 'docx' ? 'checked' : ''} ${!office && !EXPORTS[k].alone ? 'disabled' : ''}> ${EXPORTS[k].label}${!office && !EXPORTS[k].alone ? ' <span class="muted">(LibreOffice)</span>' : ''}</label>`;
+  const k = await modal('Exporter le PDF vers…', `<div class="cols3">
+    <div><b>Texte</b>${['docx', 'doc', 'odt', 'rtf', 'html'].map(opt).join('')}</div>
+    <div><b>Tableur</b>${['xlsx', 'csv', 'ods', 'xls'].map(opt).join('')}</div>
+    <div><b>Présentation</b>${['pptx', 'ppt', 'odp'].map(opt).join('')}</div></div>
+    ${office ? '' : '<p class="muted">Les formats grisés demandent LibreOffice (gratuit) : Aide › Statut conversion Office pour l\'installer.</p>'}`,
+  [['Annuler', null], ['Exporter', () => (document.querySelector('input[name=fmt]:checked') || {}).value, true]]);
+  if (k) await toOffice(k);
+}
+async function toOffice(format) {
+  if (!S.pages.length) return;
+  if (!can('convert')) return denied('convert');
+  const office = await window.api.officeStatus(); const E = EXPORTS[format];
+  const name = `${baseName()}.${format}`;
+  try {
+    if (E.fam === 'sheet') { // tableaux → tableur
+      busy('Reconstitution des tableaux…');
+      const sheets = [];
+      for (let i = 0; i < S.pages.length; i++) sheets.push({ name: `Page ${i + 1}`, rows: await pageTable(S.pages[i]) });
+      done();
+      if (!sheets.some((s) => s.rows.length)) return alert('Aucun texte trouvé. S\'il s\'agit d\'un scan, lancez d\'abord l\'OCR (onglet OCR).');
+      if (!E.alone && !office) return officeMissing('PDF → ' + E.label);
+      const r = await window.api.exportSheet(sheets.filter((s) => s.rows.length), name, format);
+      if (r) msg(`Tableur créé : ${r}`);
+      return;
+    }
+    let mode = 'fidele';
+    if (!office) { if (!E.alone) return officeMissing('PDF → ' + E.label); mode = 'simple'; }
+    else if (format === 'docx' || format === 'pptx') {
+      mode = await modal(`PDF → ${E.label}`, format === 'docx'
+        ? `<p><b>Mise en page fidèle</b> : textes, images et positions conservés (LibreOffice) — idéal pour retoucher un document.</p><p><b>Texte simple</b> : paragraphes avec police, taille et gras, sans mise en page — idéal pour réutiliser le contenu.</p>`
+        : `<p><b>Diapositives modifiables</b> : textes et images éditables (LibreOffice).</p><p><b>Diapositives images</b> : chaque page devient une diapositive identique au PDF.</p>`,
+      [['Annuler', null], [format === 'docx' ? 'Texte simple' : 'Diapositives images', 'simple'], [format === 'docx' ? 'Mise en page fidèle' : 'Diapositives modifiables', 'fidele', true]]);
+      if (!mode) return;
+    }
+    if (mode === 'fidele') {
+      busy(`Conversion en ${E.label}… (LibreOffice)`);
+      const r = await window.api.pdfToOffice(await buildPdf(), format, name); done(r ? `Fichier créé : ${r}` : '');
+      return;
+    }
+    if (format === 'pptx') {
+      busy('Création des diapositives…'); const slides = [];
+      for (const p of S.pages) { const im = await pageJpeg(p, 1.8); slides.push({ ...im, notes: (await pageParagraphs(p)).map((l) => l.text).join('\n') }); }
+      done(); const r = await window.api.exportPptxImages(slides, name); if (r) msg(`Présentation créée : ${r} (texte de chaque page dans les notes)`);
+      return;
+    }
+  } catch (e) { done(); return alert('Conversion impossible : ' + errMsg(e)); }
   busy('Conversion en Word…');
   const pages = [];
   for (const p of S.pages) {
@@ -1449,6 +1511,7 @@ async function replaceInPage(p, hits, repl) {
   return n;
 }
 async function replaceHits(all) {
+  if (!can('edit')) return denied('edit');
   const repl = $('#replText').value; const hits = all ? FIND.hits : [FIND.hits[FIND.i]].filter(Boolean);
   if (!hits.length) return;
   busy('Remplacement…'); snapshot(); let n = 0;
@@ -1467,6 +1530,7 @@ function toggleFind(show = $('#findBar').hidden) {
 // ---------------- Impression ----------------
 async function printDoc() {
   if (!S.pages.length) return;
+  if (!can('print')) return denied('print');
   busy('Préparation de l\'impression…');
   try {
     const doc = await openPdfJs(await buildPdf()); const pages = [];
@@ -1532,6 +1596,137 @@ async function certSign() {
   } catch (e) { done(); alert('Signature impossible : ' + errMsg(e)); }
 }
 
+// ---------------- Conversion Office ↔ Office ----------------
+async function convertOfficeFileDialog() {
+  if (!can('convert')) return denied('convert');
+  if (!(await window.api.officeStatus())) return officeMissing('Conversion Office');
+  const fams = { text: 'Texte (Word, OpenDocument…)', sheet: 'Tableur (Excel, OpenDocument…)', slides: 'Présentation (PowerPoint…)' };
+  const T = await window.api.officeTargets();
+  const groups = Object.entries(fams).map(([f, l]) => `<div><b>${l}</b>${Object.entries(T).filter(([, v]) => v.fam === f).map(([k, v]) => `<label class="ck"><input type="radio" name="tgt" value="${k}"> ${esc(v.label)} (.${k})</label>`).join('')}</div>`).join('');
+  const k = await modal('Convertir un fichier Office', `<p>Choisissez le format voulu, puis le fichier à convertir (Word, Excel, PowerPoint, OpenDocument, RTF, CSV…).</p>
+    <div class="cols3">${groups}</div><label class="ck"><input type="radio" name="tgt" value="pdf" checked> <b>PDF</b></label>`,
+  [['Annuler', null], ['Choisir le fichier…', () => (document.querySelector('input[name=tgt]:checked') || {}).value, true]]);
+  if (!k) return;
+  busy('Conversion… (LibreOffice)');
+  try { const r = await window.api.convertOfficeFile(k); done(r ? `Fichier converti : ${r}` : ''); }
+  catch (e) { done(); alert(/OFFICE_LOCKED/.test(errMsg(e)) ? 'Ce fichier est protégé par mot de passe : ouvrez-le d\'abord dans EduPDF (Fichier › Ouvrir), puis exportez-le.' : 'Conversion impossible : ' + errMsg(e)); }
+}
+
+// ---------------- Cloud ----------------
+async function cloudDialog(mode) {
+  if (!can('cloud')) return denied('cloud');
+  if (mode === 'save' && !S.pages.length) return;
+  const { clouds, install } = await window.api.cloudList();
+  const icons = { onedrive: '☁️', 'onedrive-pro': '🏫', gdrive: '🟢', 'gdrive-shared': '👥', dropbox: '📦', 'dropbox-pro': '📦', icloud: '🍏', box: '🗃', custom: '📁' };
+  const rows = clouds.map((c, i) => `<div class="cloudrow"><button class="cloudbtn" data-c="${i}">${icons[c.id] || '☁️'} <b>${esc(c.name)}</b><small>${esc(c.path)}</small></button>${c.custom ? `<button class="small" data-rm="${i}" title="Retirer">✕</button>` : ''}</div>`).join('');
+  const missing = Object.entries(install).filter(([id]) => !clouds.some((c) => c.id.startsWith(id)));
+  const html = `${clouds.length ? `<p>${mode === 'save' ? 'Enregistrer le document dans :' : 'Ouvrir un fichier depuis :'}</p>${rows}` : '<p><b>Aucun service cloud détecté sur ce PC.</b></p>'}
+    <p class="muted">EduPDF enregistre dans le dossier synchronisé de l'application officielle (OneDrive, Google Drive pour ordinateur, Dropbox…), qui envoie le fichier dans votre cloud. Vos identifiants ne sont jamais demandés par EduPDF.</p>
+    ${missing.length ? `<p>Installer un service : ${missing.map(([id, v]) => `<button class="small" data-inst="${id}">${esc(v.name)}</button>`).join(' ')}</p>` : ''}
+    <p><button class="small" id="cloudAdd">➕ Ajouter un autre dossier synchronisé (Nextcloud, réseau de l'établissement…)</button></p>`;
+  let chosen = null;
+  const p = modal(mode === 'save' ? 'Enregistrer dans le cloud' : 'Ouvrir depuis le cloud', html, [['Fermer', null]]);
+  $$('#mBody [data-c]').forEach((b) => { b.onclick = () => { chosen = clouds[+b.dataset.c]; $('#mBtns button').click(); }; });
+  $$('#mBody [data-rm]').forEach((b) => { b.onclick = async () => { await window.api.cloudRemove(clouds[+b.dataset.rm].path); $('#mBtns button').click(); cloudDialog(mode); }; });
+  $$('#mBody [data-inst]').forEach((b) => { b.onclick = async () => {
+    const it = install[b.dataset.inst]; $('#mBtns button').click();
+    if (!confirm(`Installer ${it.name} depuis le catalogue officiel Microsoft (winget) ?\nVous devrez ensuite vous connecter à votre compte dans l'application ${it.name}.`)) return;
+    busy(`Installation de ${it.name}…`); const r = await window.api.cloudInstall(b.dataset.inst); done();
+    if (r.ok) alert(`${it.name} est installé. Ouvrez-le, connectez-vous à votre compte, puis revenez ici : le dossier apparaîtra automatiquement.`);
+    else if (confirm(`Installation automatique impossible.\n${r.log}\n\nOuvrir la page de téléchargement ?`)) window.api.openExternal(it.web);
+  }; });
+  $('#cloudAdd').onclick = async () => { const d = await window.api.cloudAdd(); $('#mBtns button').click(); if (d) cloudDialog(mode); };
+  await p;
+  if (!chosen) return;
+  if (mode === 'save') {
+    busy('Préparation du document…');
+    try {
+      let bytes = await buildPdf(); if (S.protect) bytes = await window.api.encryptPdf(bytes, S.protect); done();
+      const r = await window.api.cloudSave(chosen.path, bytes, S.fileName);
+      if (r) { S.filePath = r; S.fileName = r.split(/[\\/]/).pop(); setDirty(false); msg(`Enregistré dans ${chosen.name} : ${r} — la synchronisation l'envoie dans votre cloud.`); }
+    } catch (e) { done(); alert('Enregistrement impossible : ' + errMsg(e)); }
+  } else {
+    const files = await window.api.cloudOpen(chosen.path); if (!files.length) return;
+    if (S.pages.length && !confirmDiscard()) return;
+    resetDoc(); busy('Ouverture…'); await handleLoaded(files, 0); done();
+  }
+}
+
+// ---------------- Droits d'accès (administration) ----------------
+let POLICY = { managed: false, blocked: false, features: {} };
+const can = (f) => !POLICY.blocked && POLICY.features[f] !== false;
+const FEATURE_OF = {
+  act: { save: 'save', saveAs: 'save', compress: 'save', print: 'print', cloudSave: 'cloud', cloudOpen: 'cloud', scan: 'scan',
+    rotL: 'pages', rotR: 'pages', delPages: 'pages', dupPages: 'pages', moveUp: 'pages', moveDown: 'pages', extract: 'save', split: 'save', numbers: 'pages', uncrop: 'pages', watermark: 'pages',
+    ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr', toWord: 'convert', toPpt: 'convert', toExcel: 'convert', toImages: 'convert', toText: 'convert', exportAs: 'convert', convertOffice: 'convert',
+    protect: 'protect', unprotect: 'protect', signPad: 'sign', certSign: 'sign', compare: 'compare', clearCompare: 'compare', find: 'edit', delItem: 'edit' },
+  tool: { edit: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
+};
+function denied(f) {
+  const label = (POLICY.labels && POLICY.labels[f]) || f;
+  msg(`⛔ « ${label} » est désactivé par l'administrateur.`);
+  window.api.logEvent('blocked', { feature: f, action: label });
+  return false;
+}
+async function applyPolicy() {
+  try { POLICY = await window.api.policy(); } catch { return; }
+  $$('[data-act],[data-tool]').forEach((b) => {
+    const f = b.dataset.act ? FEATURE_OF.act[b.dataset.act] : FEATURE_OF.tool[b.dataset.tool];
+    const off = !!f && !can(f); b.classList.toggle('locked', off); b.title = off ? 'Désactivé par l\'administrateur' : '';
+  });
+  if (S.tool && FEATURE_OF.tool[S.tool] && !can(FEATURE_OF.tool[S.tool])) setTool('select');
+  $('#policyBar').hidden = !(POLICY.managed && (POLICY.message || POLICY.blocked));
+  $('#policyBar').textContent = POLICY.blocked ? '' : (POLICY.message ? '📢 ' + POLICY.message : '');
+  $('#blockedScreen').hidden = !POLICY.blocked;
+  if (POLICY.blocked) $('#blockedWho').textContent = `${POLICY.host}\\${POLICY.user}`;
+  $('#managedTag').hidden = !POLICY.managed;
+  $$('#formLayer .fw').forEach((el) => { el.disabled = el.disabled || !can('forms'); });
+}
+async function adminDialog() {
+  const st = await window.api.adminStatus();
+  if (st.admin) return window.api.adminOpenConsole();
+  if (st.enrollment) {
+    const pw = await modal('Poste géré', `<p>Ce poste (<b>${esc(st.host)}\\${esc(st.user)}</b>) suit les règles de l'administrateur.</p>
+      <p class="muted">Dossier de gestion : ${esc(st.enrollment.folder)}<br>Portée : ${st.enrollment.scope === 'machine' ? 'tous les comptes Windows de ce PC' : 'ce compte Windows'}</p>
+      <label class="blk">Pour retirer ce poste de la gestion, mot de passe administrateur : <input type="password" id="apw"></label>`,
+    [['Fermer', null], ['Retirer de la gestion', () => $('#apw').value || false]]);
+    if (!pw) return;
+    try { await window.api.adminUnenroll(pw); await applyPolicy(); alert('Ce poste ne suit plus les règles de l\'administrateur.'); } catch (e) { alert(errMsg(e)); }
+    return;
+  }
+  const choice = await modal('Administration', `<p><b>Devenir administrateur (ce PC)</b> : définissez les fonctions autorisées pour chaque utilisateur et chaque poste,
+    consultez l'activité et recevez des notifications (Windows et téléphone).</p>
+    <p><b>Rejoindre la gestion</b> : ce poste appliquera les règles d'un administrateur (dossier de gestion + mot de passe administrateur).</p>`,
+  [['Annuler', null], ['Rejoindre la gestion', 'join'], ['Devenir administrateur', 'setup', true]]);
+  if (choice === 'setup') {
+    const r = await modal('Créer l\'administration', `<label class="blk">Mot de passe administrateur (6 caractères min.) <input type="password" id="ap1" autocomplete="new-password"></label>
+      <label class="blk">Confirmer <input type="password" id="ap2" autocomplete="new-password"></label>
+      <p>Dossier de gestion :<br><code id="afold">${esc(st.defaultFolder)}</code> <button class="small" id="apick">Changer…</button></p>
+      <p class="muted">• Par défaut : ce PC uniquement (tous ses comptes Windows).<br>• Pour plusieurs PC : choisissez un partage réseau ou un dossier OneDrive / Google Drive partagé avec les postes.</p>`,
+    [['Annuler', null], ['Créer', () => {
+      if ($('#ap1').value.length < 6) { alert('Mot de passe trop court.'); return false; }
+      if ($('#ap1').value !== $('#ap2').value) { alert('Les mots de passe ne correspondent pas.'); return false; }
+      return { password: $('#ap1').value, folder: $('#afold').textContent };
+    }, true]]);
+    if (!r) return;
+    try { await window.api.adminSetup(r); alert('Administration créée. La console s\'ouvre : réglez les droits, puis inscrivez les postes à gérer.'); }
+    catch (e) { alert(errMsg(e)); }
+  }
+  if (choice === 'join') {
+    const r = await modal('Rejoindre la gestion', `<p>Dossier de gestion de l'administrateur :<br><code id="afold">—</code> <button class="small" id="apick">Choisir…</button></p>
+      <label class="blk">Mot de passe administrateur <input type="password" id="apw"></label>
+      <label class="ck"><input type="checkbox" id="amach" checked> Appliquer à tous les comptes Windows de ce PC</label>`,
+    [['Annuler', null], ['Rejoindre', () => ($('#afold').textContent === '—' ? (alert('Choisissez le dossier de gestion.'), false) : { folder: $('#afold').textContent, password: $('#apw').value, scope: $('#amach').checked ? 'machine' : 'user' }), true]]);
+    if (!r) return;
+    try { const x = await window.api.adminEnroll(r); await applyPolicy(); alert(`Poste inscrit (${x.scope === 'machine' ? 'tous les comptes de ce PC' : 'ce compte uniquement'}). Les règles de l'administrateur s'appliquent.`); }
+    catch (e) { alert(errMsg(e)); }
+  }
+}
+// le bouton « Changer… / Choisir… » des boîtes ci-dessus
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'apick') return;
+  const d = await window.api.adminPickFolder(); if (d) $('#afold').textContent = d;
+});
 // ---------------- Actions ----------------
 const actions = {
   async new() { if (S.pages.length && !confirmDiscard()) return; resetDoc(); await insertBlank(); setDirty(false); },
@@ -1555,7 +1750,8 @@ const actions = {
   editAfterOcr() { switchTab('modifier'); setTool('edit'); },
   toWord, toText, toImages,
   protect: protectDialog, unprotect, signPad: signaturePad, compare: compareDocs, clearCompare, scanCopy,
-  toPpt: () => toOffice('pptx'), print: printDoc, find: () => toggleFind(true), watermark: watermarkDialog, uncrop, compress: compressDoc, certSign,
+  toPpt: () => toOffice('pptx'), toExcel: () => toOffice('xlsx'), exportAs: exportDialog, convertOffice: convertOfficeFileDialog,
+  cloudSave: () => cloudDialog('save'), cloudOpen: () => cloudDialog('open'), admin: adminDialog, print: printDoc, find: () => toggleFind(true), watermark: watermarkDialog, uncrop, compress: compressDoc, certSign,
   zoomIn() { S.zoom = Math.min(4, (S.zoom === 'fit' ? S.scale : S.zoom) * 1.2); renderPage(); },
   zoomOut() { S.zoom = Math.max(0.25, (S.zoom === 'fit' ? S.scale : S.zoom) / 1.2); renderPage(); },
   zoomFit() { S.zoom = 'fit'; renderPage(); },
@@ -1573,8 +1769,10 @@ const actions = {
 };
 
 document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-act]'); if (b && actions[b.dataset.act]) actions[b.dataset.act]();
-  const t = e.target.closest('[data-tool]'); if (t) setTool(t.dataset.tool);
+  const b = e.target.closest('[data-act]');
+  if (b && actions[b.dataset.act]) { const f = FEATURE_OF.act[b.dataset.act]; if (f && !can(f)) denied(f); else actions[b.dataset.act](); }
+  const t = e.target.closest('[data-tool]');
+  if (t) { const f = FEATURE_OF.tool[t.dataset.tool]; if (f && !can(f)) denied(f); else setTool(t.dataset.tool); }
   const tab = e.target.closest('[data-tab]'); if (tab) switchTab(tab.dataset.tab);
 });
 function switchTab(name) {
@@ -1631,6 +1829,7 @@ window.api.onUpdate(({ status, info }) => {
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => S.zoom === 'fit' && renderPage(), 150); });
 
 window.api.version().then((v) => { $('#ver').textContent = 'v' + v; });
+applyPolicy(); setInterval(applyPolicy, 60000);
 Object.keys(FONT_FAMILIES).forEach((f) => { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = cssFont({ family: f }); $('#fontFam').appendChild(o); });
 $('#fontFam').value = 'Arial';
 setTool('select'); refresh();
@@ -1655,4 +1854,4 @@ $('#findClose').onclick = () => toggleFind(false);
 $('#viewWrap').addEventListener('wheel', (e) => { if (!e.ctrlKey || !S.pages.length) return; e.preventDefault(); e.deltaY < 0 ? actions.zoomIn() : actions.zoomOut(); }, { passive: false });
 
 // Accès pour les tests
-window.__edupdf = { S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };
+window.__edupdf = { applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

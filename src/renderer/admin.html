@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>EduPDF — Administration</title>
+  <style>
+    :root { --b: #1f3b73; --a: #2f6fed; --line: #dfe3ea; --muted: #6b7486; --ok: #128a3e; --no: #d64545; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px "Segoe UI", Arial, sans-serif; color: #1d2433; background: #f4f6fa; }
+    header { background: var(--b); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+    header h1 { font-size: 17px; margin: 0; flex: 1; }
+    header small { opacity: .8; }
+    nav { display: flex; gap: 2px; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); }
+    nav button { border: none; background: none; padding: 12px 14px; font-size: 14px; cursor: pointer; border-bottom: 3px solid transparent; }
+    nav button.on { border-bottom-color: var(--a); font-weight: 600; }
+    main { padding: 18px 22px; max-width: 1200px; }
+    section { display: none; } section.on { display: block; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+    h2 { font-size: 15px; margin: 0 0 10px; color: var(--b); }
+    .muted { color: var(--muted); font-size: 12.5px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px 18px; }
+    label.ck { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+    input[type=text], input[type=password], textarea, select { padding: 7px 9px; border: 1px solid #c4cbd8; border-radius: 6px; font: inherit; }
+    textarea { width: 100%; }
+    button.p { background: var(--b); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font: inherit; }
+    button.s { background: #fff; border: 1px solid #c4cbd8; padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th { background: #f0f3f8; position: sticky; top: 0; font-weight: 600; }
+    .scroll { max-height: 60vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+    .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; background: #eef2fb; }
+    .tag.bad { background: #fde8e8; color: var(--no); } .tag.good { background: #e6f6ec; color: var(--ok); }
+    td select { padding: 3px 4px; font-size: 12px; }
+    #login { max-width: 420px; margin: 80px auto; }
+    #msg { position: fixed; bottom: 16px; right: 16px; background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    code { background: #f0f3f8; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header><h1>🛡️ EduPDF — Administration</h1><small id="who"></small></header>
+  <div id="login" class="card">
+    <h2>Connexion administrateur</h2>
+    <p class="muted">Saisissez le mot de passe administrateur choisi lors de la configuration.</p>
+    <input type="password" id="pw" style="width:100%" autocomplete="off">
+    <p><button class="p" id="go">Se connecter</button> <span id="loginErr" style="color:var(--no)"></span></p>
+  </div>
+  <div id="app" hidden>
+    <nav>
+      <button data-t="rules" class="on">Règles générales</button>
+      <button data-t="users">Utilisateurs et postes</button>
+      <button data-t="activity">Activité</button>
+      <button data-t="journal">Journal</button>
+      <button data-t="notif">Notifications</button>
+      <button data-t="settings">Inscrire des postes / paramètres</button>
+    </nav>
+    <main>
+      <section data-s="rules" class="on">
+        <div class="card"><h2>Fonctions autorisées par défaut</h2>
+          <p class="muted">S'appliquent à tous les utilisateurs des postes inscrits, sauf règle particulière (onglet suivant).</p>
+          <div class="grid" id="defaults"></div></div>
+        <div class="card"><h2>Message affiché aux utilisateurs</h2>
+          <textarea id="message" rows="2" maxlength="500" placeholder="Ex. : Merci d'enregistrer vos documents dans le dossier de l'établissement."></textarea>
+          <label class="ck"><input type="checkbox" id="logNames"> Noter le nom des fichiers ouverts et enregistrés dans le journal</label></div>
+        <button class="p save">Enregistrer et diffuser les règles</button> <span class="muted" id="updated"></span>
+      </section>
+      <section data-s="users">
+        <div class="card"><h2>Règles par utilisateur ou par poste</h2>
+          <p class="muted">Identifiant : <code>utilisateur</code> (nom de session Windows), <code>POSTE\utilisateur</code>, ou <code>POSTE\*</code> pour tous les utilisateurs d'un poste.
+            « Défaut » reprend les règles générales.</p>
+          <div class="row"><input type="text" id="newUser" placeholder="ex. eleve1 ou SALLE-B12\*"> <button class="s" id="addUser">Ajouter</button></div>
+          <div class="scroll" style="margin-top:10px"><table id="usersTbl"></table></div></div>
+        <button class="p save">Enregistrer et diffuser les règles</button>
+      </section>
+      <section data-s="activity">
+        <div class="card"><h2>Postes et utilisateurs connus</h2><div class="scroll"><table id="postsTbl"></table></div></div>
+      </section>
+      <section data-s="journal">
+        <div class="card"><div class="row"><h2 style="flex:1;margin:0">Journal d'activité</h2>
+          <select id="fType"><option value="">Tous les événements</option></select>
+          <input type="text" id="fText" placeholder="Filtrer (poste, utilisateur, fichier…)"> <button class="s" id="reload">Actualiser</button></div>
+          <div class="scroll" style="margin-top:10px"><table id="journalTbl"></table></div></div>
+      </section>
+      <section data-s="notif">
+        <div class="card"><h2>Être prévenu quand…</h2><div class="grid" id="notifTypes"></div></div>
+        <div class="card"><h2>Où recevoir les notifications</h2>
+          <label class="ck"><input type="checkbox" id="nWin"> Notifications Windows sur ce PC</label>
+          <label class="ck"><input type="checkbox" id="nStart"> Surveiller en arrière-plan dès l'ouverture de Windows (icône près de l'horloge)</label>
+          <p><b>Sur votre téléphone</b> (facultatif) : installez l'application gratuite <b>ntfy</b> (Android / iPhone), abonnez-vous à un sujet secret puis indiquez-le ici.</p>
+          <div class="row"><input type="text" id="nTopic" placeholder="ex. edupdf-lycee-7f3k9q" style="width:280px"> <button class="s" id="genTopic">Générer un sujet secret</button></div>
+          <p class="muted">Seul ce PC administrateur envoie les notifications (texte court : type d'événement, utilisateur, poste). Laissez vide pour ne rien envoyer hors de ce PC.</p>
+          <div class="row"><button class="p" id="saveNotif">Enregistrer</button><button class="s" id="testNotif">Envoyer une notification de test</button></div></div>
+      </section>
+      <section data-s="settings">
+        <div class="card"><h2>Dossier de gestion</h2><p><code id="folder"></code> <button class="s" id="openFolder">Ouvrir</button></p>
+          <p class="muted">Pour gérer d'autres PC, ce dossier doit leur être accessible : partage réseau de l'établissement, ou dossier OneDrive / Google Drive partagé avec les comptes des postes.</p></div>
+        <div class="card"><h2>Inscrire un poste</h2><ol>
+          <li>Sur le poste, ouvrez EduPDF Studio → onglet <b>Aide</b> → <b>Administration</b>.</li>
+          <li>Choisissez <b>« Rejoindre la gestion »</b>, sélectionnez ce dossier de gestion et saisissez le mot de passe administrateur.</li>
+          <li>Option « tous les comptes Windows de ce PC » : les règles s'appliquent aussi aux sessions élèves.</li></ol>
+          <p class="muted">Les règles sont signées numériquement : un utilisateur ne peut pas les modifier. Retirer un poste de la gestion demande le mot de passe administrateur.</p></div>
+        <div class="card"><h2>Changer le mot de passe administrateur</h2><div class="row">
+          <input type="password" id="oldPw" placeholder="Mot de passe actuel"> <input type="password" id="newPw" placeholder="Nouveau (6 caractères min.)">
+          <button class="s" id="chPw">Changer</button></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="msg"></div>
+  <script src="admin-console.js"></script>
+</body>
+</html>

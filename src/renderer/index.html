@@ -26,6 +26,8 @@
         <button data-act="open"><i>📂</i>Ouvrir</button>
         <button data-act="save"><i>💾</i>Enregistrer</button>
         <button data-act="saveAs"><i>📝</i>Enregistrer sous</button>
+        <button data-act="cloudSave"><i>☁️</i>Enregistrer<br>dans le cloud</button>
+        <button data-act="cloudOpen"><i>🌐</i>Ouvrir depuis<br>le cloud</button>
         <button data-act="print"><i>🖨</i>Imprimer</button>
         <button data-act="compress"><i>🗜</i>Réduire la taille</button>
         <button data-act="close"><i>✖</i>Fermer</button>
@@ -100,12 +102,16 @@
       </div>
       <div class="panel" data-panel="convertir">
         <button data-act="toWord"><i>📘</i>PDF → Word (.docx)</button>
+        <button data-act="toExcel"><i>📗</i>PDF → Excel</button>
         <button data-act="toPpt"><i>📙</i>PDF → PowerPoint</button>
+        <button data-act="exportAs"><i>🔁</i>PDF → autres formats<br>(ODT, RTF, ODS, CSV…)</button>
+        <button data-act="convertOffice"><i>🔄</i>Convertir un<br>fichier Office</button>
         <button data-act="toImages"><i>🖼</i>PDF → Images (.png)</button>
         <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
         <button data-act="insertFiles"><i>📥</i>Word / PPT / Excel → PDF</button>
       </div>
       <div class="panel" data-panel="aide">
+        <button data-act="admin"><i>🛡️</i>Administration</button>
         <button data-act="checkUpdate"><i>🔄</i>Rechercher les mises à jour</button>
         <button data-act="office"><i>🧩</i>Statut conversion Office</button>
         <button data-act="about"><i>ℹ️</i>À propos</button>
@@ -173,9 +179,13 @@
 
   <footer>
     <span id="msg">Prêt.</span>
+    <span id="managedTag" hidden title="Les fonctions disponibles sont définies par l'administrateur">🛡️ Poste géré</span>
     <span id="update"></span>
     <span id="ver"></span>
   </footer>
+  <div id="policyBar" hidden></div>
+  <div id="blockedScreen" hidden><div><h1>🛡️ Accès désactivé</h1><p>L'administrateur a désactivé EduPDF Studio pour <b id="blockedWho"></b>.</p>
+    <p>Contactez votre administrateur si vous pensez qu'il s'agit d'une erreur.</p><button data-act="admin">Administration…</button></div></div>
   <div id="busy" hidden><div><span class="spin"></span><span id="busyMsg">Traitement…</span></div></div>
   <div id="modal" hidden><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><div id="mBtns"></div></div></div>
 

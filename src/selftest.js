@@ -218,6 +218,79 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         return { r, wrongAccepted: wrong, unlocked };
       })()`, 120000);
 
+      // ---------- Conversions Office ----------
+      await step('pdf-to-excel+pptx', `(async () => {
+        const T = window.__edupdf; T.S.dirty = false; T.actions.close();
+        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([500, 300]); const f = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+        const rows = [['Élève', 'Maths', 'Français'], ['Aïcha', '15,5', '12'], ['Koffi', '9', '14,25']];
+        rows.forEach((r, i) => r.forEach((c, j) => pg.drawText(c, { x: 40 + j * 140, y: 250 - i * 22, size: 12, font: f })));
+        await T.insertPdf(await d.save()); T.refresh();
+        const table = await T.pageTable(T.S.pages[0]);
+        await T.toOffice('xlsx'); await T.toOffice('csv');
+        return { table, msg: document.querySelector('#msg').textContent };
+      })()`);
+      try {
+        const ExcelJS = require('exceljs'); const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(outDir, 'Document.xlsx'));
+        const ws = wb.worksheets[0]; log('OK   xlsx-content', JSON.stringify([1, 2, 3].map((r) => ws.getRow(r).values.slice(1))));
+        log('OK   csv-content', JSON.stringify(fs.readFileSync(path.join(outDir, 'Document.csv'), 'utf8').slice(0, 80)));
+      } catch (e) { log('FAIL xlsx-content', e.message); results.xlsx = { error: e.message }; }
+      await step('pptx-images', `(async () => {
+        const T = window.__edupdf; window.confirm = () => true;
+        // sans LibreOffice : diapositives images
+        const office = await window.api.officeStatus();
+        if (!office) await T.toOffice('pptx');
+        return { office, msg: document.querySelector('#msg').textContent };
+      })()`);
+      try { const z = fs.readFileSync(path.join(outDir, 'Document.pptx')); log('OK   pptx-file', z.length, z.slice(0, 2).toString()); } catch (e) { log('FAIL pptx-file', e.message); results.pptx = { error: e.message }; }
+
+      // ---------- Cloud ----------
+      await step('cloud-detect', `(async () => { const r = await window.api.cloudList(); return { clouds: r.clouds.map(c => c.name + ' = ' + c.path), install: Object.keys(r.install) }; })()`);
+
+      // ---------- Administration ----------
+      const ADM = require('./admin')._test; const gestion = path.join(outDir, 'gestion');
+      try {
+        ADM.setupAdmin({ password: 'admin123', folder: gestion });
+        const user = require('os').userInfo().username.toLowerCase();
+        const defaults = Object.fromEntries(Object.keys(require('./admin').FEATURES).map((k) => [k, k !== 'print']));
+        ADM.savePolicy({ defaults, users: { [user]: { features: { convert: false } } }, message: 'Bonjour les enseignants', logFileNames: true });
+        let wrong = null; try { ADM.enroll({ folder: gestion, password: 'mauvais', scope: 'machine' }); } catch (e) { wrong = e.message; }
+        const en = ADM.enroll({ folder: gestion, password: 'admin123', scope: 'machine' });
+        log('OK   admin-setup', JSON.stringify({ wrong, en, eff: ADM.effective().features }));
+      } catch (e) { log('FAIL admin-setup', e.stack); results.adm = { error: e.message }; }
+      await step('admin-enforce', `(async () => {
+        const T = window.__edupdf; await T.applyPolicy();
+        document.querySelector('[data-act=print]').click();
+        await new Promise(r => setTimeout(r, 300));
+        let mainGuard = null; try { await window.api.printPages([]); } catch (e) { mainGuard = e.message; }
+        return { canPrint: T.can('print'), canConvert: T.can('convert'), canEdit: T.can('edit'), locked: document.querySelectorAll('.locked').length,
+          msg: document.querySelector('#msg').textContent, banner: document.querySelector('#policyBar').textContent, managed: !document.querySelector('#managedTag').hidden, mainGuard };
+      })()`);
+      try {
+        // falsification des règles : signature invalide → ignorée
+        const pf = path.join(gestion, 'policy.json'); const raw = JSON.parse(fs.readFileSync(pf, 'utf8'));
+        raw.payload.defaults.print = true; fs.writeFileSync(pf, JSON.stringify(raw));
+        const pol = ADM.refreshPolicy();
+        const fresh = ADM.pollEvents();
+        const all = ADM.readAllEvents(100);
+        log('OK   admin-tamper+events', JSON.stringify({ printStillBlocked: pol.defaults.print === false, freshTypes: [...new Set(fresh.map((e) => e.type))], posts: all.posts.map((p) => p.user + ':' + p.count + ' bloquées ' + p.blocked) }));
+        let un = null; try { ADM.unenroll('faux'); } catch (e) { un = e.message; }
+        ADM.unenroll('admin123');
+        log('OK   admin-unenroll', JSON.stringify({ wrongRefused: un, canPrintAfter: ADM.effective().features.print }));
+      } catch (e) { log('FAIL admin-tamper', e.stack); results.adm2 = { error: e.message }; }
+
+      try { // console d'administration : capture d'écran après connexion
+        const { BrowserWindow } = require('electron');
+        require('./admin').openConsole(); await new Promise((r) => setTimeout(r, 1500));
+        const cw = BrowserWindow.getAllWindows().find((w) => /Administration/.test(w.getTitle()));
+        await cw.webContents.executeJavaScript(`document.querySelector('#pw').value = 'admin123'; document.querySelector('#go').click(); 1`);
+        await new Promise((r) => setTimeout(r, 1500));
+        await cw.webContents.executeJavaScript(`document.querySelector('[data-t=users]').click(); 1`); await new Promise((r) => setTimeout(r, 500));
+        fs.writeFileSync(path.join(outDir, 'admin-users.png'), (await cw.webContents.capturePage()).toPNG());
+        await cw.webContents.executeJavaScript(`document.querySelector('[data-t=journal]').click(); 1`); await new Promise((r) => setTimeout(r, 800));
+        fs.writeFileSync(path.join(outDir, 'admin-journal.png'), (await cw.webContents.capturePage()).toPNG());
+        log('OK   admin-console', await cw.webContents.executeJavaScript(`document.querySelectorAll('#journalTbl tr').length + ' lignes de journal'`));
+      } catch (e) { log('FAIL admin-console', e.message); results.cons = { error: e.message }; }
+
       await step('thumbs', `(async () => {
         const T = window.__edupdf; T.refresh(); await new Promise(r => setTimeout(r, 2500));
         return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };

@@ -20,7 +20,9 @@ comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL
 | **Fichier** | **Imprimer** (Ctrl+P), **réduire la taille**, enregistrement qui **conserve la structure d'origine** (signets, liens, propriétés, pièces jointes, formulaires) |
 | **Scanner** | Numérisation WIA (tous scanners Windows), multi-pages, OCR proposé à la fin |
 | **OCR** | Tesseract intégré : français, anglais, espagnol, allemand, italien, portugais, arabe (et combinaisons) — rend les scans cherchables/copiables et leur texte modifiable |
-| **Convertir** | PDF → Word (mise en page fidèle avec LibreOffice, ou texte avec police/gras/couleur), PDF → PowerPoint, PDF → images PNG, PDF → texte ; tous formats ci-dessous → PDF |
+| **Convertir** | **PDF → Word, Excel, PowerPoint** (sans rien installer) et **PDF → DOC, ODT, RTF, HTML, XLS, ODS, CSV, PPT, ODP** (LibreOffice) ; tableaux reconstitués en vraies cellules Excel ; **fichier Office ↔ autre format Office** (DOCX ↔ ODT ↔ DOC ↔ RTF ↔ PDF, XLSX ↔ ODS ↔ XLS ↔ CSV, PPTX ↔ ODP ↔ PPT) ; PDF → images PNG / texte ; tous les formats ci-dessous → PDF |
+| **Cloud** | **Enregistrer et ouvrir dans OneDrive (personnel et établissement), Google Drive, Dropbox, iCloud Drive, Box, Nextcloud** ou tout dossier synchronisé ; installation guidée de Google Drive / OneDrive / Dropbox |
+| **Administration** | Console administrateur : fonctions autorisées par défaut, par utilisateur et par poste (13 fonctions, blocage complet), message aux utilisateurs, journal d'activité, **notifications Windows et sur téléphone** (ntfy) |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
 ### Formats ouverts
@@ -32,6 +34,25 @@ comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL
 - **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
 - Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
+## Administration (gestion des accès)
+
+Aide › **Administration** :
+
+1. **Sur votre PC** : « Devenir administrateur » → mot de passe administrateur + dossier de gestion.
+   - Ce PC seulement (tous ses comptes Windows) : gardez le dossier proposé.
+   - Plusieurs PC : choisissez un **partage réseau** ou un **dossier OneDrive / Google Drive partagé** avec les postes.
+2. **Sur chaque poste à gérer** : « Rejoindre la gestion » → même dossier + mot de passe administrateur
+   (option « tous les comptes Windows de ce PC » pour les sessions élèves).
+3. La **console** permet de cocher les fonctions autorisées (enregistrer, modifier, formulaires, pages, OCR, scanner,
+   convertir, imprimer, cloud, mots de passe, PDF protégés, signature, comparaison), par défaut, par utilisateur
+   (`eleve1`), par poste (`SALLE-B12\*`) ou pour un compte précis (`SALLE-B12\eleve1`), et de bloquer un utilisateur.
+4. **Notifications** : choisissez les événements (action bloquée, utilisateur bloqué, règles falsifiées, mot de passe
+   administrateur erroné, poste inscrit / retiré, PDF protégé déverrouillé…). Elles s'affichent sur votre PC
+   (EduPDF reste près de l'horloge, et démarre avec Windows si vous le souhaitez) et, si vous le voulez, sur votre
+   téléphone avec l'application gratuite **ntfy**.
+
+Sécurité : les règles sont **signées numériquement** (Ed25519) ; un utilisateur ne peut ni les modifier ni retirer son poste
+sans le mot de passe administrateur. La clé de l'administrateur est chiffrée par son mot de passe.
 ## Lancer en développement
 
 ```bash
@@ -68,4 +89,7 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 - Sécurité : PDF.js n'exécute jamais de code venant d'un PDF, l'interface est isolée (sandbox) et ne peut écrire que dans les fichiers que vous avez choisis.
 - Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais les phrases mêlant droite-à-gauche et gauche-à-droite peuvent être mal ordonnées.
 - Le texte écrit en oblique ou à la verticale dans un PDF n'est pas modifiable directement (utilisez « Masquer » puis « Ajouter du texte »).
+- Cloud : EduPDF utilise l'application officielle du service (OneDrive, Google Drive pour ordinateur, Dropbox…) qui synchronise le dossier ; vos identifiants ne passent jamais par EduPDF.
+- Administration : un utilisateur qui est **administrateur Windows** de son PC pourrait supprimer les fichiers d'EduPDF ; réservez les droits d'administration Windows aux adultes responsables.
+- Windows « Contrôle intelligent des applications » peut bloquer l'**installateur** tant qu'il n'est pas signé par un certificat d'éditeur (payant).
 - Scanner : pilotes WIA (la quasi-totalité des scanners récents). Les scanners uniquement TWAIN ne sont pas pris en charge.

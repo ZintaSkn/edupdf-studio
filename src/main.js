@@ -10,7 +10,13 @@ let pendingOpen = [];
 let dirty = false;
 ipcMain.on('set-dirty', (_e, v) => { dirty = !!v; });
 
+// Auto-test : profil et dossier « machine » isolés (aucun effet sur la configuration réelle du PC)
+if (process.env.EDUPDF_SELFTEST) { app.setPath('userData', path.join(process.env.EDUPDF_SELFTEST, 'userdata')); process.env.EDUPDF_MACHINE_DIR = path.join(process.env.EDUPDF_SELFTEST, 'machine'); }
 const mu = require('./mu');
+const admin = require('./admin');
+const cloud = require('./cloud');
+const { Notification, Tray, nativeImage } = require('electron');
+const ICON = path.join(__dirname, 'renderer', 'icon.png');
 
 // ---------- Fichiers acceptés ----------
 const PDF_EXT = ['pdf'];
@@ -178,7 +184,9 @@ async function preparePdf(buf, name, file) {
     try { return { name, path: null, kind: 'pdf', bytes: await mu.repairPdf(buf), note: 'repaired' }; } catch { return { name, path: file, kind: 'pdf', bytes: buf }; }
   }
   if (!info.encrypted) return { name, path: file, kind: 'pdf', bytes: buf };
+  admin.guard('unlock', `Ouvrir le PDF protégé « ${name} »`);
   if (info.needsPassword) return { name, path: file, kind: 'pdf', locked: true, bytes: buf };
+  admin.logEvent('unlock', { file: name, how: 'restrictions levées' });
   return { name, path: file, kind: 'pdf', bytes: await mu.decryptPdf(buf), note: 'unrestricted' };
 }
 
@@ -221,7 +229,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1000, minHeight: 650,
     title: 'EduPDF Studio',
-    icon: path.join(__dirname, 'renderer', 'icon.png'),
+    icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -249,6 +257,11 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
+function openMain() {
+  if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); return; }
+  createWindow();
+}
+
 function filesFromArgv(argv) {
   return argv.slice(1).filter((a) => !a.startsWith('-') && fs.existsSync(a) && fs.statSync(a).isFile());
 }
@@ -258,6 +271,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_e, argv) => {
     const files = filesFromArgv(argv);
+    if (!win || win.isDestroyed()) { openMain(); pendingOpen = files; return; }
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
@@ -265,11 +279,16 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.whenReady().then(() => {
+    admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
+    admin.logEvent('app_start', {});
+    if (admin.effective().blocked) admin.logEvent('user_blocked', {});
     pendingOpen = app.isPackaged ? filesFromArgv(process.argv) : [];
-    createWindow();
+    // --admin-tray : lancement discret au démarrage de Windows (surveillance et notifications seulement)
+    if (!process.argv.includes('--admin-tray')) createWindow();
     setupAutoUpdate();
   });
-  app.on('window-all-closed', () => app.quit());
+  // La surveillance administrateur continue en arrière-plan (icône près de l'horloge)
+  app.on('window-all-closed', () => { if (!admin.hasTrayOrConsole()) app.quit(); });
 }
 
 // ---------- IPC : fichiers ----------
@@ -297,7 +316,7 @@ ipcMain.handle('load-paths', (_e, paths) => loadMany(paths));
 async function loadMany(paths) {
   const out = [];
   for (const p of paths) {
-    try { const f = await loadFile(p); if (f.kind === 'pdf' && f.path) allow(f.path); out.push(f); }
+    try { const f = await loadFile(p); if (f.kind === 'pdf' && f.path) allow(f.path); admin.logEvent('file_open', { file: path.basename(p) }); out.push(f); }
     catch (err) { out.push({ name: path.basename(p), error: err.message }); }
   }
   return out;
@@ -307,6 +326,7 @@ async function loadMany(paths) {
 const writable = new Set();
 const allow = (p) => { if (p) writable.add(path.resolve(p).toLowerCase()); };
 ipcMain.handle('dialog-save', async (_e, { bytes, defaultName, filters, filePath }) => {
+  admin.guard('save', 'Enregistrer');
   let target = filePath && (writable.has(path.resolve(filePath).toLowerCase()) || process.env.EDUPDF_SELFTEST) ? filePath : null;
   if (!target) {
     const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName || 'Document.pdf'), filters });
@@ -316,10 +336,12 @@ ipcMain.handle('dialog-save', async (_e, { bytes, defaultName, filters, filePath
   try { fs.writeFileSync(target, Buffer.from(bytes)); }
   catch (e) { throw new Error(e.code === 'EBUSY' || e.code === 'EPERM' ? 'Le fichier est ouvert dans un autre logiciel ou en lecture seule. Fermez-le ou choisissez « Enregistrer sous ».' : e.message); }
   allow(target);
+  admin.logEvent('save', { file: path.basename(target) });
   return target;
 });
 
 ipcMain.handle('save-many', async (_e, { files }) => {
+  admin.guard('save', 'Enregistrer plusieurs fichiers');
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Choisir un dossier' });
   if (r.canceled) return null;
   for (const f of files) fs.writeFileSync(path.join(r.filePaths[0], path.basename(f.name)), Buffer.from(f.bytes));
@@ -328,6 +350,7 @@ ipcMain.handle('save-many', async (_e, { files }) => {
 
 // ---------- Impression (boîte d'impression Windows) ----------
 ipcMain.handle('print-pages', async (_e, { pages }) => {
+  admin.guard('print', 'Imprimer');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-print-'));
   const imgs = pages.map((p, i) => { const f = path.join(dir, `p${i}.jpg`); fs.writeFileSync(f, Buffer.from(p.bytes)); return { f: path.basename(f), w: p.w, h: p.h }; });
   const html = `<!doctype html><meta charset="utf-8"><style>@page{margin:0}html,body{margin:0;padding:0}
@@ -339,7 +362,7 @@ ipcMain.handle('print-pages', async (_e, { pages }) => {
     await pw.loadFile(path.join(dir, 'print.html'));
     const landscape = pages.length && pages[0].w > pages[0].h;
     return await new Promise((resolve) => pw.webContents.print({ silent: false, printBackground: true, landscape, margins: { marginType: 'none' } },
-      (ok, reason) => resolve({ ok, reason: ok ? '' : reason })));
+      (ok, reason) => { if (ok) admin.logEvent('print', { pages: pages.length }); resolve({ ok, reason: ok ? '' : reason }); }));
   } finally { pw.destroy(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -348,19 +371,133 @@ ipcMain.handle('redact-pdf', (_e, { bytes, pages }) => mu.redactPdf(bytes, pages
 ipcMain.handle('compress-pdf', (_e, { bytes }) => mu.compressPdf(bytes));
 
 // ---------- PDF → Word / PowerPoint fidèle (LibreOffice) ----------
+// Formats Office et filtres LibreOffice correspondants
+const OFFICE_TARGETS = {
+  docx: { fam: 'text', f: 'docx:"MS Word 2007 XML"', label: 'Word' }, doc: { fam: 'text', f: 'doc:"MS Word 97"', label: 'Word 97-2003' },
+  odt: { fam: 'text', f: 'odt:writer8', label: 'OpenDocument Texte' }, rtf: { fam: 'text', f: 'rtf:"Rich Text Format"', label: 'RTF' },
+  txt: { fam: 'text', f: 'txt:Text', label: 'Texte' }, html: { fam: 'text', f: 'html:"HTML (StarWriter)"', label: 'Page web' },
+  pptx: { fam: 'slides', f: 'pptx:"Impress MS PowerPoint 2007 XML"', label: 'PowerPoint' }, ppt: { fam: 'slides', f: 'ppt:"MS PowerPoint 97"', label: 'PowerPoint 97-2003' },
+  odp: { fam: 'slides', f: 'odp:impress8', label: 'OpenDocument Présentation' },
+  xlsx: { fam: 'sheet', f: 'xlsx:"Calc MS Excel 2007 XML"', label: 'Excel' }, xls: { fam: 'sheet', f: 'xls:"MS Excel 97"', label: 'Excel 97-2003' },
+  ods: { fam: 'sheet', f: 'ods:calc8', label: 'OpenDocument Tableur' }, csv: { fam: 'sheet', f: 'csv:"Text - txt - csv (StarCalc)":59,34,76', label: 'CSV' },
+  pdf: { fam: 'any', f: 'pdf', label: 'PDF' }
+};
+const FAMILY_OF_EXT = (ext) => (['doc', 'docx', 'docm', 'dot', 'dotx', 'odt', 'ott', 'rtf', 'wpd', 'wps', 'txt', 'html', 'htm'].includes(ext) ? 'text'
+  : ['ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'pot', 'potx', 'odp', 'otp'].includes(ext) ? 'slides'
+    : ['xls', 'xlsx', 'xlsm', 'xlsb', 'ods', 'ots', 'csv'].includes(ext) ? 'sheet' : 'other');
+
+async function saveAs(buf, defaultName, ext) {
+  if (process.env.EDUPDF_SELFTEST) { const p = path.join(process.env.EDUPDF_SELFTEST, path.basename(defaultName)); fs.writeFileSync(p, buf); return p; }
+  const t = OFFICE_TARGETS[ext] || { label: ext.toUpperCase() };
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName), filters: [{ name: t.label, extensions: [ext] }] });
+  if (r.canceled) return null;
+  fs.writeFileSync(r.filePath, buf); allow(r.filePath);
+  admin.logEvent('export', { file: path.basename(r.filePath) });
+  return r.filePath;
+}
+
+/** PDF → Word / PowerPoint / OpenDocument / RTF / HTML / texte (mise en page fidèle, LibreOffice). */
 ipcMain.handle('pdf-to-office', async (_e, { bytes, format, defaultName }) => {
+  admin.guard('convert', 'Convertir en ' + format);
+  const t = OFFICE_TARGETS[format]; if (!t) throw new Error('Format inconnu : ' + format);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-x-'));
   const src = path.join(dir, 'document.pdf'); fs.writeFileSync(src, Buffer.from(bytes));
   try {
-    const out = format === 'pptx'
-      ? await convertWithOffice(src, 'pptx:"Impress MS PowerPoint 2007 XML"', 'impress_pdf_import')
-      : await convertWithOffice(src, 'docx:"MS Word 2007 XML"', 'writer_pdf_import');
-    const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName), filters: [{ name: format === 'pptx' ? 'PowerPoint' : 'Word', extensions: [format] }] });
-    if (r.canceled) return null;
-    fs.writeFileSync(r.filePath, out); allow(r.filePath);
-    return r.filePath;
+    const out = await convertWithOffice(src, t.f, t.fam === 'slides' ? 'impress_pdf_import' : 'writer_pdf_import');
+    return saveAs(out, defaultName, format);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+/** Tableaux → Excel (.xlsx), CSV ou OpenDocument (.ods). */
+ipcMain.handle('export-sheet', async (_e, { sheets, defaultName, format }) => {
+  admin.guard('convert', 'Convertir en tableur');
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook(); wb.creator = 'EduPDF Studio';
+  sheets.forEach((s, i) => {
+    const ws = wb.addWorksheet((s.name || `Page ${i + 1}`).slice(0, 31).replace(/[\\/?*[\]:]/g, '-'));
+    s.rows.forEach((r) => ws.addRow(r));
+    ws.columns.forEach((c) => { let w = 8; c.eachCell({ includeEmpty: false }, (cell) => { w = Math.max(w, Math.min(60, String(cell.value ?? '').length + 2)); }); c.width = w; });
+    if (s.rows.length) ws.getRow(1).font = { bold: true };
+  });
+  if (format === 'csv') {
+    const all = sheets.flatMap((s, i) => [...(i ? [[]] : []), ...s.rows]);
+    const csv = '﻿' + all.map((r) => r.map((v) => { const t = String(v ?? ''); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; }).join(';')).join('\r\n');
+    return saveAs(Buffer.from(csv, 'utf8'), defaultName, 'csv');
+  }
+  const xlsx = Buffer.from(await wb.xlsx.writeBuffer());
+  if (format === 'xlsx') return saveAs(xlsx, defaultName, 'xlsx');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-s-'));
+  try { const src = path.join(dir, 'tableau.xlsx'); fs.writeFileSync(src, xlsx); return saveAs(await convertWithOffice(src, OFFICE_TARGETS[format].f), defaultName, format); }
+  finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** Pages → diapositives PowerPoint (sans LibreOffice : chaque page devient une diapositive image). */
+ipcMain.handle('export-pptx-images', async (_e, { slides, defaultName }) => {
+  admin.guard('convert', 'Convertir en PowerPoint');
+  const PptxGenJS = require('pptxgenjs');
+  const pptx = new PptxGenJS();
+  const w = slides[0].w, h = slides[0].h; const W = 10, H = 10 * h / w;
+  pptx.defineLayout({ name: 'EDUPDF', width: W, height: H }); pptx.layout = 'EDUPDF';
+  for (const s of slides) {
+    const sl = pptx.addSlide(); const k = Math.min(W / s.w, H / s.h);
+    sl.addImage({ data: 'image/jpeg;base64,' + Buffer.from(s.bytes).toString('base64'), x: (W - s.w * k) / 2, y: (H - s.h * k) / 2, w: s.w * k, h: s.h * k });
+    if (s.notes) sl.addNotes(s.notes);
+  }
+  return saveAs(await pptx.write({ outputType: 'nodebuffer' }), defaultName, 'pptx');
+});
+
+/** Fichier Office → autre format Office ou PDF (LibreOffice). */
+ipcMain.handle('convert-office-file', async (_e, { target }) => {
+  admin.guard('convert', 'Convertir un fichier Office');
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Documents Office', extensions: OFFICE_EXT.concat(['csv', 'txt', 'html', 'htm']) }] });
+  if (r.canceled) return null;
+  const file = r.filePaths[0]; const ext = path.extname(file).slice(1).toLowerCase();
+  const t = OFFICE_TARGETS[target]; const fam = FAMILY_OF_EXT(ext);
+  if (!t) throw new Error('Format inconnu');
+  if (t.fam !== 'any' && fam !== 'other' && t.fam !== fam) {
+    throw new Error(`Un fichier ${ext.toUpperCase()} ne peut pas devenir un fichier ${target.toUpperCase()} (${fam === 'text' ? 'texte' : fam === 'sheet' ? 'tableur' : 'présentation'} → ${t.fam === 'text' ? 'texte' : t.fam === 'sheet' ? 'tableur' : 'présentation'}). Passez par le PDF si besoin.`);
+  }
+  let src = file; let tmp = null;
+  if (officeEncrypted(fs.readFileSync(file))) throw new Error('OFFICE_LOCKED');
+  try {
+    const out = await convertWithOffice(src, t.f);
+    return saveAs(out, path.basename(file, path.extname(file)) + '.' + target, target);
+  } finally { if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+ipcMain.handle('office-targets', () => Object.fromEntries(Object.entries(OFFICE_TARGETS).map(([k, v]) => [k, { fam: v.fam, label: v.label }])));
+
+// ---------- Cloud : OneDrive, Google Drive, Dropbox, iCloud, Box… ----------
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+const readSettings = () => { try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { return {}; } };
+const writeSettings = (s) => fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
+ipcMain.handle('cloud-list', () => ({ clouds: cloud.detect(readSettings().clouds || []), install: cloud.INSTALL }));
+ipcMain.handle('cloud-save', async (_e, { cloudPath, bytes, defaultName }) => {
+  admin.guard('cloud', 'Enregistrer dans le cloud');
+  if (!cloud.detect(readSettings().clouds || []).some((c) => c.path === cloudPath)) throw new Error('Dossier cloud inconnu.');
+  const dir = cloud.targetDir(cloudPath);
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(dir, path.basename(defaultName || 'Document.pdf')), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (r.canceled) return null;
+  fs.writeFileSync(r.filePath, Buffer.from(bytes)); allow(r.filePath);
+  admin.logEvent('cloud', { file: path.basename(r.filePath), service: path.basename(cloudPath) });
+  return r.filePath;
+});
+ipcMain.handle('cloud-open', async (_e, { cloudPath }) => {
+  admin.guard('cloud', 'Ouvrir depuis le cloud');
+  const r = await dialog.showOpenDialog(win, { defaultPath: cloudPath, properties: ['openFile', 'multiSelections'], filters: [{ name: 'Tous les documents', extensions: ALL_EXT }, { name: 'Tous les fichiers', extensions: ['*'] }] });
+  return r.canceled ? [] : loadMany(r.filePaths);
+});
+ipcMain.handle('cloud-add', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Dossier synchronisé avec votre cloud' });
+  if (r.canceled) return null;
+  const s = readSettings(); s.clouds = (s.clouds || []).filter((c) => c.path !== r.filePaths[0]).concat([{ path: r.filePaths[0], name: path.basename(r.filePaths[0]) }]);
+  writeSettings(s); return r.filePaths[0];
+});
+ipcMain.handle('cloud-remove', (_e, { cloudPath }) => { const s = readSettings(); s.clouds = (s.clouds || []).filter((c) => c.path !== cloudPath); writeSettings(s); return true; });
+ipcMain.handle('cloud-install', (_e, { id }) => new Promise((resolve) => {
+  const it = cloud.INSTALL[id]; if (!it) return resolve({ ok: false });
+  execFile('winget', ['install', '-e', '--id', it.id, '--silent', '--accept-package-agreements', '--accept-source-agreements'], { timeout: 1800000, windowsHide: true },
+    (err, so, se) => resolve({ ok: !err, log: String(se || so || (err && err.message) || '').trim().slice(-300) }));
+}));
 
 // ---------- Fichiers Office protégés ----------
 ipcMain.handle('unlock-office', async (_e, { file, password }) => {
@@ -374,6 +511,8 @@ ipcMain.handle('pick-certificate', async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle('sign-pdf', async (_e, { bytes, certPath, passphrase, reason, location, name }) => {
+  admin.guard('sign', 'Signature numérique');
+  admin.logEvent('sign', { how: 'certificat' });
   const { PDFDocument } = require('pdf-lib');
   const { pdflibAddPlaceholder } = require('@signpdf/placeholder-pdf-lib');
   const { P12Signer } = require('@signpdf/signer-p12');
@@ -397,10 +536,12 @@ ipcMain.handle('install-office', () => new Promise((resolve) => {
 
 // ---------- IPC : protection par mot de passe (MuPDF) ----------
 ipcMain.handle('unlock-pdf', async (_e, { bytes, password }) => {
+  admin.guard('unlock', 'Déverrouiller un PDF');
   const out = await mu.decryptPdf(bytes, password);
+  if (out) admin.logEvent('unlock', { how: 'mot de passe saisi' });
   return out ? { ok: true, bytes: out } : { ok: false };
 });
-ipcMain.handle('encrypt-pdf', (_e, { bytes, opts }) => mu.encryptPdf(bytes, opts));
+ipcMain.handle('encrypt-pdf', (_e, { bytes, opts }) => { admin.guard('protect', 'Protéger par mot de passe'); admin.logEvent('protect', {}); return mu.encryptPdf(bytes, opts); });
 
 // ---------- IPC : polices Windows (réécriture fidèle, tous alphabets) ----------
 const FONT_DIRS = [path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts'),
@@ -448,6 +589,7 @@ ipcMain.handle('app-version', () => app.getVersion());
 
 // ---------- IPC : scanner (Windows WIA) ----------
 ipcMain.handle('scan', () => new Promise((resolve, reject) => {
+  try { admin.guard('scan', 'Scanner'); } catch (e) { return reject(e); }
   if (process.platform !== 'win32') return reject(new Error('Le scan WIA nécessite Windows.'));
   const out = path.join(os.tmpdir(), `edupdf-scan-${Date.now()}.jpg`);
   const ps = `
@@ -514,6 +656,7 @@ async function getWorker(langs) {
 }
 
 ipcMain.handle('ocr', async (_e, { dataUrl, langs }) => {
+  admin.guard('ocr', 'OCR');
   const worker = await getWorker(langs || 'fra+eng');
   const buf = Buffer.from(dataUrl.split(',')[1], 'base64');
   const { data } = await worker.recognize(buf, {}, { text: true, blocks: true });
@@ -528,6 +671,7 @@ ipcMain.handle('ocr', async (_e, { dataUrl, langs }) => {
 
 // ---------- IPC : export Word (.docx) ----------
 ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
+  admin.guard('convert', 'Convertir en Word');
   const { Document, Packer, Paragraph, TextRun, PageBreak, ImageRun } = require('docx');
   const children = [];
   pages.forEach((paras, i) => {
@@ -545,7 +689,8 @@ ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
   const buf = await Packer.toBuffer(doc);
   const r = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters: [{ name: 'Word', extensions: ['docx'] }] });
   if (r.canceled) return null;
-  fs.writeFileSync(r.filePath, buf);
+  fs.writeFileSync(r.filePath, buf); allow(r.filePath);
+  admin.logEvent('export', { file: path.basename(r.filePath) });
   return r.filePath;
 });
 
