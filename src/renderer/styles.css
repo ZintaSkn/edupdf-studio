@@ -121,3 +121,17 @@ footer button { background: #12a150; color: #fff; border: 0; border-radius: 4px;
 .c-Ajouté { color: #128a3e; } .c-Modifié { color: #c46a00; } .c-Supprimé { color: var(--danger); }
 .legend span { padding: 1px 6px; border-radius: 3px; margin-right: 6px; }
 #side select { max-width: 150px; }
+
+/* ---- Recherche ---- */
+#findBar { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; align-items: center; margin: -10px auto 10px; padding: 6px 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.12); width: fit-content; max-width: 96%; flex-wrap: wrap; font-size: 12px; }
+#findBar[hidden] { display: none; }
+#findBar input { padding: 5px 8px; border: 1px solid #c4cbd8; border-radius: 5px; width: 170px; }
+#findCount { min-width: 70px; color: var(--muted); }
+#findLayer { position: absolute; inset: 0; pointer-events: none; }
+.fh { position: absolute; background: rgba(255, 170, 0, .35); outline: 1px solid rgba(230, 120, 0, .7); }
+.fh.cur { background: rgba(255, 90, 0, .45); outline: 2px solid #e65c00; }
+/* ---- Commentaires, rognage, filigrane ---- */
+.ov.note { width: 22px; height: 22px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+.cropmask { position: absolute; background: rgba(40,50,70,.55); pointer-events: none; }
+.wm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-family: Arial, sans-serif; font-weight: bold; white-space: nowrap; pointer-events: none; }
+#pageBox.t-note #overlayLayer, #pageBox.t-crop #overlayLayer { cursor: crosshair; }

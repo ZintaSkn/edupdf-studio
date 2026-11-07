@@ -72,6 +72,45 @@ async function encryptPdf(bytes, { userPassword = '', ownerPassword = '', permis
   } finally { doc.destroy && doc.destroy(); }
 }
 
+/**
+ * Suppression définitive du contenu sous des zones (texte, et selon le cas images et tracés).
+ * pages : { [indexPage]: [{ rect:[x1,y1,x2,y2] en coordonnées PDF, full: bool }] }
+ * full = zone « Masquer » (texte + images + tracés) ; sinon correction de texte (texte seul).
+ */
+async function redactPdf(bytes, pages) {
+  const m = await mu();
+  const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf').asPDF();
+  try {
+    for (const [idx, zones] of Object.entries(pages)) {
+      const page = doc.loadPage(+idx);
+      const t = page.getTransform();
+      const tr = ([x, y]) => [t[0] * x + t[2] * y + t[4], t[1] * x + t[3] * y + t[5]];
+      for (const full of [false, true]) {
+        const list = zones.filter((z) => !!z.full === full);
+        if (!list.length) continue;
+        for (const z of list) {
+          const [a, b] = [tr([z.rect[0], z.rect[1]]), tr([z.rect[2], z.rect[3]])];
+          const annot = page.createAnnotation('Redact');
+          annot.setRect([Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]);
+        }
+        page.applyRedactions(false, full ? 2 : 0, full ? 1 : 0, 0);
+      }
+    }
+    return doc.saveToBuffer('').asUint8Array().slice();
+  } finally { doc.destroy && doc.destroy(); }
+}
+
+/** Réduit la taille sans perte : objets inutilisés supprimés, flux, polices et images recompressés. */
+async function compressPdf(bytes) {
+  const m = await mu();
+  const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf').asPDF();
+  try {
+    try { return doc.saveToBuffer('garbage=deduplicate,compress,compress-fonts,compress-images,objstms').asUint8Array().slice(); }
+    catch { return doc.saveToBuffer('garbage=deduplicate,compress,compress-fonts,compress-images').asUint8Array().slice(); }
+  }
+  finally { doc.destroy && doc.destroy(); }
+}
+
 /** Convertit tout document lisible par MuPDF (XPS, EPUB, CBZ, FB2, MOBI, TIFF multipage, SVG…) en PDF. */
 async function convertToPdf(bytes, fileName) {
   const m = await mu();
@@ -97,4 +136,4 @@ async function convertToPdf(bytes, fileName) {
   } finally { doc.destroy && doc.destroy(); }
 }
 
-module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue };
+module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue, redactPdf, compressPdf };

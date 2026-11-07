@@ -5,14 +5,41 @@ module.exports = (win, outDir) => {
   const logFile = path.join(outDir, 'selftest.log');
   fs.writeFileSync(logFile, '');
   const log = (...a) => fs.appendFileSync(logFile, a.join(' ') + '\n');
-  const timeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout ' + what)), ms))]);
-  setTimeout(() => { log('GLOBAL TIMEOUT'); process.exit(1); }, 300000);
-  win.webContents.on('console-message', (_e, level, m) => { if (level >= 2) log('[renderer]', m); });
+  const timeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout ' + what)), ms)), ]);
+  setTimeout(() => { log('GLOBAL TIMEOUT'); process.exit(1); }, 480000);
+  win.webContents.on('console-message', (e, level, m) => { const lv = e && e.level !== undefined ? e.level : level; const txt = e && e.message !== undefined ? e.message : m; if (lv === 'error' || lv === 'warning' || lv >= 2) log('[renderer]', txt, e && e.sourceId ? e.sourceId.split('/').pop() + ':' + e.lineNumber : ''); });
   // fichiers d'essai pour les formats « tous fichiers »
   fs.writeFileSync(path.join(outDir, 't.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#def"/><text x="20" y="100" font-size="30">SVG Leçon</text></svg>');
   fs.writeFileSync(path.join(outDir, 't.html'), '<!doctype html><meta charset="utf-8"><h1 style="color:#1f3b73">Fiche HTML</h1><p>Énoncé de l\'exercice.</p>');
   fs.writeFileSync(path.join(outDir, 'notes'), 'Fichier sans extension : texte brut.');
-  win.webContents.once('did-finish-load', async () => {
+  fs.writeFileSync(path.join(outDir, 'photo.heic'), 'pas une vraie photo');
+  // Fixtures : certificat de test, Word protégé, document XPS
+  const fixtures = (async () => {
+    const forge = require('node-forge');
+    const keys = forge.pki.rsa.generateKeyPair(2048);
+    const cert = forge.pki.createCertificate(); cert.publicKey = keys.publicKey; cert.serialNumber = '01';
+    cert.validity.notBefore = new Date(); cert.validity.notAfter = new Date(Date.now() + 365 * 864e5);
+    const attrs = [{ name: 'commonName', value: 'Professeur Test' }]; cert.setSubject(attrs); cert.setIssuer(attrs);
+    cert.sign(keys.privateKey, forge.md.sha256.create());
+    const p12 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], 'secret', { algorithm: '3des' });
+    fs.writeFileSync(path.join(outDir, 'test.p12'), Buffer.from(forge.asn1.toDer(p12).getBytes(), 'binary'));
+    try {
+      const { Document, Packer, Paragraph } = require('docx');
+      const plain = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph('Devoir protégé par mot de passe')] }] }));
+      const enc = await require('officecrypto-tool').encrypt(plain, { password: 'mdp' });
+      fs.writeFileSync(path.join(outDir, 'devoir.docx'), enc);
+    } catch (e) { log('fixture docx', e.message); }
+    await new Promise((res) => require('child_process').execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', `
+Add-Type -AssemblyName PresentationFramework, ReachFramework, System.Printing
+$doc = New-Object System.Windows.Documents.FixedDocument; $pc = New-Object System.Windows.Documents.PageContent
+$fp = New-Object System.Windows.Documents.FixedPage; $fp.Width = 816; $fp.Height = 1056
+$tb = New-Object System.Windows.Controls.TextBlock; $tb.Text = 'Document XPS'; $tb.FontSize = 40
+[System.Windows.Documents.FixedPage]::SetLeft($tb, 96); [System.Windows.Documents.FixedPage]::SetTop($tb, 96); $fp.Children.Add($tb) | Out-Null
+([System.Windows.Markup.IAddChild]$pc).AddChild($fp); $doc.Pages.Add($pc) | Out-Null
+$x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't.xps')}', [IO.FileAccess]::ReadWrite)
+[System.Windows.Xps.Packaging.XpsDocument]::CreateXpsDocumentWriter($x).Write($doc); $x.Close()`], { windowsHide: true }, (err, so, se) => { if (err) log('fixture xps', String(se).slice(0, 200)); res(); }));
+  })();  win.webContents.once('did-finish-load', async () => {
+    await fixtures;
     const js = (code) => win.webContents.executeJavaScript(code);
     const results = {};
     const step = async (name, code, ms = 60000) => {
@@ -51,7 +78,7 @@ module.exports = (win, outDir) => {
 
       await step('open-locked-with-dialog', `(async () => {
         const T = window.__edupdf; T.actions.close && (T.S.dirty = false);
-        const files = await window.api.loadPaths([${JSON.stringify(path.join(outDir, 'protege-abc.pdf'))}]);
+        const files = await window.api.loadPaths([${JSON.stringify(path.join(outDir, 'protege-abc.pdf'))}, ]);
         const locked = files[0].locked;
         const p = T.handleLoaded(files, 0);
         for (let i = 0; i < 50 && document.querySelector('#modal').hidden; i++) await new Promise(r => setTimeout(r, 50));
@@ -71,7 +98,7 @@ module.exports = (win, outDir) => {
 
       await step('fill-existing-form', `(async () => {
         const T = window.__edupdf;
-        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([400, 300]); const form = d.getForm();
+        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([400, 300, ]); const form = d.getForm();
         form.createTextField('eleve').addToPage(pg, { x: 40, y: 200, width: 200, height: 24 });
         form.createCheckBox('presence').addToPage(pg, { x: 40, y: 150, width: 16, height: 16 });
         const bytes = await d.save();
@@ -87,7 +114,7 @@ module.exports = (win, outDir) => {
 
       await step('font-detection+edit', `(async () => {
         const T = window.__edupdf;
-        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([400, 300]);
+        const d = await PDFLib.PDFDocument.create(); const pg = d.addPage([400, 300, ]);
         pg.drawRectangle({ x: 0, y: 0, width: 400, height: 300, color: PDFLib.rgb(1, 0.95, 0.8) });
         pg.drawText('Texte original', { x: 40, y: 200, size: 20, font: await d.embedFont(PDFLib.StandardFonts.TimesRomanBold), color: PDFLib.rgb(0.8, 0, 0) });
         T.S.dirty = false; T.actions.close();
@@ -102,7 +129,7 @@ module.exports = (win, outDir) => {
 
       await step('scan-copy+ocr', `(async () => {
         const T = window.__edupdf; window.confirm = () => true;
-        T.S.cur = 0; T.S.sel = new Set([0]);
+        T.S.cur = 0; T.S.sel = new Set([0, ]);
         await T.actions.scanCopy();
         const p = T.S.pages[0];
         return { ocrLines: p.ocr ? p.ocr.lines.map(l => l.text) : null, itemsKept: p.items.length };
@@ -115,7 +142,7 @@ module.exports = (win, outDir) => {
       })()`);
 
       await step('formats', `(async () => {
-        const files = await window.api.loadPaths([${JSON.stringify(path.join(outDir, 't.svg'))}, ${JSON.stringify(path.join(outDir, 't.html'))}, ${JSON.stringify(path.join(outDir, 'notes'))}]);
+        const files = await window.api.loadPaths([${JSON.stringify(path.join(outDir, 't.svg'))}, ${JSON.stringify(path.join(outDir, 't.html'))}, ${JSON.stringify(path.join(outDir, 'notes'))}, ${JSON.stringify(path.join(outDir, 'photo.heic'))}]);
         const out = [];
         for (const f of files) {
           if (f.error) { out.push(f.name + ': ' + f.error); continue; }
@@ -127,8 +154,76 @@ module.exports = (win, outDir) => {
         return out;
       })()`, 60000);
 
-      await new Promise((res) => setTimeout(res, 800));
-      fs.writeFileSync(path.join(outDir, 'ui.png'), (await win.webContents.capturePage()).toPNG());
+      await step('redact+inplace', `(async () => {
+        const T = window.__edupdf; T.S.dirty = false; T.actions.close();
+        const d = await PDFLib.PDFDocument.create(); d.setTitle('Cours de maths'); const font = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+        for (let i = 1; i <= 3; i++) { const pg = d.addPage([400, 300, ]); pg.drawText('Réponse secrète ' + i, { x: 40, y: 200, size: 16, font }); pg.drawText('Ligne voisine ' + i, { x: 40, y: 178, size: 16, font }); }
+        await T.insertPdf(await d.save()); T.setTool('edit'); T.refresh();
+        for (let i = 0; i < 60 && !document.querySelector('#textLayer .tl'); i++) await new Promise(r => setTimeout(r, 50));
+        const sp = [...document.querySelectorAll('#textLayer .tl')].find(s => s.textContent.startsWith('Réponse')); sp.click(); sp.innerText = 'Texte public'; sp.blur();
+        const [p3] = T.S.pages.splice(2, 1); T.S.pages.unshift(p3); // réorganisation
+        const out = await T.buildPdf(); window.__redacted = out;
+        const doc = await pdfjsLib.getDocument({ data: out.slice() }).promise;
+        const texts = []; for (let i = 1; i <= doc.numPages; i++) texts.push((await (await doc.getPage(i)).getTextContent()).items.map(x => x.str).join('|'));
+        const lib = await PDFLib.PDFDocument.load(out);
+        return { title: lib.getTitle(), texts, secretGone: !texts[1].includes('secrète 1'), neighbourKept: texts[1].includes('voisine 1'), replaced: texts[1].includes('Texte public') };
+      })()`);
+
+      await step('find+replace', `(async () => {
+        const T = window.__edupdf; window.confirm = () => true; T.setTool('select');
+        T.actions.find(); document.querySelector('#findText').value = 'voisine';
+        document.querySelector('#replText').value = 'proche';
+        document.querySelector('#replAll').click();
+        for (let i = 0; i < 100 && !/remplacement/.test(document.querySelector('#msg').textContent); i++) await new Promise(r => setTimeout(r, 100));
+        const out = await T.buildPdf(); const doc = await pdfjsLib.getDocument({ data: out.slice() }).promise;
+        const t = []; for (let i = 1; i <= doc.numPages; i++) t.push((await (await doc.getPage(i)).getTextContent()).items.map(x => x.str).join('|'));
+        return { msg: document.querySelector('#msg').textContent, texts: t, noOld: !t.join().includes('voisine') };
+      })()`, 90000);
+
+      await step('note+watermark+crop', `(async () => {
+        const T = window.__edupdf;
+        T.S.pages[0].items.push({ type: 'note', at: [300, 280], text: 'Revoir cet exercice', color: '#ffd400' });
+        T.S.watermark = { text: 'CORRIGÉ', size: 50, color: '#c0392b', opacity: 0.2 };
+        T.S.pages[1].crop = [20, 20, 380, 280];
+        const out = await T.buildPdf(); window.__wm = out; const doc = await pdfjsLib.getDocument({ data: out.slice() }).promise;
+        const p1 = await doc.getPage(1); const annots = (await p1.getAnnotations()).map(a => a.subtype + ':' + (a.contentsObj && a.contentsObj.str));
+        const t1 = (await p1.getTextContent()).items.map(x => x.str).join('|');
+        const p2 = await doc.getPage(2);
+        return { annots, watermark: t1.includes('CORRIGÉ'), cropView: p2.view };
+      })()`);
+
+      await step('compress', `(async () => {
+        const out = await window.api.compressPdf(window.__wm);
+        const doc = await pdfjsLib.getDocument({ data: out.slice() }).promise;
+        return { before: window.__wm.length, after: out.length, pages: doc.numPages };
+      })()`);
+
+      await step('cert-sign', `(async () => {
+        const signed = await window.api.signPdf({ bytes: window.__wm, certPath: ${JSON.stringify(path.join(outDir, 'test.p12'))}, passphrase: 'secret', name: 'Prof', reason: 'Test' });
+        const s = new TextDecoder('latin1').decode(signed);
+        let bad = null; try { await window.api.signPdf({ bytes: window.__wm, certPath: ${JSON.stringify(path.join(outDir, 'test.p12'))}, passphrase: 'faux' }); } catch (e) { bad = e.message; }
+        return { byteRange: s.includes('/ByteRange'), sig: s.includes('/Type /Sig') || s.includes('/Type/Sig'), wrongPassword: bad };
+      })()`);
+
+      await step('xps+locked-docx', `(async () => {
+        const files = await window.api.loadPaths([${JSON.stringify(path.join(outDir, 't.xps'))}, ${JSON.stringify(path.join(outDir, 'devoir.docx'))}, ]);
+        const r = files.map(f => ({ name: f.name, kind: f.kind, locked: !!f.locked, images: f.images ? f.images.length : 0, error: f.error }));
+        const docx = files.find(f => f.locked);
+        let unlocked = null, wrong = null;
+        if (docx) {
+          wrong = (await window.api.unlockOffice(docx.path, 'xxx')).ok;
+          const u = await window.api.unlockOffice(docx.path, 'mdp');
+          if (u.ok) { const d = await pdfjsLib.getDocument({ data: new Uint8Array(u.bytes) }).promise; unlocked = (await (await d.getPage(1)).getTextContent()).items.map(x => x.str).join(' '); }
+        }
+        return { r, wrongAccepted: wrong, unlocked };
+      })()`, 120000);
+
+      await step('thumbs', `(async () => {
+        const T = window.__edupdf; T.refresh(); await new Promise(r => setTimeout(r, 2500));
+        return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };
+      })()`);
+
+      await new Promise((res) => setTimeout(res, 800));      fs.writeFileSync(path.join(outDir, 'ui.png'), (await win.webContents.capturePage()).toPNG());
       log(Object.values(results).some((r) => r && r.error) ? 'DONE WITH FAILURES' : 'ALL OK');
     } catch (e) {
       log('ECHEC', e.stack || e.message);

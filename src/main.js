@@ -23,11 +23,15 @@ const TXT_EXT = ['txt', 'md', 'csv', 'json', 'xml', 'log', 'tex', 'ini', 'srt', 
 const OFFICE_EXT = ['doc', 'docx', 'docm', 'dot', 'dotx', 'odt', 'ott', 'rtf', 'wpd', 'wps',
   'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'pot', 'potx', 'odp', 'otp',
   'xls', 'xlsx', 'xlsm', 'xlsb', 'ods', 'ots', 'odg', 'otg', 'vsd', 'vsdx', 'pub'];
-const ALL_EXT = [...PDF_EXT, ...IMG_EXT, ...MU_EXT, ...HTML_EXT, ...TXT_EXT, ...OFFICE_EXT];
+const HEIC_EXT = ['heic', 'heif'];
+const XPS_EXT = ['xps', 'oxps'];
+const ALL_EXT = [...PDF_EXT, ...IMG_EXT, ...HEIC_EXT, ...MU_EXT, ...HTML_EXT, ...TXT_EXT, ...OFFICE_EXT, ...XPS_EXT];
 
 function kindOf(file) {
   const ext = path.extname(file).slice(1).toLowerCase();
   if (PDF_EXT.includes(ext)) return 'pdf';
+  if (HEIC_EXT.includes(ext)) return 'heic';
+  if (XPS_EXT.includes(ext)) return 'xps';
   if (IMG_EXT.includes(ext)) return 'image';
   if (MU_EXT.includes(ext)) return 'mu';
   if (HTML_EXT.includes(ext)) return 'html';
@@ -60,20 +64,90 @@ function findSoffice() {
   return candidates.find((p) => fs.existsSync(p)) || null;
 }
 
-function convertWithOffice(file) {
+/**
+ * Conversion LibreOffice. Profil séparé : la conversion fonctionne même si LibreOffice est déjà ouvert.
+ * @param {string} target ex. 'pdf', 'docx:"MS Word 2007 XML"'
+ * @param {string} [infilter] filtre d'import (ex. 'writer_pdf_import' pour PDF → Word)
+ */
+function convertWithOffice(file, target = 'pdf', infilter = null) {
   return new Promise((resolve, reject) => {
     const soffice = findSoffice();
     if (!soffice) return reject(new Error('LIBREOFFICE_MISSING'));
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-'));
-    execFile(soffice, ['--headless', '--norestore', '--convert-to', 'pdf', '--outdir', outDir, file],
-      { timeout: 180000, windowsHide: true }, (err) => {
-        const out = path.join(outDir, path.basename(file, path.extname(file)) + '.pdf');
-        if (err || !fs.existsSync(out)) return reject(err || new Error('Conversion échouée'));
-        const bytes = fs.readFileSync(out);
-        fs.rmSync(outDir, { recursive: true, force: true });
-        resolve(bytes);
-      });
+    const profile = 'file:///' + path.join(app.getPath('userData'), 'lo-profile').replace(/\\/g, '/');
+    const args = [`-env:UserInstallation=${profile}`, '--headless', '--norestore', '--nologo'];
+    if (infilter) args.push(`--infilter=${infilter}`);
+    args.push('--convert-to', target, '--outdir', outDir, file);
+    execFile(soffice, args, { timeout: 300000, windowsHide: true }, (err) => {
+      const ext = target.split(':')[0];
+      const out = path.join(outDir, path.basename(file, path.extname(file)) + '.' + ext);
+      if (err || !fs.existsSync(out)) { fs.rmSync(outDir, { recursive: true, force: true }); return reject(err || new Error('Conversion LibreOffice échouée')); }
+      const bytes = fs.readFileSync(out);
+      fs.rmSync(outDir, { recursive: true, force: true });
+      resolve(bytes);
+    });
   });
+}
+
+// ---------- Photos d'iPhone / Android (HEIC, HEIF) ----------
+async function heicToJpeg(buf) {
+  const convert = require('heic-convert');
+  try { return Buffer.from(await convert({ buffer: buf, format: 'JPEG', quality: 0.92 })); }
+  catch (e) { throw new Error('Photo HEIC illisible : ' + e.message); }
+}
+
+// ---------- XPS / OXPS : rendu par Windows (WPF) en images ----------
+function xpsToImages(file) {
+  return new Promise((resolve, reject) => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-xps-'));
+    const q = (s) => s.replace(/'/g, "''");
+    const ps = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationCore, PresentationFramework, ReachFramework, WindowsBase
+$doc = New-Object System.Windows.Xps.Packaging.XpsDocument('${q(file)}', [System.IO.FileAccess]::Read)
+$pag = $doc.GetFixedDocumentSequence().DocumentPaginator
+$pag.ComputePageCount()
+for ($i = 0; $i -lt $pag.PageCount; $i++) {
+  $p = $pag.GetPage($i); $s = $p.Size
+  $bmp = New-Object System.Windows.Media.Imaging.RenderTargetBitmap([int]($s.Width * 2), [int]($s.Height * 2), 192, 192, [System.Windows.Media.PixelFormats]::Pbgra32)
+  $dv = New-Object System.Windows.Media.DrawingVisual; $dc = $dv.RenderOpen()
+  $dc.DrawRectangle([System.Windows.Media.Brushes]::White, $null, (New-Object System.Windows.Rect(0, 0, $s.Width, $s.Height))); $dc.Close()
+  $bmp.Render($dv); $bmp.Render($p.Visual)
+  $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
+  $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bmp))
+  $fs = [System.IO.File]::Create((Join-Path '${q(outDir)}' ('p{0:D4}.png' -f $i))); $enc.Save($fs); $fs.Close()
+}
+$doc.Close()`;
+    execFile('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-Command', ps], { timeout: 300000, windowsHide: true }, (err, _so, se) => {
+      const files = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter((f) => f.endsWith('.png')).sort() : [];
+      const imgs = files.map((f) => fs.readFileSync(path.join(outDir, f)));
+      fs.rmSync(outDir, { recursive: true, force: true });
+      if (!imgs.length) return reject(new Error('Lecture XPS impossible : ' + String(se || (err && err.message) || '').trim().slice(0, 200)));
+      resolve(imgs);
+    });
+  });
+}
+
+// ---------- Fichiers Office protégés par mot de passe ----------
+function officeEncrypted(buf) {
+  try { return require('officecrypto-tool').isEncrypted(buf); } catch { return false; }
+}
+async function officeWithPassword(file, password) {
+  const oc = require('officecrypto-tool');
+  let plain;
+  try { plain = await oc.decrypt(fs.readFileSync(file), { password }); }
+  catch (e) {
+    if (/password/i.test(e.message)) return null;
+    throw new Error(`Ce fichier Office protégé utilise un chiffrement non pris en charge (${e.message}). Ouvrez-le dans Word avec son mot de passe, puis enregistrez-le sans mot de passe.`);
+  }
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-dec-'));
+  const tmp = path.join(tmpDir, path.basename(file));
+  fs.writeFileSync(tmp, plain);
+  try {
+    if (findSoffice()) return await convertWithOffice(tmp);
+    if (/\.docx$/i.test(file)) return await docxToPdfApprox(tmp);
+    throw new Error('LIBREOFFICE_MISSING');
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }); }
 }
 
 // ---------- Pages web et Word (sans LibreOffice) → PDF via Chromium ----------
@@ -111,7 +185,10 @@ async function preparePdf(buf, name, file) {
 async function loadFile(file) {
   const name = path.basename(file);
   let kind = kindOf(file);
+  if (kind === 'heic') return { name, path: null, kind: 'image', bytes: await heicToJpeg(fs.readFileSync(file)) };
+  if (kind === 'xps') return { name: pdfName(name), path: null, kind: 'images', images: await xpsToImages(file), note: 'xps' };
   if (kind === 'office') {
+    if (officeEncrypted(fs.readFileSync(file))) return { name: pdfName(name), path: file, kind: 'office', locked: true };
     if (!findSoffice()) {
       if (/\.docx$/i.test(file)) return { name: pdfName(name), path: null, kind: 'pdf', bytes: await docxToPdfApprox(file), note: 'approx' };
       throw new Error('LIBREOFFICE_MISSING');
@@ -149,7 +226,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: false // OCR / export continuent même fenêtre réduite
     }
   });
@@ -167,12 +244,13 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     if (pendingOpen.length) { win.webContents.send('open-paths', pendingOpen); pendingOpen = []; }
   });
-  // Liens externes dans le navigateur par défaut
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  // Liens externes dans le navigateur par défaut (https uniquement) ; aucune navigation hors de l'application
+  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
 function filesFromArgv(argv) {
-  return argv.slice(1).filter((a) => !a.startsWith('-') && fs.existsSync(a) && kindOf(a));
+  return argv.slice(1).filter((a) => !a.startsWith('-') && fs.existsSync(a) && fs.statSync(a).isFile());
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -197,11 +275,12 @@ if (!app.requestSingleInstanceLock()) {
 // ---------- IPC : fichiers ----------
 ipcMain.handle('dialog-open', async (_e, opts = {}) => {
   const filters = opts.imagesOnly
-    ? [{ name: 'Images', extensions: IMG_EXT }]
+    ? [{ name: 'Images', extensions: [...IMG_EXT, ...HEIC_EXT, 'tif', 'tiff'] }]
     : [
       { name: 'Tous les documents', extensions: ALL_EXT },
       { name: 'PDF', extensions: PDF_EXT },
-      { name: 'Images', extensions: IMG_EXT },
+      { name: 'Images et photos', extensions: [...IMG_EXT, ...HEIC_EXT] },
+      { name: 'XPS', extensions: XPS_EXT },
       { name: 'Word / PowerPoint / Excel / OpenOffice', extensions: OFFICE_EXT },
       { name: 'EPUB, BD (CBZ), FB2, MOBI, TIFF…', extensions: MU_EXT },
       { name: 'Pages web', extensions: HTML_EXT },
@@ -218,28 +297,95 @@ ipcMain.handle('load-paths', (_e, paths) => loadMany(paths));
 async function loadMany(paths) {
   const out = [];
   for (const p of paths) {
-    try { out.push(await loadFile(p)); }
+    try { const f = await loadFile(p); if (f.kind === 'pdf' && f.path) allow(f.path); out.push(f); }
     catch (err) { out.push({ name: path.basename(p), error: err.message }); }
   }
   return out;
 }
 
+// Écriture directe autorisée seulement vers un fichier ouvert ou enregistré par l'utilisateur
+const writable = new Set();
+const allow = (p) => { if (p) writable.add(path.resolve(p).toLowerCase()); };
 ipcMain.handle('dialog-save', async (_e, { bytes, defaultName, filters, filePath }) => {
-  let target = filePath;
+  let target = filePath && (writable.has(path.resolve(filePath).toLowerCase()) || process.env.EDUPDF_SELFTEST) ? filePath : null;
   if (!target) {
-    const r = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters });
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName || 'Document.pdf'), filters });
     if (r.canceled) return null;
     target = r.filePath;
   }
-  fs.writeFileSync(target, Buffer.from(bytes));
+  try { fs.writeFileSync(target, Buffer.from(bytes)); }
+  catch (e) { throw new Error(e.code === 'EBUSY' || e.code === 'EPERM' ? 'Le fichier est ouvert dans un autre logiciel ou en lecture seule. Fermez-le ou choisissez « Enregistrer sous ».' : e.message); }
+  allow(target);
   return target;
 });
 
 ipcMain.handle('save-many', async (_e, { files }) => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Choisir un dossier' });
   if (r.canceled) return null;
-  for (const f of files) fs.writeFileSync(path.join(r.filePaths[0], f.name), Buffer.from(f.bytes));
+  for (const f of files) fs.writeFileSync(path.join(r.filePaths[0], path.basename(f.name)), Buffer.from(f.bytes));
   return r.filePaths[0];
+});
+
+// ---------- Impression (boîte d'impression Windows) ----------
+ipcMain.handle('print-pages', async (_e, { pages }) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-print-'));
+  const imgs = pages.map((p, i) => { const f = path.join(dir, `p${i}.jpg`); fs.writeFileSync(f, Buffer.from(p.bytes)); return { f: path.basename(f), w: p.w, h: p.h }; });
+  const html = `<!doctype html><meta charset="utf-8"><style>@page{margin:0}html,body{margin:0;padding:0}
+    img{display:block;width:100vw;height:auto;page-break-after:always;break-after:page}img:last-child{page-break-after:auto}</style>
+    ${imgs.map((i) => `<img src="${i.f}">`).join('')}`;
+  fs.writeFileSync(path.join(dir, 'print.html'), html);
+  const pw = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } });
+  try {
+    await pw.loadFile(path.join(dir, 'print.html'));
+    const landscape = pages.length && pages[0].w > pages[0].h;
+    return await new Promise((resolve) => pw.webContents.print({ silent: false, printBackground: true, landscape, margins: { marginType: 'none' } },
+      (ok, reason) => resolve({ ok, reason: ok ? '' : reason })));
+  } finally { pw.destroy(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---------- Suppression définitive sous les zones masquées / corrigées (MuPDF) ----------
+ipcMain.handle('redact-pdf', (_e, { bytes, pages }) => mu.redactPdf(bytes, pages));
+ipcMain.handle('compress-pdf', (_e, { bytes }) => mu.compressPdf(bytes));
+
+// ---------- PDF → Word / PowerPoint fidèle (LibreOffice) ----------
+ipcMain.handle('pdf-to-office', async (_e, { bytes, format, defaultName }) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-x-'));
+  const src = path.join(dir, 'document.pdf'); fs.writeFileSync(src, Buffer.from(bytes));
+  try {
+    const out = format === 'pptx'
+      ? await convertWithOffice(src, 'pptx:"Impress MS PowerPoint 2007 XML"', 'impress_pdf_import')
+      : await convertWithOffice(src, 'docx:"MS Word 2007 XML"', 'writer_pdf_import');
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName), filters: [{ name: format === 'pptx' ? 'PowerPoint' : 'Word', extensions: [format] }] });
+    if (r.canceled) return null;
+    fs.writeFileSync(r.filePath, out); allow(r.filePath);
+    return r.filePath;
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---------- Fichiers Office protégés ----------
+ipcMain.handle('unlock-office', async (_e, { file, password }) => {
+  const bytes = await officeWithPassword(file, password);
+  return bytes ? { ok: true, bytes } : { ok: false };
+});
+
+// ---------- Signature numérique avec certificat (.p12 / .pfx) ----------
+ipcMain.handle('pick-certificate', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Certificat', extensions: ['p12', 'pfx'] }] });
+  return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.handle('sign-pdf', async (_e, { bytes, certPath, passphrase, reason, location, name }) => {
+  const { PDFDocument } = require('pdf-lib');
+  const { pdflibAddPlaceholder } = require('@signpdf/placeholder-pdf-lib');
+  const { P12Signer } = require('@signpdf/signer-p12');
+  const { SignPdf } = require('@signpdf/signpdf');
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+  pdflibAddPlaceholder({ pdfDoc: doc, reason: reason || 'Approbation du document', contactInfo: '', name: name || '', location: location || '', signatureLength: 16384 });
+  const prepared = Buffer.from(await doc.save({ useObjectStreams: false }));
+  let signer;
+  try { signer = new P12Signer(fs.readFileSync(certPath), { passphrase: passphrase || '' }); }
+  catch { throw new Error('Certificat illisible ou mot de passe du certificat incorrect.'); }
+  try { return await new SignPdf().sign(prepared, signer); }
+  catch (e) { throw new Error(/password|MAC|decrypt/i.test(e.message) ? 'Mot de passe du certificat incorrect.' : e.message); }
 });
 
 ipcMain.handle('office-status', () => !!findSoffice());
@@ -296,7 +442,7 @@ ipcMain.handle('font-file', (_e, spec) => {
   fontFiles.set(spec, data);
   return data;
 });
-ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
+ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) ? shell.openExternal(url) : null));
 ipcMain.handle('show-in-folder', (_e, p) => shell.showItemInFolder(p));
 ipcMain.handle('app-version', () => app.getVersion());
 
@@ -382,10 +528,17 @@ ipcMain.handle('ocr', async (_e, { dataUrl, langs }) => {
 
 // ---------- IPC : export Word (.docx) ----------
 ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
-  const { Document, Packer, Paragraph, TextRun, PageBreak } = require('docx');
+  const { Document, Packer, Paragraph, TextRun, PageBreak, ImageRun } = require('docx');
   const children = [];
   pages.forEach((paras, i) => {
-    paras.forEach((t) => children.push(new Paragraph({ children: [new TextRun({ text: t.text, size: Math.round((t.size || 11) * 2), bold: !!t.bold })] })));
+    paras.forEach((t) => {
+      if (t.image) {
+        const k = Math.min(1, 600 / t.w);
+        children.push(new Paragraph({ children: [new ImageRun({ data: Buffer.from(t.image), transformation: { width: Math.round(t.w * k), height: Math.round(t.h * k) } })] }));
+      } else {
+        children.push(new Paragraph({ children: [new TextRun({ text: t.text, size: Math.round((t.size || 11) * 2), bold: !!t.bold, italics: !!t.italic, font: t.font || undefined, color: t.color ? t.color.replace('#', '') : undefined })] }));
+      }
+    });
     if (i < pages.length - 1) children.push(new Paragraph({ children: [new PageBreak()] }));
   });
   const doc = new Document({ sections: [{ children }] });

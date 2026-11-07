@@ -26,6 +26,8 @@
         <button data-act="open"><i>📂</i>Ouvrir</button>
         <button data-act="save"><i>💾</i>Enregistrer</button>
         <button data-act="saveAs"><i>📝</i>Enregistrer sous</button>
+        <button data-act="print"><i>🖨</i>Imprimer</button>
+        <button data-act="compress"><i>🗜</i>Réduire la taille</button>
         <button data-act="close"><i>✖</i>Fermer</button>
       </div>
       <div class="panel" data-panel="creer">
@@ -46,6 +48,8 @@
         <button data-tool="sign" class="tool"><i>✍️</i>Signature</button>
         <button data-tool="ftext" class="tool"><i>▤</i>Champ texte</button>
         <button data-tool="fcheck" class="tool"><i>☑</i>Case à cocher</button>
+        <button data-tool="note" class="tool"><i>💬</i>Commentaire</button>
+        <button data-act="find"><i>🔎</i>Rechercher /<br>remplacer</button>
         <span class="sep"></span>
         <button data-act="undo"><i>↶</i>Annuler</button>
         <button data-act="redo"><i>↷</i>Rétablir</button>
@@ -62,6 +66,9 @@
         <button data-act="extract"><i>📤</i>Extraire la sélection</button>
         <button data-act="split"><i>✂️</i>Diviser (1 PDF / page)</button>
         <button data-act="numbers"><i>#</i>Numéroter les pages</button>
+        <button data-tool="crop" class="tool"><i>⛶</i>Rogner</button>
+        <button data-act="uncrop"><i>↺</i>Annuler le<br>rognage</button>
+        <button data-act="watermark"><i>💧</i>Filigrane</button>
       </div>
       <div class="panel" data-panel="ocr">
         <label class="field">Langue
@@ -69,6 +76,13 @@
             <option value="fra+eng">Français + Anglais</option>
             <option value="fra">Français</option>
             <option value="eng">Anglais</option>
+            <option value="spa">Espagnol</option>
+            <option value="deu">Allemand</option>
+            <option value="ita">Italien</option>
+            <option value="por">Portugais</option>
+            <option value="ara">Arabe</option>
+            <option value="fra+ara">Français + Arabe</option>
+            <option value="fra+eng+spa+deu">Français + Anglais + Espagnol + Allemand</option>
           </select>
         </label>
         <button data-act="ocrPage"><i>🔍</i>OCR page courante</button>
@@ -80,11 +94,13 @@
         <button data-act="protect"><i>🔒</i>Protéger par<br>mot de passe</button>
         <button data-act="unprotect"><i>🔓</i>Retirer le<br>mot de passe</button>
         <button data-act="signPad"><i>✍️</i>Ma signature</button>
+        <button data-act="certSign"><i>🏅</i>Signer avec<br>un certificat</button>
         <button data-act="compare"><i>⚖️</i>Comparer avec<br>un autre fichier</button>
         <button data-act="clearCompare"><i>🧽</i>Effacer les marques<br>de comparaison</button>
       </div>
       <div class="panel" data-panel="convertir">
         <button data-act="toWord"><i>📘</i>PDF → Word (.docx)</button>
+        <button data-act="toPpt"><i>📙</i>PDF → PowerPoint</button>
         <button data-act="toImages"><i>🖼</i>PDF → Images (.png)</button>
         <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
         <button data-act="insertFiles"><i>📥</i>Word / PPT / Excel → PDF</button>
@@ -100,6 +116,16 @@
   <main>
     <aside id="thumbs"></aside>
     <section id="viewWrap">
+      <div id="findBar" hidden>
+        <input id="findText" placeholder="Rechercher…" autocomplete="off">
+        <button id="findPrev" class="small" title="Précédent (Maj+Entrée)">▲</button>
+        <button id="findNext" class="small" title="Suivant (Entrée)">▼</button>
+        <span id="findCount"></span>
+        <input id="replText" placeholder="Remplacer par…" autocomplete="off">
+        <button id="replOne" class="small">Remplacer</button>
+        <button id="replAll" class="small">Tout remplacer</button>
+        <button id="findClose" class="small" title="Fermer (Échap)">✕</button>
+      </div>
       <div id="welcome">
         <h1>EduPDF Studio</h1>
         <p>Créez, modifiez, organisez et numérisez vos documents de cours — sans connexion.</p>
@@ -115,6 +141,7 @@
         <canvas id="canvas"></canvas>
         <div id="overlayLayer"></div>
         <div id="formLayer"></div>
+        <div id="findLayer"></div>
         <div id="textLayer"></div>
       </div>
     </section>

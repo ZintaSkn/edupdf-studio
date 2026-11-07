@@ -9,25 +9,26 @@ comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL
 | Domaine | Ce que fait le logiciel |
 |---|---|
 | **Créer** | Document vierge A4, PDF depuis photos/images, depuis le scanner, depuis Word / PowerPoint / Excel / OpenOffice / RTF / pages web / EPUB / TXT, fusion de plusieurs fichiers |
-| **Modifier** | Corriger le texte existant **dans la police, la taille et la couleur d'origine** (le fond est repris à l'identique), ajouter du texte (25 polices, gras, italique, tous alphabets), images, surligneur, masquer, cadres, stylo, annuler/rétablir |
+| **Modifier** | Corriger le texte existant **dans la police, la taille et la couleur d'origine** (le fond est repris à l'identique ; l'ancien texte est réellement supprimé), **rechercher / remplacer** dans tout le document (Ctrl+F), ajouter du texte (25 polices, gras, italique, tous alphabets), images, surligneur, masquer (suppression définitive), cadres, stylo, **commentaires**, annuler/rétablir |
 | **Formulaires** | Remplir les formulaires PDF existants (texte, cases, boutons radio, listes) ; créer des champs texte et des cases à cocher pour des fiches à compléter |
-| **Signature** | Signature manuscrite (souris, stylet ou image importée), mémorisée sur le PC, avec date facultative |
+| **Signature** | Signature manuscrite (souris, stylet ou image importée), mémorisée sur le PC, avec date facultative ; **signature numérique avec certificat** (.p12 / .pfx) |
 | **Protéger** | Mot de passe d'ouverture et/ou de modification (AES 256), choix des autorisations (imprimer, copier, modifier, annoter) |
 | **PDF protégés** | Ouverture avec le mot de passe (structure, polices et mise en page conservées) ; les PDF « restreints » (sans mot de passe d'ouverture) s'ouvrent directement et deviennent modifiables ; PDF endommagés réparés |
 | **Copie numérisée éditable** | Pour un fichier impossible à déchiffrer ou dont le texte est illisible : chaque page devient une image identique, puis l'OCR rend le texte modifiable (corrections dans la couleur et sur le fond d'origine) |
 | **Comparer** | Comparaison mot à mot avec un autre fichier : ajouts, modifications et suppressions surlignés, liste cliquable des différences |
-| **Pages** | Glisser-déposer pour réordonner, pivoter, supprimer, dupliquer, insérer, extraire, diviser, numéroter |
+| **Pages** | Glisser-déposer pour réordonner, pivoter, supprimer, dupliquer, insérer, extraire, diviser, numéroter, **rogner**, **filigrane** ; miniatures à jour avec les modifications |
+| **Fichier** | **Imprimer** (Ctrl+P), **réduire la taille**, enregistrement qui **conserve la structure d'origine** (signets, liens, propriétés, pièces jointes, formulaires) |
 | **Scanner** | Numérisation WIA (tous scanners Windows), multi-pages, OCR proposé à la fin |
-| **OCR** | Tesseract intégré (français + anglais) : rend les scans cherchables/copiables et leur texte modifiable |
-| **Convertir** | PDF → Word (.docx), PDF → images PNG, PDF → texte ; tous formats ci-dessous → PDF |
+| **OCR** | Tesseract intégré : français, anglais, espagnol, allemand, italien, portugais, arabe (et combinaisons) — rend les scans cherchables/copiables et leur texte modifiable |
+| **Convertir** | PDF → Word (mise en page fidèle avec LibreOffice, ou texte avec police/gras/couleur), PDF → PowerPoint, PDF → images PNG, PDF → texte ; tous formats ci-dessous → PDF |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
 ### Formats ouverts
 
-- **PDF** (y compris protégés, restreints ou endommagés)
+- **PDF** (y compris protégés, restreints ou endommagés) • **XPS / OXPS** (converti en images fidèles)
 - **Office** : `doc, docx, docm, dot(x), odt, ott, rtf, wpd, wps, ppt, pptx, pptm, pps(x), pot(x), odp, otp, xls, xlsx, xlsm, xlsb, ods, ots, odg, otg, vsd(x), pub` — via LibreOffice (mise en page identique) ;
-  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). EduPDF propose d'**installer LibreOffice automatiquement**.
-- **Livres et BD** : `epub, mobi, fb2, cbz` • **Images** : `png, jpg, jfif, bmp, gif, webp, avif, ico, tif/tiff (multipage), jxr, psd, pnm`
+  sans LibreOffice, les `.docx` s'ouvrent quand même (mise en page approximative). EduPDF propose d'**installer LibreOffice automatiquement**. Les fichiers Office **protégés par mot de passe** s'ouvrent avec leur mot de passe.
+- **Livres et BD** : `epub, mobi, fb2, cbz` • **Images** : `heic, heif` (photos d'iPhone), `png, jpg, jfif, bmp, gif, webp, avif, ico, tif/tiff (multipage), jxr, psd, pnm`
 - **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
 - Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
@@ -64,6 +65,7 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 ## Bon à savoir
 
 - Un PDF chiffré avec un **mot de passe d'ouverture** ne peut être lu qu'avec ce mot de passe (c'est le principe du chiffrement).
-- Les fichiers Office protégés par mot de passe doivent d'abord être ouverts dans Word / LibreOffice avec leur mot de passe.
-- La signature est une signature manuscrite visuelle (pas un certificat numérique qualifié).
-- Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais leur mise en forme n'est pas garantie.
+- Sécurité : PDF.js n'exécute jamais de code venant d'un PDF, l'interface est isolée (sandbox) et ne peut écrire que dans les fichiers que vous avez choisis.
+- Les écritures de droite à gauche (arabe, N'Ko) s'affichent, mais les phrases mêlant droite-à-gauche et gauche-à-droite peuvent être mal ordonnées.
+- Le texte écrit en oblique ou à la verticale dans un PDF n'est pas modifiable directement (utilisez « Masquer » puis « Ajouter du texte »).
+- Scanner : pilotes WIA (la quasi-totalité des scanners récents). Les scanners uniquement TWAIN ne sont pas pris en charge.

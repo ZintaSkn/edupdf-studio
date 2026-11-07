@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "EduPDF Studio",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -13,19 +13,30 @@
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
+    "@signpdf/placeholder-pdf-lib": "^4.0.0",
+    "@signpdf/signer-p12": "^4.0.0",
+    "@signpdf/signpdf": "^4.0.0",
+    "@tesseract.js-data/ara": "^1.0.0",
+    "@tesseract.js-data/deu": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "@tesseract.js-data/fra": "^1.0.0",
+    "@tesseract.js-data/ita": "^1.0.0",
+    "@tesseract.js-data/por": "^1.0.0",
+    "@tesseract.js-data/spa": "^1.0.0",
     "docx": "^8.5.0",
     "electron-updater": "^6.3.9",
+    "heic-convert": "^2.1.0",
     "mammoth": "^1.13.0",
     "mupdf": "^1.28.1",
+    "node-forge": "^1.4.3",
+    "officecrypto-tool": "^0.0.19",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174",
     "tesseract.js": "5.1.1"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
   },
   "build": {
     "appId": "com.edupdf.studio",
@@ -37,7 +48,15 @@
     "files": [
       "src/**/*",
       "package.json",
-      "!node_modules/canvas/**"
+      "!node_modules/canvas/**",
+      "!node_modules/@tesseract.js-data/*/4.0.0/**",
+      "!node_modules/mupdf/dist/*.br",
+      "!node_modules/pdfjs-dist/legacy/**",
+      "!node_modules/pdfjs-dist/web/**",
+      "!node_modules/pdfjs-dist/types/**",
+      "!node_modules/pdfjs-dist/lib/**",
+      "!**/*.map",
+      "!**/*.d.ts"
     ],
     "asarUnpack": [
       "node_modules/tesseract.js/**",
@@ -72,5 +91,8 @@
         "releaseType": "release"
       }
     ]
+  },
+  "allowScripts": {
+    "electron@45.2.3": true
   }
 }
