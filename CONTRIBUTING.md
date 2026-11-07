@@ -11,7 +11,7 @@ possibilité, chaque contribution est acceptée aux conditions suivantes, que vo
 
 1. Vous êtes l'auteur de la contribution, ou avez le droit de la proposer.
 2. Vous la placez sous la licence **AGPL-3.0-or-later** du projet.
-3. Vous accordez en plus au titulaire du projet (ksehibi) une licence **mondiale, perpétuelle, gratuite,
+3. Vous accordez en plus au titulaire du projet (ZintaSkn) une licence **mondiale, perpétuelle, gratuite,
    irrévocable et non exclusive** lui permettant d'utiliser, modifier, sous-licencier et distribuer votre
    contribution **sous toute autre licence**, y compris commerciale.
 4. Vous conservez vos droits d'auteur sur votre contribution.
