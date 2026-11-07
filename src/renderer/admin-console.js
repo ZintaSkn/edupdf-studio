@@ -5,7 +5,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const err = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 let D = null; let EV = { events: [], posts: [], labels: {} };
-const SHORT = { save: 'Enregistrer', edit: 'Modifier', forms: 'Formulaires', pages: 'Pages', ocr: 'OCR', scan: 'Scanner', convert: 'Convertir', print: 'Imprimer', cloud: 'Cloud', protect: 'Mot de passe', unlock: 'PDF protégés', sign: 'Signer', compare: 'Comparer' };
+const SHORT = { save: 'Enregistrer', edit: 'Modifier', forms: 'Formulaires', pages: 'Pages', ocr: 'OCR', scan: 'Scanner', convert: 'Convertir', print: 'Imprimer', cloud: 'Cloud', protect: 'Mot de passe', unlock: 'PDF protégés', sign: 'Signer', compare: 'Comparer', ai: 'IA' };
 function toast(t) { const m = $('#msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => { m.style.display = 'none'; }, 3500); }
 const fmt = (ts) => new Date(ts).toLocaleString('fr-FR');
 

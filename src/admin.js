@@ -23,14 +23,15 @@ const FEATURES = {
   protect: 'Ajouter ou retirer un mot de passe',
   unlock: 'Ouvrir les PDF protégés ou restreints',
   sign: 'Signer (manuscrite et certificat)',
-  compare: 'Comparer des documents'
+  compare: 'Comparer des documents',
+  ai: 'Assistant IA (envoie le texte du document au fournisseur choisi)'
 };
 const EVENTS = {
   app_start: 'Ouverture d\'EduPDF', file_open: 'Fichier ouvert', save: 'Fichier enregistré', export: 'Export / conversion',
   print: 'Impression', cloud: 'Enregistrement dans le cloud', unlock: 'PDF protégé déverrouillé', protect: 'Protection par mot de passe',
   sign: 'Signature', blocked: 'Action bloquée par les règles', user_blocked: 'Utilisateur bloqué : tentative d\'ouverture',
   policy_tampered: 'Règles modifiées sans autorisation', admin_fail: 'Mot de passe administrateur erroné',
-  enroll: 'Poste inscrit à la gestion', unenroll: 'Poste retiré de la gestion'
+  enroll: 'Poste inscrit à la gestion', unenroll: 'Poste retiré de la gestion', ai: 'Utilisation de l\'assistant IA'
 };
 const DEFAULT_NOTIFY = ['blocked', 'user_blocked', 'policy_tampered', 'admin_fail', 'unenroll', 'unlock', 'enroll'];
 

@@ -246,6 +246,24 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       // ---------- Cloud ----------
       await step('cloud-detect', `(async () => { const r = await window.api.cloudList(); return { clouds: r.clouds.map(c => c.name + ' = ' + c.path), install: Object.keys(r.install) }; })()`);
 
+      // ---------- Assistant IA ----------
+      await step('ai', `(async () => {
+        const out = {};
+        let st = await window.api.aiStatus(); out.encryption = st.encryption; out.providers = Object.keys(st.providers);
+        st = await window.api.aiSave({ provider: 'anthropic', model: 'claude-opus-5-5', key: 'sk-ant-cle-de-test-invalide', sendPdf: true });
+        out.keyStoredNotExposed = st.providers.anthropic.hasKey && !JSON.stringify(st).includes('sk-ant');
+        const T = window.__edupdf; T.S.dirty = false; T.actions.close(); await T.insertPdf(await T.textToPdf('Les fractions : 3/4 = 0,75.'));
+        document.querySelector('#aiPrompt').value = 'Résume en une phrase.';
+        await T.aiRun();
+        out.claude = document.querySelector('#aiOut').textContent.slice(0, 160);
+        await window.api.aiSave({ provider: 'openai', model: 'gpt-5', key: 'sk-test-invalide' });
+        await T.aiRun(); out.openai = document.querySelector('#aiOut').textContent.slice(0, 160);
+        out.ollama = await window.api.aiOllamaModels();
+        await window.api.aiSave({ provider: 'anthropic', clearKey: true });
+        out.docText = (await T.aiDocText(T.S.pages)).slice(0, 60);
+        return out;
+      })()`, 90000);
+      try { const raw = fs.readFileSync(path.join(outDir, 'userdata', 'ai.json'), 'utf8'); log('OK   ai-key-encrypted', JSON.stringify({ plainKeyOnDisk: raw.includes('sk-test-invalide') || raw.includes('sk-ant-cle') })); } catch (e) { log('FAIL ai-key-encrypted', e.message); }
       // ---------- Administration ----------
       const ADM = require('./admin')._test; const gestion = path.join(outDir, 'gestion');
       try {

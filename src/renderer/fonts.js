@@ -72,10 +72,18 @@ async function fontBytes(spec) {
   }
   return _fontBytes.get(spec);
 }
+// fontkit (750 Ko) n'est chargé qu'au premier besoin : démarrage plus rapide
+let _fkP = null;
+function ensureFontkit() {
+  if (window.fontkit) return Promise.resolve();
+  if (!_fkP) _fkP = new Promise((res, rej) => { const s = document.createElement('script'); s.src = '../../node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  return _fkP;
+}
 async function fkFont(spec) {
+  await ensureFontkit();
   if (!_fkFonts.has(spec)) {
     let f = null;
-    try { const b = await fontBytes(spec); f = b && fontkit.create(b); if (f && f.fonts) f = f.fonts[0]; } catch { f = null; }
+    try { const b = await fontBytes(spec); f = b && window.fontkit.create(b); if (f && f.fonts) f = f.fonts[0]; } catch { f = null; }
     _fkFonts.set(spec, f);
   }
   return _fkFonts.get(spec);
@@ -108,11 +116,11 @@ async function fontRuns(text, font) {
 
 /** Intégration des polices dans un document pdf-lib (sous-ensembles : fichiers légers). */
 function fontEmbedder(doc) {
-  doc.registerFontkit(fontkit);
-  const cache = new Map();
+  const cache = new Map(); let reg = null;
+  const ready = () => (reg = reg || ensureFontkit().then(() => doc.registerFontkit(window.fontkit)));
   return {
     get(spec) {
-      if (!cache.has(spec)) cache.set(spec, spec ? fontBytes(spec).then((b) => doc.embedFont(b, { subset: true })) : doc.embedFont(PDFLib.StandardFonts.Helvetica));
+      if (!cache.has(spec)) cache.set(spec, ready().then(() => (spec ? fontBytes(spec).then((b) => doc.embedFont(b, { subset: true })) : doc.embedFont(PDFLib.StandardFonts.Helvetica))));
       return cache.get(spec);
     }
   };

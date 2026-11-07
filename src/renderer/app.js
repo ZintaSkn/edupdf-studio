@@ -1659,6 +1659,7 @@ const FEATURE_OF = {
   act: { save: 'save', saveAs: 'save', compress: 'save', print: 'print', cloudSave: 'cloud', cloudOpen: 'cloud', scan: 'scan',
     rotL: 'pages', rotR: 'pages', delPages: 'pages', dupPages: 'pages', moveUp: 'pages', moveDown: 'pages', extract: 'save', split: 'save', numbers: 'pages', uncrop: 'pages', watermark: 'pages',
     ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr', toWord: 'convert', toPpt: 'convert', toExcel: 'convert', toImages: 'convert', toText: 'convert', exportAs: 'convert', convertOffice: 'convert',
+    aiPanel: 'ai', aiSettings: 'ai', aiSubscription: 'ai',
     protect: 'protect', unprotect: 'protect', signPad: 'sign', certSign: 'sign', compare: 'compare', clearCompare: 'compare', find: 'edit', delItem: 'edit' },
   tool: { edit: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
 };
@@ -1670,11 +1671,12 @@ function denied(f) {
 }
 async function applyPolicy() {
   try { POLICY = await window.api.policy(); } catch { return; }
-  $$('[data-act],[data-tool]').forEach((b) => {
-    const f = b.dataset.act ? FEATURE_OF.act[b.dataset.act] : FEATURE_OF.tool[b.dataset.tool];
+  $$('[data-act],[data-tool],[data-ai]').forEach((b) => {
+    const f = b.dataset.ai ? 'ai' : b.dataset.act ? FEATURE_OF.act[b.dataset.act] : FEATURE_OF.tool[b.dataset.tool];
     const off = !!f && !can(f); b.classList.toggle('locked', off); b.title = off ? 'Désactivé par l\'administrateur' : '';
   });
   if (S.tool && FEATURE_OF.tool[S.tool] && !can(FEATURE_OF.tool[S.tool])) setTool('select');
+  if (!can('ai')) $('#aiPanel').hidden = true;
   $('#policyBar').hidden = !(POLICY.managed && (POLICY.message || POLICY.blocked));
   $('#policyBar').textContent = POLICY.blocked ? '' : (POLICY.message ? '📢 ' + POLICY.message : '');
   $('#blockedScreen').hidden = !POLICY.blocked;
@@ -1727,6 +1729,138 @@ document.addEventListener('click', async (e) => {
   if (e.target.id !== 'apick') return;
   const d = await window.api.adminPickFolder(); if (d) $('#afold').textContent = d;
 });
+// ---------------- Assistant IA ----------------
+const AI_SYSTEM = "Tu es l'assistant pédagogique d'EduPDF Studio, au service d'enseignants francophones. Réponds en français (sauf demande de traduction), de façon claire et structurée, en texte simple (titres courts, listes avec tirets, pas de tableaux Markdown), prêt à être collé dans un document de cours. Appuie-toi sur le document fourni ; si une information n'y figure pas, dis-le au lieu d'inventer.";
+const AI_PRESETS = {
+  resume: ['Résumer', 'Fais un résumé structuré de ce document : idées principales, notions clés à retenir, vocabulaire important.'],
+  qcm: ['QCM', 'Crée un QCM de 10 questions sur ce document (4 propositions, une seule bonne réponse), de difficulté progressive, puis le corrigé commenté à la fin.'],
+  exos: ['Exercices', 'Crée une fiche de 5 exercices progressifs à partir de ce document, puis un corrigé détaillé à la fin.'],
+  simplifier: ['Simplifier', 'Réécris ce document pour des élèves en difficulté : phrases courtes, vocabulaire simple, exemples concrets, sans perdre les notions essentielles.'],
+  corriger: ['Corriger', 'Relis ce document et liste toutes les fautes d\'orthographe, de grammaire, de conjugaison et de typographie, une par ligne : « erreur » → « correction » (explication courte). Termine par le nombre total de fautes.'],
+  traduire: ['Traduire', 'Traduis intégralement ce document en anglais en conservant sa structure (titres, listes, numérotation).'],
+  grille: ['Grille d\'évaluation', 'Crée une grille d\'évaluation critériée adaptée à ce document : critères, indicateurs observables, 4 niveaux de maîtrise et barème sur 20.'],
+  cours: ['Plan de séance', 'Propose un plan de séance de 55 minutes fondé sur ce document : objectifs, prérequis, déroulé minuté (phases, activités, consignes), différenciation et trace écrite.']
+};
+const AI_SITES = [['ChatGPT', 'https://chatgpt.com/'], ['Claude', 'https://claude.ai/new'], ['Gemini', 'https://gemini.google.com/app'], ['Copilot', 'https://copilot.microsoft.com/'], ['Le Chat (Mistral)', 'https://chat.mistral.ai/chat'], ['Perplexity', 'https://www.perplexity.ai/']];
+let AI = { id: null, text: '', status: null };
+window.api.onAiChunk(({ id, text }) => { if (id !== AI.id) return; AI.text += text; const o = $('#aiOut'); o.textContent = AI.text; o.scrollTop = o.scrollHeight; });
+
+async function aiScopePages() {
+  const s = $('#aiScope').value;
+  return s === 'page' ? [curPage()] : s === 'sel' ? selected().map((i) => S.pages[i]) : S.pages;
+}
+async function aiDocText(pages) {
+  let out = '';
+  for (let i = 0; i < pages.length; i++) out += `--- Page ${S.pages.indexOf(pages[i]) + 1} ---\n` + (await pageParagraphs(pages[i])).map((l) => l.text).join('\n') + '\n\n';
+  return out;
+}
+function toggleAi(show = $('#aiPanel').hidden) {
+  if (show && !can('ai')) return denied('ai');
+  $('#aiPanel').hidden = !show; if (show) { refreshAiBadge(); $('#aiPrompt').focus(); }
+}
+async function refreshAiBadge() {
+  AI.status = await window.api.aiStatus();
+  const p = AI.status.providers[AI.status.provider];
+  const model = AI.status.models[AI.status.provider] || p.models[0] || '?';
+  $('#aiBadge').textContent = `${p.name} · ${model}${p.hasKey ? '' : ' — clé manquante'}`;
+  $('#aiBadge').classList.toggle('warn', !p.hasKey);
+}
+async function aiRun(preset) {
+  if (!can('ai')) return denied('ai');
+  if (!S.pages.length && preset) return alert('Ouvrez d\'abord un document.');
+  $('#aiPanel').hidden = false;
+  if (preset) $('#aiPrompt').value = AI_PRESETS[preset][1];
+  const ask = $('#aiPrompt').value.trim(); if (!ask) return $('#aiPrompt').focus();
+  if (!AI.status) await refreshAiBadge();
+  const prov = AI.status.provider; const P = AI.status.providers[prov];
+  if (!P.hasKey) { const ok = await aiSettings(); if (!ok) return; }
+  const pages = S.pages.length ? await aiScopePages() : [];
+  let text = pages.length ? await aiDocText(pages) : '';
+  let pdfBase64 = null;
+  const usePdf = prov === 'anthropic' && AI.status.sendPdf && pages.length;
+  if (usePdf) {
+    const bytes = await buildPdf(pages);
+    if (bytes.length < 30 * 1048576 && pages.length <= 600) pdfBase64 = await bytesToDataUrl(bytes, 'application/pdf').then((u) => u.split(',')[1]);
+  }
+  if (pages.length && !pdfBase64 && !text.replace(/--- Page \d+ ---/g, '').trim()) return alert('Aucun texte trouvé dans ces pages. S\'il s\'agit d\'un scan, lancez d\'abord l\'OCR (onglet OCR)' + (prov !== 'anthropic' ? ', ou choisissez Claude, qui lit directement les pages scannées.' : '.'));
+  const LIMIT = 400000; let note = '';
+  if (!pdfBase64 && text.length > LIMIT) {
+    if (!confirm(`Le texte sélectionné est très long (${Math.round(text.length / 1000)} 000 caractères). Seuls les ${LIMIT / 1000} 000 premiers seront envoyés.\nContinuer ? (sinon, choisissez « Page courante » ou une sélection de pages)`)) return;
+    text = text.slice(0, LIMIT); note = '\n[Document tronqué pour respecter la taille maximale.]';
+  }
+  const prompt = pdfBase64 ? ask : (text ? `${ask}\n\n<document>\n${text}${note}\n</document>` : ask);
+  AI.id = 'r' + Date.now(); AI.text = ''; $('#aiOut').textContent = ''; $('#aiOut').classList.add('busy');
+  $('#aiSend').hidden = true; $('#aiStop').hidden = false;
+  try {
+    const r = await window.api.aiChat({ id: AI.id, system: AI_SYSTEM, prompt, pdfBase64 });
+    if (r.cancelled) AI.text += '\n[Arrêté]';
+    msg(`Réponse de ${r.provider || 'l\'IA'}${r.model ? ` (${r.model})` : ''}${pdfBase64 ? ' — PDF lu directement (texte, images, mise en page)' : ''}.`);
+  } catch (e) { AI.text += (AI.text ? '\n\n' : '') + '⚠️ ' + errMsg(e); }
+  $('#aiOut').textContent = AI.text; $('#aiOut').classList.remove('busy');
+  $('#aiSend').hidden = false; $('#aiStop').hidden = true;
+}
+async function aiSettings() {
+  const st = await window.api.aiStatus();
+  const opts = Object.entries(st.providers).map(([k, p]) => `<option value="${k}" ${k === st.provider ? 'selected' : ''}>${esc(p.name)}${p.hasKey ? ' ✔' : ''}</option>`).join('');
+  const p0 = st.providers[st.provider];
+  const html = `<label class="blk">Fournisseur <select id="aiProv">${opts}</select></label>
+    <label class="blk">Modèle <input type="text" id="aiModel" list="aiModels" value="${esc(st.models[st.provider] || p0.models[0] || '')}"><datalist id="aiModels"></datalist></label>
+    <label class="blk" id="aiKeyRow">Clé API <input type="password" id="aiKey" placeholder="${p0.hasKey ? '•••••••• (enregistrée — laisser vide pour la garder)' : 'Collez votre clé API'}" autocomplete="off"></label>
+    <p class="muted" id="aiHelp"></p>
+    <label class="ck" id="aiPdfRow"><input type="checkbox" id="aiPdf" ${st.sendPdf ? 'checked' : ''}> Envoyer les pages en PDF (Claude lit aussi les images, schémas et pages scannées)</label>
+    <p class="muted">La clé est chiffrée par Windows sur ce PC et n'est jamais affichée ni partagée. Le texte des pages choisies est envoyé au fournisseur à chaque demande (sauf Ollama, 100 % local).</p>
+    <p class="muted"><b>Abonnement ChatGPT Plus, Claude Pro, Gemini, Copilot…</b> : ces abonnements ne donnent pas de clé API. Utilisez le bouton « Mon abonnement » : EduPDF prépare la demande et ouvre votre IA dans le navigateur.</p>`;
+  const pr = modal('Réglages de l\'assistant IA', html, [['Annuler', null], ['Enregistrer', () => ({ provider: $('#aiProv').value, model: $('#aiModel').value, key: $('#aiKey').value, sendPdf: $('#aiPdf').checked }), true]]);
+  const upd = async () => {
+    const k = $('#aiProv').value; const p = st.providers[k];
+    let models = p.models;
+    if (k === 'ollama') { const m = await window.api.aiOllamaModels(); models = m || []; $('#aiHelp').innerHTML = m ? `Ollama est actif : ${m.length} modèle(s) installé(s).` : 'Ollama n\'est pas lancé ou pas installé : <a href="https://ollama.com/download" target="_blank">ollama.com</a>, puis « ollama run llama3.2 ».'; }
+    else $('#aiHelp').innerHTML = `Obtenir une clé : <a href="${p.keyUrl}" target="_blank">${esc(p.keyUrl)}</a> (facturation à l'usage par ${esc(p.name.split(' (')[0])}).`;
+    $('#aiModels').innerHTML = models.map((m) => `<option value="${esc(m)}">`).join('');
+    if (!$('#aiModel').value || !models.includes($('#aiModel').value)) $('#aiModel').value = st.models[k] || models[0] || '';
+    $('#aiKeyRow').hidden = !!p.local; $('#aiPdfRow').hidden = !p.pdf;
+    $('#aiKey').placeholder = p.hasKey ? '•••••••• (enregistrée — laisser vide pour la garder)' : 'Collez votre clé API';
+  };
+  $('#aiProv').onchange = upd; upd();
+  const r = await pr; if (!r) return false;
+  try { AI.status = await window.api.aiSave(r); await refreshAiBadge(); msg('Assistant IA configuré.'); return AI.status.providers[r.provider].hasKey; }
+  catch (e) { alert(errMsg(e)); return false; }
+}
+async function aiSubscription() {
+  if (!can('ai')) return denied('ai');
+  const ask = $('#aiPrompt').value.trim() || AI_PRESETS.resume[1];
+  const pages = S.pages.length ? await aiScopePages() : [];
+  const text = pages.length ? await aiDocText(pages) : '';
+  const full = `${AI_SYSTEM}\n\n${ask}${text ? `\n\n<document>\n${text}</document>` : ''}`;
+  const site = await modal('Utiliser mon abonnement IA', `<p>Votre demande et le texte du document sont copiés. Choisissez votre IA : elle s'ouvre dans le navigateur où vous êtes déjà connecté ; <b>collez (Ctrl+V)</b> puis envoyez.</p>
+    <div class="cols3">${AI_SITES.map(([n, u], i) => `<button class="cloudbtn" data-site="${i}"><b>${esc(n)}</b><small>${esc(u.replace('https://', ''))}</small></button>`).join('')}</div>
+    <p class="muted">Pour les pages scannées ou les schémas, glissez aussi le fichier PDF enregistré dans la conversation. Ensuite, copiez la réponse et cliquez « Coller la réponse » dans le panneau IA pour l'insérer dans le document.</p>`, [['Fermer', null]]);
+  void site;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-site]'); if (!b) return;
+  const [n, u] = AI_SITES[+b.dataset.site];
+  const ask = $('#aiPrompt').value.trim() || AI_PRESETS.resume[1];
+  const pages = S.pages.length ? await aiScopePages() : [];
+  const text = pages.length ? await aiDocText(pages) : '';
+  await navigator.clipboard.writeText(`${AI_SYSTEM}\n\n${ask}${text ? `\n\n<document>\n${text}</document>` : ''}`);
+  window.api.openExternal(u); $('#mBtns button').click(); $('#aiPanel').hidden = false;
+  window.api.logEvent('export', { action: `Demande copiée vers ${n}` });
+  msg(`Demande copiée : collez-la (Ctrl+V) dans ${n}.`);
+});
+async function aiInsert() {
+  const t = (AI.text || $('#aiOut').textContent).replace(/\n?⚠️.*$/s, '').trim(); if (!t) return;
+  if (!can('edit')) return denied('edit');
+  const before = S.pages.length; if (before) snapshot();
+  const list = await insertPdf(await textToPdf(t), before); S.cur = before; S.sel = new Set([before]); setDirty(true); refresh();
+  msg(`${list.length} page(s) ajoutée(s) à la fin du document avec la réponse de l'IA.`);
+}
+async function aiWord() {
+  const t = (AI.text || $('#aiOut').textContent).trim(); if (!t) return;
+  const r = await window.api.exportDocx([t.split('\n').map((l) => ({ text: l, size: /^#|^[A-ZÉÈ0-9][^a-z]{3,}$/.test(l) ? 14 : 11, bold: /^#/.test(l) })).map((p) => ({ ...p, text: p.text.replace(/^#+\s*/, '') }))], `${baseName()}-IA.docx`);
+  if (r) msg(`Document Word créé : ${r}`);
+}
+
 // ---------------- Actions ----------------
 const actions = {
   async new() { if (S.pages.length && !confirmDiscard()) return; resetDoc(); await insertBlank(); setDirty(false); },
@@ -1751,6 +1885,7 @@ const actions = {
   toWord, toText, toImages,
   protect: protectDialog, unprotect, signPad: signaturePad, compare: compareDocs, clearCompare, scanCopy,
   toPpt: () => toOffice('pptx'), toExcel: () => toOffice('xlsx'), exportAs: exportDialog, convertOffice: convertOfficeFileDialog,
+  aiPanel: () => toggleAi(), aiSettings, aiSubscription, aiPreset: null,
   cloudSave: () => cloudDialog('save'), cloudOpen: () => cloudDialog('open'), admin: adminDialog, print: printDoc, find: () => toggleFind(true), watermark: watermarkDialog, uncrop, compress: compressDoc, certSign,
   zoomIn() { S.zoom = Math.min(4, (S.zoom === 'fit' ? S.scale : S.zoom) * 1.2); renderPage(); },
   zoomOut() { S.zoom = Math.max(0.25, (S.zoom === 'fit' ? S.scale : S.zoom) / 1.2); renderPage(); },
@@ -1853,5 +1988,16 @@ $('#findClose').onclick = () => toggleFind(false);
 // Ctrl + molette : zoom
 $('#viewWrap').addEventListener('wheel', (e) => { if (!e.ctrlKey || !S.pages.length) return; e.preventDefault(); e.deltaY < 0 ? actions.zoomIn() : actions.zoomOut(); }, { passive: false });
 
+// Panneau IA
+$('#aiSend').onclick = () => aiRun();
+$('#aiStop').onclick = () => window.api.aiCancel(AI.id);
+$('#aiClose').onclick = () => toggleAi(false);
+$('#aiCopy').onclick = () => { navigator.clipboard.writeText(AI.text || $('#aiOut').textContent); msg('Réponse copiée.'); };
+$('#aiPaste').onclick = async () => { AI.text = await navigator.clipboard.readText(); $('#aiOut').textContent = AI.text; msg('Réponse collée : vous pouvez l\'insérer dans le document ou l\'exporter en Word.'); };
+$('#aiInsert').onclick = aiInsert; $('#aiWordBtn').onclick = aiWord;
+$('#aiBadge').onclick = aiSettings;
+$('#aiPrompt').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && e.ctrlKey) aiRun(); });
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-ai]'); if (b) { if (!can('ai')) return denied('ai'); aiRun(b.dataset.ai); } });
+
 // Accès pour les tests
-window.__edupdf = { applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };
+window.__edupdf = { aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

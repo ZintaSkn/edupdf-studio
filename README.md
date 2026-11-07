@@ -22,6 +22,7 @@ comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL
 | **OCR** | Tesseract intégré : français, anglais, espagnol, allemand, italien, portugais, arabe (et combinaisons) — rend les scans cherchables/copiables et leur texte modifiable |
 | **Convertir** | **PDF → Word, Excel, PowerPoint** (sans rien installer) et **PDF → DOC, ODT, RTF, HTML, XLS, ODS, CSV, PPT, ODP** (LibreOffice) ; tableaux reconstitués en vraies cellules Excel ; **fichier Office ↔ autre format Office** (DOCX ↔ ODT ↔ DOC ↔ RTF ↔ PDF, XLSX ↔ ODS ↔ XLS ↔ CSV, PPTX ↔ ODP ↔ PPT) ; PDF → images PNG / texte ; tous les formats ci-dessous → PDF |
 | **Cloud** | **Enregistrer et ouvrir dans OneDrive (personnel et établissement), Google Drive, Dropbox, iCloud Drive, Box, Nextcloud** ou tout dossier synchronisé ; installation guidée de Google Drive / OneDrive / Dropbox |
+| **Assistant IA** | Résumer, créer un QCM, une fiche d'exercices, simplifier (différenciation), corriger les fautes, traduire, grille d'évaluation, plan de séance, ou toute demande libre — sur la page, la sélection ou tout le document ; réponse insérable dans le document ou exportable en Word. Fournisseurs : **Claude** (lit directement le PDF, y compris les scans et schémas), **ChatGPT**, **Gemini**, **Mistral** (avec votre clé API) ou **Ollama** (IA locale gratuite, hors-ligne) ; **abonnements ChatGPT Plus / Claude Pro / Gemini / Copilot** utilisables via le navigateur |
 | **Administration** | Console administrateur : fonctions autorisées par défaut, par utilisateur et par poste (13 fonctions, blocage complet), message aux utilisateurs, journal d'activité, **notifications Windows et sur téléphone** (ntfy) |
 | **Mises à jour** | Vérification au démarrage puis toutes les 4 h, téléchargement en arrière-plan, installation au redémarrage |
 
@@ -34,6 +35,16 @@ comparer et convertir les documents de cours. Logiciel libre et perpétuel (AGPL
 - **Web** : `html, htm, xhtml, mht, svg` • **Texte** : `txt, md, csv, json, xml, tex, log, srt…`
 - Fichier sans extension ou mal nommé : reconnu d'après son contenu.
 
+## Assistant IA : clé API ou abonnement ?
+
+- **Clé API** (Claude, ChatGPT, Gemini, Mistral) : l'IA travaille **dans EduPDF** (réponse en direct, insertion dans le document).
+  La clé se crée sur le site du fournisseur (facturation à l'usage) et se colle dans « Réglages IA ». Elle est chiffrée par Windows
+  et n'est jamais affichée. Claude reçoit les pages en PDF : il lit aussi les images, schémas et pages scannées.
+- **Abonnement grand public** (ChatGPT Plus, Claude Pro, Gemini Advanced, Copilot Pro, Le Chat Pro) : ces offres **ne donnent pas
+  accès à une API**. Le bouton « Mon abonnement » copie votre demande avec le texte du document et ouvre votre IA dans le
+  navigateur (où vous êtes connecté) : collez, envoyez, puis « Coller la réponse » pour la ramener dans EduPDF.
+- **Ollama** : IA installée sur le PC, gratuite et hors-ligne ; aucun texte ne quitte l'ordinateur.
+- L'administrateur peut désactiver l'assistant IA (fonction « Assistant IA » de la console).
 ## Administration (gestion des accès)
 
 Aide › **Administration** :

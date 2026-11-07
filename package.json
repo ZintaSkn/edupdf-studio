@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "EduPDF Studio",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -12,6 +12,7 @@
     "publish": "electron-builder --win --publish always"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@signpdf/placeholder-pdf-lib": "^4.0.0",
     "@signpdf/signer-p12": "^4.0.0",
@@ -48,6 +49,8 @@
     },
     "npmRebuild": false,
     "disableAsarIntegrity": true,
+    "electronLanguages": ["fr", "en-US"],
+    "compression": "maximum",
     "files": [
       "src/**/*",
       "package.json",
@@ -59,7 +62,21 @@
       "!node_modules/pdfjs-dist/types/**",
       "!node_modules/pdfjs-dist/lib/**",
       "!**/*.map",
-      "!**/*.d.ts"
+      "!**/*.d.ts",
+      "!**/*.d.mts",
+      "!**/*.d.cts",
+      "!node_modules/@anthropic-ai/sdk/src/**",
+      "!node_modules/@anthropic-ai/sdk/**/*.mjs",
+      "!**/{README,CHANGELOG,HISTORY,CONTRIBUTING}*",
+      "!**/{test,tests,__tests__,example,examples}/**",
+      "!node_modules/libheif-js/libheif/**",
+      "!node_modules/libheif-js/libheif-wasm/{libheif.js,libheif.wasm,*.mjs}",
+      "!node_modules/pdf-lib/{es,src,ts3.4}/**",
+      "!node_modules/pdf-lib/dist/pdf-lib.{js,esm.js,esm.min.js}",
+      "!node_modules/@pdf-lib/fontkit/dist/fontkit.{es,es.min,umd}.js",
+      "!node_modules/pdfjs-dist/build/{pdf.js,pdf.worker.js,pdf.sandbox.js,pdf.sandbox.min.js,pdf.worker.entry.js}",
+      "!node_modules/pdfjs-dist/image_decoders/**",
+      "!node_modules/exceljs/dist/**"
     ],
     "asarUnpack": [
       "node_modules/tesseract.js/**",

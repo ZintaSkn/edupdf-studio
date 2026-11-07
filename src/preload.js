@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('api', {
   cloudAdd: () => ipcRenderer.invoke('cloud-add'),
   cloudRemove: (cloudPath) => ipcRenderer.invoke('cloud-remove', { cloudPath }),
   cloudInstall: (id) => ipcRenderer.invoke('cloud-install', { id }),
+  // assistant IA
+  aiStatus: () => ipcRenderer.invoke('ai-status'),
+  aiSave: (a) => ipcRenderer.invoke('ai-save', a),
+  aiOllamaModels: () => ipcRenderer.invoke('ai-ollama-models'),
+  aiChat: (a) => ipcRenderer.invoke('ai-chat', a),
+  aiCancel: (id) => ipcRenderer.invoke('ai-cancel', { id }),
+  onAiChunk: (cb) => ipcRenderer.on('ai-chunk', (_e, d) => cb(d)),
   // administration
   policy: () => ipcRenderer.invoke('policy'),
   logEvent: (type, detail) => ipcRenderer.invoke('log-event', { type, detail }),
