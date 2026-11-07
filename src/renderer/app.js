@@ -2270,4 +2270,4 @@ window.addEventListener('resize', () => { if (SHOW.on) renderShow(); });
 initDocs(); initHome(); initRibbonMode(); renderQat(); switchTab('accueil');
 
 // Accès pour les tests
-window.__edupdf = { newTab, switchDoc, closeTab, toggleRibbon, startShow, aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };
+window.__edupdf = { renderPage, newTab, switchDoc, closeTab, toggleRibbon, startShow, aiRun, aiDocText, AI, applyPolicy, can: (f) => can(f), pageTable, toOffice, S, buildPdf, insertPdf, blankPdf, textToPdf, refresh, actions, handleLoaded, diffWords, matchFont, getTextItems, getPdfPage, fontOfItem, setTool, startTextEdit };

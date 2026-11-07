@@ -339,6 +339,25 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         return out;
       })()`);
 
+      if (process.env.EDUPDF_PERF) { // mesure de performances sur un gros document (hors intégration continue)
+        await step('perf-300-pages', `(async () => {
+          const T = window.__edupdf; const t = () => performance.now(); const r = {}; T.S.dirty = false; T.actions.close();
+          let t0 = t(); const d = await PDFLib.PDFDocument.create(); const f = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+          for (let i = 1; i <= 300; i++) { const p = d.addPage([595, 842]); for (let l = 0; l < 40; l++) p.drawText('Page ' + i + ' — ligne ' + l + ' : texte de cours pour mesurer les performances.', { x: 40, y: 800 - l * 19, size: 10, font: f }); }
+          const bytes = await d.save(); r.creation = Math.round(t() - t0) + ' ms / ' + Math.round(bytes.length / 1024) + ' Ko';
+          t0 = t(); await T.insertPdf(bytes); T.refresh(); r.ouverture = Math.round(t() - t0) + ' ms';
+          t0 = t(); for (let i = 0; i < 10; i++) { T.S.cur = i * 30; await T.renderPage(); } r.affichage10pages = Math.round(t() - t0) + ' ms';
+          T.S.pages[5].items.push({ type: 'text', at: [60, 500], size: 14, color: '#001871', text: 'Modification' });
+          t0 = t(); const out = await T.buildPdf(); r.enregistrement = Math.round(t() - t0) + ' ms / ' + Math.round(out.length / 1024) + ' Ko';
+          t0 = t(); const s = await T.getTextItems(T.S.pages[299]); r.texteDernierePage = Math.round(t() - t0) + ' ms (' + s.length + ' éléments)';
+          await new Promise((res) => setTimeout(res, 6000)); r.miniaturesApres6s = document.querySelectorAll('#thumbs img').length;
+          r.memoireJS = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo' : '?';
+          return r;
+        })()`, 180000);
+        const m = process.getProcessMemoryInfo ? await process.getProcessMemoryInfo() : null;
+        log('INFO memoire processus principal', m ? Math.round(m.private / 1024) + ' Mo' : '?');
+      }
+
       await step('thumbs', `(async () => {
         const T = window.__edupdf; T.refresh(); await new Promise(r => setTimeout(r, 2500));
         return { thumbs: document.querySelectorAll('#thumbs img').length, pages: T.S.pages.length };
