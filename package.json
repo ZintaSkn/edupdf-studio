@@ -1,0 +1,54 @@
+{
+  "name": "edupdf-studio",
+  "productName": "EduPDF Studio",
+  "version": "1.0.0",
+  "description": "Éditeur PDF hors-ligne pour l'enseignement : créer, modifier, organiser, scanner, OCR, convertir.",
+  "main": "src/main.js",
+  "author": "EduPDF",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "publish": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/fra": "^1.0.0",
+    "docx": "^8.5.0",
+    "electron-updater": "^6.3.9",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "3.11.174",
+    "tesseract.js": "5.1.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.edupdf.studio",
+    "productName": "EduPDF Studio",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "package.json"],
+    "asarUnpack": [
+      "node_modules/tesseract.js/**",
+      "node_modules/tesseract.js-core/**",
+      "node_modules/@tesseract.js-data/**"
+    ],
+    "fileAssociations": [
+      { "ext": "pdf", "name": "Document PDF", "role": "Editor" }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true
+    },
+    "publish": [
+      { "provider": "github", "owner": "ksehibi", "repo": "edupdf-studio" }
+    ]
+  }
+}

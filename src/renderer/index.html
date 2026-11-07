@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:;" />
+  <title>EduPDF Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <nav id="tabs">
+      <span class="brand">EduPDF <b>Studio</b></span>
+      <button data-tab="fichier" class="on">Fichier</button>
+      <button data-tab="creer">Créer</button>
+      <button data-tab="modifier">Modifier</button>
+      <button data-tab="pages">Pages</button>
+      <button data-tab="ocr">OCR</button>
+      <button data-tab="convertir">Convertir</button>
+      <button data-tab="aide">Aide</button>
+    </nav>
+    <div id="ribbon">
+      <div class="panel on" data-panel="fichier">
+        <button data-act="new"><i>📄</i>Nouveau</button>
+        <button data-act="open"><i>📂</i>Ouvrir</button>
+        <button data-act="save"><i>💾</i>Enregistrer</button>
+        <button data-act="saveAs"><i>📝</i>Enregistrer sous</button>
+        <button data-act="close"><i>✖</i>Fermer</button>
+      </div>
+      <div class="panel" data-panel="creer">
+        <button data-act="blank"><i>⬜</i>Page vierge</button>
+        <button data-act="fromImages"><i>🖼</i>Depuis des images</button>
+        <button data-act="scan"><i>🖨</i>Scanner</button>
+        <button data-act="insertFiles"><i>➕</i>Insérer / Fusionner<br>(PDF, Word, PPT, Excel)</button>
+      </div>
+      <div class="panel" data-panel="modifier">
+        <button data-tool="select" class="tool on"><i>🖱</i>Sélection</button>
+        <button data-tool="edit" class="tool"><i>✏️</i>Modifier le texte</button>
+        <button data-tool="text" class="tool"><i>🔤</i>Ajouter du texte</button>
+        <button data-tool="image" class="tool"><i>🖼</i>Image</button>
+        <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
+        <button data-tool="whiteout" class="tool"><i>▭</i>Masquer (blanc)</button>
+        <button data-tool="box" class="tool"><i>⬚</i>Cadre</button>
+        <button data-tool="ink" class="tool"><i>✒️</i>Stylo</button>
+        <span class="sep"></span>
+        <button data-act="undo"><i>↶</i>Annuler</button>
+        <button data-act="redo"><i>↷</i>Rétablir</button>
+        <button data-act="delItem"><i>🗑</i>Supprimer l'élément</button>
+      </div>
+      <div class="panel" data-panel="pages">
+        <button data-act="rotL"><i>⟲</i>Pivoter gauche</button>
+        <button data-act="rotR"><i>⟳</i>Pivoter droite</button>
+        <button data-act="delPages"><i>🗑</i>Supprimer</button>
+        <button data-act="dupPages"><i>⧉</i>Dupliquer</button>
+        <button data-act="blank"><i>⬜</i>Insérer vierge</button>
+        <button data-act="moveUp"><i>▲</i>Monter</button>
+        <button data-act="moveDown"><i>▼</i>Descendre</button>
+        <button data-act="extract"><i>📤</i>Extraire la sélection</button>
+        <button data-act="split"><i>✂️</i>Diviser (1 PDF / page)</button>
+        <button data-act="numbers"><i>#</i>Numéroter les pages</button>
+      </div>
+      <div class="panel" data-panel="ocr">
+        <label class="field">Langue
+          <select id="ocrLang">
+            <option value="fra+eng">Français + Anglais</option>
+            <option value="fra">Français</option>
+            <option value="eng">Anglais</option>
+          </select>
+        </label>
+        <button data-act="ocrPage"><i>🔍</i>OCR page courante</button>
+        <button data-act="ocrAll"><i>📚</i>OCR tout le document</button>
+        <button data-act="editAfterOcr"><i>✏️</i>Modifier le texte reconnu</button>
+      </div>
+      <div class="panel" data-panel="convertir">
+        <button data-act="toWord"><i>📘</i>PDF → Word (.docx)</button>
+        <button data-act="toImages"><i>🖼</i>PDF → Images (.png)</button>
+        <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
+        <button data-act="insertFiles"><i>📥</i>Word / PPT / Excel → PDF</button>
+      </div>
+      <div class="panel" data-panel="aide">
+        <button data-act="checkUpdate"><i>🔄</i>Rechercher les mises à jour</button>
+        <button data-act="office"><i>🧩</i>Statut conversion Office</button>
+        <button data-act="about"><i>ℹ️</i>À propos</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <aside id="thumbs"></aside>
+    <section id="viewWrap">
+      <div id="welcome">
+        <h1>EduPDF Studio</h1>
+        <p>Créez, modifiez, organisez et numérisez vos documents de cours — sans connexion.</p>
+        <div class="cards">
+          <button data-act="open"><i>📂</i>Ouvrir un fichier<small>PDF, Word, PowerPoint, Excel, images…</small></button>
+          <button data-act="new"><i>📄</i>Document vierge<small>Feuille A4 pour une fiche ou une évaluation</small></button>
+          <button data-act="scan"><i>🖨</i>Scanner<small>Numériser un polycopié puis le rendre modifiable</small></button>
+          <button data-act="fromImages"><i>🖼</i>Photos → PDF<small>Photos de tableau, de cahier, de documents</small></button>
+        </div>
+        <p class="hint">Astuce : glissez-déposez vos fichiers n'importe où dans la fenêtre.</p>
+      </div>
+      <div id="pageBox" hidden>
+        <canvas id="canvas"></canvas>
+        <div id="overlayLayer"></div>
+        <div id="textLayer"></div>
+      </div>
+    </section>
+    <aside id="side">
+      <h3>Propriétés</h3>
+      <label class="row">Couleur <input type="color" id="color" value="#000000"></label>
+      <label class="row">Taille du texte <input type="number" id="size" value="14" min="4" max="144"></label>
+      <label class="row">Épaisseur stylo <input type="number" id="width" value="2" min="1" max="20"></label>
+      <p class="muted" id="selInfo">Aucun élément sélectionné</p>
+      <h3>Texte reconnu (OCR)</h3>
+      <textarea id="ocrText" readonly placeholder="Lancez l'OCR (onglet OCR) pour extraire le texte d'une page scannée."></textarea>
+      <button id="copyOcr" class="small">Copier le texte</button>
+      <h3>Affichage</h3>
+      <div class="row zoom">
+        <button data-act="zoomOut" class="small">−</button>
+        <span id="zoomLbl">Ajusté</span>
+        <button data-act="zoomIn" class="small">+</button>
+        <button data-act="zoomFit" class="small">Ajuster</button>
+      </div>
+      <div class="row nav">
+        <button data-act="prev" class="small">◀</button>
+        <span id="pageLbl">–</span>
+        <button data-act="next" class="small">▶</button>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <span id="msg">Prêt.</span>
+    <span id="update"></span>
+    <span id="ver"></span>
+  </footer>
+  <div id="busy" hidden><div><span class="spin"></span><span id="busyMsg">Traitement…</span></div></div>
+
+  <script src="../../node_modules/pdfjs-dist/build/pdf.min.js"></script>
+  <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
