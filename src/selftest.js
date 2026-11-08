@@ -769,7 +769,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         q('#poOffre').value = '3'; q('#poOffre').dispatchEvent(new Event('change', { bubbles: true })); await wait(100);
         out.minimum = q('#poQte').min + ' / ' + q('#poQte').value; q('#poQte').value = '4';
         [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Mobile Money').click(); await wait(600);
-        out.paiement = q('#mBody').textContent.replace(/\s+/g, ' ').slice(0, 120);
+        out.paiement = q('#mBody').textContent.replace(/\\s+/g, ' ').slice(0, 120);
         [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Fermer').click(); await p;
         out.lienWhatsApp = 'https://wa.me/' + sv.whatsapp + '?text=…';
         return out;
