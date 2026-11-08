@@ -4,7 +4,8 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
-## [1.13.0] — Compte, essai de 30 jours et fonctions Premium
+## [1.13.1] — Compte, essai de 30 jours, fonctions Premium et notes
+(Première diffusion de ces nouveautés ; le numéro 1.13.0 n'a pas été distribué.)
 - Compte obligatoire au premier démarrage (adresse e-mail ; nom et établissement facultatifs), enregistré sur l'ordinateur
 - Essai de 30 jours de toutes les fonctions, lié au poste et non renouvelable (désinstallation, réinstallation ou
   nouveau compte Windows ne le remettent pas à zéro ; horloge reculée détectée)

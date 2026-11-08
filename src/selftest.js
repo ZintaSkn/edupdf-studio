@@ -592,6 +592,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       await step('v113', `(async () => {
         const T = window.__edupdf; const TE = window.__teacher; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
         const A0 = window.alert, C0 = window.confirm; const alerts = []; window.alert = (m) => alerts.push(String(m).slice(0, 80)); window.confirm = () => true; out.alertes = alerts;
+        window.__features.setLanguage('fr'); await wait(200); // libellés vérifiés en français (Windows anglais : interface anglaise par défaut)
         const reset = () => { for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); } };
         reset(); const d = await PDFLib.PDFDocument.create(); d.addPage([842, 595]); await T.insertPdf(await d.save()); T.S.cur = 0; T.refresh(); await wait(700);
         out.outilParDefaut = T.S.tool;
