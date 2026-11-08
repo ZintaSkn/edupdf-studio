@@ -17,13 +17,18 @@ sauf dans les cas suivants, tous visibles et à l'initiative de l'utilisateur ou
 | **Installation d'outils** (winget, Ollama) | Uniquement sur demande explicite (LibreOffice, Google Drive, IA locale…) | Aucune donnée personnelle | Ne pas lancer l'installation |
 
 Le compte (adresse e-mail obligatoire, nom et établissement facultatifs) et la date de début de l'essai sont
-enregistrés sur l'ordinateur, sous forme scellée : dossier commun du PC (ProgramData\EduPDF), registre de Windows
+enregistrés sur l'ordinateur, chiffrés (AES-256-GCM) : dossier commun du PC (ProgramData\EduPDF), registre de Windows
 (HKCU\Software\SknEDU-studio), dossier local (AppData\Local\SknEDU) et données de l'application. Ces informations
 servent uniquement à l'essai et à la vérification de la licence ; elles ne sont transmises à personne. Elles sont
 conservées après la désinstallation pour que l'essai ne puisse pas être recommencé sur le même poste.
 
 Les clés d'API de l'assistant IA sont chiffrées sur l'ordinateur (protection des données de Windows) et ne
-sont jamais envoyées ailleurs qu'au fournisseur choisi. Les documents ouverts restent sur l'ordinateur.
+sont jamais envoyées ailleurs qu'au fournisseur choisi. Les documents ouverts restent sur l'ordinateur ; leurs copies
+de récupération (documents non enregistrés) sont chiffrées (AES-256-GCM).
+
+Notes attribuées avec l'outil « Noter » : la note, le barème et l'appréciation de chaque page sont enregistrés dans les
+propriétés du PDF (en plus de leur affichage sur la copie), pour que le relevé des notes fonctionne après réouverture.
+Ils accompagnent donc le fichier s'il est partagé ; un PDF ne contenant qu'une copie ne contient que la note de cette copie.
 
 Composants tiers : les services ci-dessus appliquent leur propre politique de confidentialité lorsque
 l'utilisateur choisit de les utiliser.

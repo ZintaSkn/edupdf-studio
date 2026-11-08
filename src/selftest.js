@@ -588,6 +588,92 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         T.actions.prev(); await wait(600); out.precedente = q('#pageInput').value;
         return out;
       })()`);
+      // ---------- 1.13.0 : outils à bascule, pages identiques, notes (et relevé conservé dans le PDF) ----------
+      await step('v113', `(async () => {
+        const T = window.__edupdf; const TE = window.__teacher; const out = {}; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const A0 = window.alert, C0 = window.confirm; const alerts = []; window.alert = (m) => alerts.push(String(m).slice(0, 80)); window.confirm = () => true; out.alertes = alerts;
+        const reset = () => { for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); } };
+        reset(); const d = await PDFLib.PDFDocument.create(); d.addPage([842, 595]); await T.insertPdf(await d.save()); T.S.cur = 0; T.refresh(); await wait(700);
+        out.outilParDefaut = T.S.tool;
+        const hl = q('#ribbon [data-tool="highlight"]'); hl.click(); const actif = T.S.tool; hl.click(); out.bascule = actif + ' → ' + T.S.tool;
+        await T.actions.blank(); const pg = await T.getPdfPage(T.S.pages[1]); out.pageIdentique = T.S.pages.length + ' pages, ' + Math.round(pg.view[2]) + '×' + Math.round(pg.view[3]);
+        // notes : 14,5/20 « Bien » page 1, 8/20 « Insuffisant » page 2
+        const noter = async (page, note, appr) => {
+          T.S.cur = page; T.S.sel = new Set([page]); T.refresh(); await wait(500);
+          const ov = q('#overlayLayer'); const r = ov.getBoundingClientRect();
+          ov.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, clientX: r.left + 200, clientY: r.top + 150 })); await wait(400);
+          q('#mkNote').value = note; q('#mkSur').value = '20'; q('#mkAppr').value = appr; q('#mBtns button.primary').click(); await wait(500);
+        };
+        q('#ribbon [data-panel="classe"] [data-tool="mark"]').click(); out.outilNoter = T.S.tool;
+        T.S.cur = 0; T.refresh(); await wait(400);
+        { const ov = q('#overlayLayer'); const r = ov.getBoundingClientRect(); ov.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, clientX: r.left + 200, clientY: r.top + 150 })); await wait(400);
+          out.fenetre = q('#mTitle').textContent; q('#mkNote').value = '25'; q('#mBtns button.primary').click(); await wait(150); out.noteHorsBareme = q('#mkErr').textContent;
+          [...document.querySelectorAll('#mBtns button')].find((b) => /Annuler/.test(b.textContent)).click(); await wait(200); }
+        await noter(0, '14,5', 'Bien'); await noter(1, '8', 'Insuffisant');
+        out.notesInscrites = T.S.pages.map((p) => p.items.filter((o) => o.mark).map((o) => o.mark.note + '/' + o.mark.sur + ' ' + o.mark.appr).join(',')).join(' | ');
+        out.outilResteActif = T.S.tool; q('#ribbon [data-panel="classe"] [data-tool="mark"]').click(); out.outilArrete = T.S.tool;
+        const releve = async () => { const pr = TE.marksSummary(); await wait(400); const t = q('#modal').hidden ? '(aucune fenêtre)' : q('#mBody').textContent.replace(/\\s+/g, ' ').slice(0, 90); const b = [...document.querySelectorAll('#mBtns button')].find((x) => /Fermer/.test(x.textContent)); if (b) b.click(); await pr; return t; };
+        out.releve = await releve();
+        // enregistré puis rouvert : le relevé retrouve les notes
+        const bytes = await T.buildPdf(); reset(); await T.insertPdf(bytes); T.S.cur = 0; T.refresh(); await wait(500);
+        out.releveApresReouverture = await releve();
+        // modèle Seyès : la nouvelle page reprend le modèle
+        reset(); q('[data-tpl="seyes"]').click(); await wait(1500); await T.actions.blank();
+        out.modeleRepris = T.S.pages.length + ' pages, modèle ' + (T.S.sources[T.S.pages[1].src].tpl || 'aucun');
+        const ok = out.outilParDefaut === 'select' && out.bascule === 'highlight → select' && out.pageIdentique === '2 pages, 842×595' && out.outilNoter === 'mark'
+          && /0 et 20/.test(out.noteHorsBareme) && out.notesInscrites === '14.5/20 Bien | 8/20 Insuffisant' && out.outilArrete === 'select'
+          && /2 note/.test(out.releve) && /11,25/.test(out.releve) && /2 note/.test(out.releveApresReouverture) && /11,25/.test(out.releveApresReouverture) && out.modeleRepris === '2 pages, modèle seyes';
+        window.alert = A0; window.confirm = C0;
+        if (!ok) throw new Error('Résultat inattendu : ' + JSON.stringify(out));
+        reset(); return out;
+      })()`);
+      // ---------- Tous les boutons du ruban et tous les outils : aucun ne provoque d'erreur ----------
+      await step('tous-les-boutons', `(async () => {
+        const T = window.__edupdf; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const errs = []; let cur = ''; const onErr = (e) => errs.push(cur + ' : ' + String((e.reason && (e.reason.stack || e.reason.message || e.reason)) || e.message || e).slice(0, 160));
+        window.addEventListener('error', onErr); window.addEventListener('unhandledrejection', onErr);
+        const A0 = window.alert, C0 = window.confirm; const alerts = []; window.alert = (m) => alerts.push(String(m).slice(0, 60)); window.confirm = () => false;
+        // ouvrent une fenêtre du système (fichier, impression, navigateur), quittent l'affichage normal, ou sont testés à part
+        const SKIP = new Set(['open', 'new', 'save', 'saveAs', 'cloudSave', 'cloudOpen', 'fromImages', 'insertFiles', 'scan', 'convertOffice', 'print', 'admin', 'language', 'close', 'certSign',
+          'slideshow', 'slideshowHere', 'speak', 'classroom', 'exportOrigin', 'toWord', 'toExcel', 'toPpt', 'exportAs', 'toImages', 'toText', 'split', 'extract', 'commentLocked',
+          'aiSubscription', 'ocrAll', 'ocrPage', 'scanCopy', 'compress', 'protect', 'checkUpdate']);
+        const fresh = async () => {
+          for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+          const d = await PDFLib.PDFDocument.create(); for (let i = 0; i < 3; i++) d.addPage([595, 842]).drawText('Page ' + (i + 1), { x: 60, y: 760, size: 24 });
+          await T.insertPdf(await d.save()); T.S.cur = 0; T.S.sel = new Set([0]); T.refresh(); await wait(300);
+        };
+        const settle = async () => {
+          for (let k = 0; k < 60; k++) {
+            await wait(150);
+            if (!q('#modal').hidden) { const bs = [...document.querySelectorAll('#mBtns button')]; const b = bs.find((x) => /^(Annuler|Fermer|Plus tard|Non|Cancel|Close|Later)/i.test(x.textContent.trim())) || bs[0]; if (b) b.click(); else return; }
+            else if (q('#busy').hidden) return;
+          }
+        };
+        await fresh(); const res = []; const modals = [];
+        const acts = [...new Set([...document.querySelectorAll('#ribbon [data-act], #welcome [data-act], #side [data-act], #footer [data-act], footer [data-act]')].map((b) => b.dataset.act))].filter((a) => !SKIP.has(a));
+        for (const a of acts) {
+          cur = a; const n0 = errs.length;
+          document.querySelector('[data-act="' + a + '"]').click(); await wait(300);
+          if (!q('#modal').hidden) modals.push(a);
+          await settle();
+          if (a === 'viewMode') { T.actions.viewMode(); await wait(300); } // retour à l'affichage d'origine
+          if (!q('#findBar').hidden) q('#findClose').click();
+          if (!T.S.pages.length || T.S.pages.length > 12) await fresh();
+          res.push(errs.length > n0 ? a + ' ✗' : a);
+        }
+        if (!q('#aiPanel').hidden) T.actions.aiPanel();
+        cur = 'outils'; T.setTool('select'); await fresh(); const tools = [...new Set([...document.querySelectorAll('#ribbon [data-tool]')].map((b) => b.dataset.tool))]; const badTools = []; const toolModals = [];
+        for (const t of tools) {
+          const b = document.querySelector('#ribbon [data-tool="' + t + '"]'); b.click(); await wait(80); const on = T.S.tool; if (!q('#modal').hidden) { toolModals.push(t + ' : ' + q('#mTitle').textContent + ' / ' + q('#mBody').textContent.slice(0, 120) + ' / ro=' + (q('#roTag') && !q('#roTag').hidden)); await settle(); }
+          b.click(); await wait(80); if (!q('#modal').hidden) await settle();
+          if (on !== t || T.S.tool !== 'select') badTools.push(t + ' : ' + on + ' puis ' + T.S.tool);
+        }
+        window.alert = A0; window.confirm = C0; window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onErr);
+        T.setTool('select'); T.S.dirty = false;
+        const out = { actionsCliquees: acts.length, fenetresOuvertesPuisFermees: modals.length, messages: alerts.length, outilsTestes: tools.length, outilsEnDefaut: badTools, fenetresOutils: toolModals };
+        if (errs.length || badTools.length) throw new Error('Erreurs : ' + errs.join(' || ') + ' — outils : ' + badTools.join(', ') + ' — ' + JSON.stringify(out));
+        return out;
+      })()`, 240000);
       await step('langue', `(async () => {
         const F = window.__features; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
         const T = window.__edupdf; T.S.dirty = false;

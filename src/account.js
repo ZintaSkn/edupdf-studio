@@ -3,7 +3,8 @@
 // L'essai démarre à la création du compte et ne peut pas être recommencé sur le même ordinateur :
 // la date de début est conservée à plusieurs endroits (dossier commun du PC, registre de Windows, dossier local,
 // données de l'application). Désinstaller, réinstaller ou créer un autre compte Windows ne la remet pas à zéro.
-// Les enregistrements sont scellés (HMAC) avec l'identifiant du poste : un enregistrement modifié à la main est ignoré.
+// Les enregistrements sont chiffrés et authentifiés (AES-256-GCM, clé dérivée de l'identifiant du poste) : un enregistrement
+// modifié à la main ou copié depuis un autre poste est ignoré.
 // Si l'horloge est reculée, l'essai est suspendu jusqu'à ce que la date soit corrigée.
 //
 // Rien n'est envoyé sur Internet : l'adresse e-mail reste sur l'ordinateur (voir PRIVACY.md).
@@ -84,14 +85,19 @@ function regWrite(v) {
   if (process.platform !== 'win32' || testMode()) return;
   try { execFileSync('reg.exe', ['add', REG_KEY, '/v', 'T', '/t', 'REG_SZ', '/d', v, '/f'], { windowsHide: true, timeout: 5000 }); } catch { /* registre indisponible */ }
 }
+// Lecture mise en cache 5 minutes : le statut est demandé à chaque fonction Premium (OCR page par page, conversions…)
+// et la lecture du registre lance un programme ; toute écriture met le cache à jour.
+let CACHE = null; const CACHE_MS = 5 * 60000;
 function readAll() {
+  if (CACHE && Date.now() - CACHE.at < CACHE_MS && !testMode()) return CACHE.recs;
   const recs = [];
   for (const f of files()) { try { const r = unseal(fs.readFileSync(f, 'utf8')); if (r) recs.push(r); } catch { /* absent */ } }
   const r = unseal(regRead()); if (r) recs.push(r);
+  CACHE = { at: Date.now(), recs };
   return recs;
 }
 function writeAll(rec) {
-  const blob = seal(rec);
+  const blob = seal(rec); CACHE = null;
   for (const f of files()) { try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, blob); } catch { /* emplacement protégé : les autres suffisent */ } }
   regWrite(blob);
 }

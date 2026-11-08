@@ -143,7 +143,6 @@
         <button data-act="convertOffice"><i>🔄</i>Convertir un<br>fichier Office</button>
         <button data-act="toImages"><i>🖼</i>PDF → Images (.png)</button>
         <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
-        <button data-act="insertFiles"><i>📥</i>Word / PPT / Excel → PDF</button>
       </div>
       <div class="panel" data-panel="classe">
         <button data-act="grading"><i>🧑‍🏫</i>Corriger<br>des copies</button>
@@ -157,10 +156,8 @@
         <button data-act="dys"><i>🔠</i>Version adaptée<br>(DYS)</button>
         <button data-act="speak"><i>🔊</i>Lire à<br>voix haute</button>
         <button data-act="bilingual"><i>🌍</i>Version<br>bilingue</button>
-        <button data-act="equation"><i>∑</i>Équation</button>
         <span class="sep"></span>
         <button data-act="slideshow"><i>🖥</i>Diaporama<br>(F5)</button>
-        <button data-act="aiLocal"><i>💻</i>IA locale<br>(hors ligne)</button>
       </div>
       <div class="panel" data-panel="ia">        <button data-act="aiPanel"><i>✨</i>Ouvrir<br>l'assistant</button>
         <button data-ai="resume"><i>📝</i>Résumer</button>
@@ -240,7 +237,8 @@
       <h3>Texte reconnu (OCR)</h3>
       <textarea id="ocrText" readonly placeholder="Lancez l'OCR (onglet OCR) pour extraire le texte d'une page scannée."></textarea>
       <button id="copyOcr" class="small">Copier le texte</button>
-      <h3>Affichage</h3>
+      <!-- Zoom et numéro de page : affichés dans la barre d'état (ces éléments ne servent plus qu'en interne) -->
+      <div hidden>
       <div class="row zoom">
         <button data-act="zoomOut" class="small">−</button>
         <span id="zoomLbl">Ajusté</span>
@@ -251,6 +249,7 @@
         <button data-act="prev" class="small">◀</button>
         <span id="pageLbl">–</span>
         <button data-act="next" class="small">▶</button>
+      </div>
       </div>
     </aside>
   </main>

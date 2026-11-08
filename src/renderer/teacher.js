@@ -65,13 +65,14 @@ async function offerRecovery() {
     <p class="muted">Ils s'ouvrent dans de nouveaux onglets, avec toutes vos modifications. Pensez à les enregistrer.</p>`, [['Supprimer ces copies', 'drop'], ['Plus tard', null], ['Récupérer', 'open', true]]);
   if (r === 'drop') { for (const d of list) await window.api.recoveryClear(d.id); return msg('Copies de récupération supprimées.'); }
   if (r !== 'open') return;
+  let n = 0;
   for (const d of list) {
     try {
       const f = await window.api.recoveryLoad(d.id); if (S.pages.length) newTab();
-      await handleLoaded([f], 0); S.fileName = d.name; S.rid = newRid(); setDirty(true); await window.api.recoveryClear(d.id);
+      await handleLoaded([f], 0); S.fileName = d.name; S.rid = newRid(); setDirty(true); await window.api.recoveryClear(d.id); n++;
     } catch (e) { alert(`Récupération impossible de « ${d.name} » : ${errMsg(e)}`); }
   }
-  refresh(); msg(`${list.length} document(s) récupéré(s) : enregistrez-les (Ctrl+S).`);
+  refresh(); if (n) msg(`${n} document(s) récupéré(s) : enregistrez-les (Ctrl+S).`);
 }
 
 // ================================================================ 3. Tampons de correction
@@ -146,7 +147,7 @@ window.placeMark = async (pos) => {
 };
 /** Relevé des notes du document (page par page), copiable dans un tableur. */
 async function marksSummary() {
-  const rows = []; S.pages.forEach((p, i) => p.items.filter((o) => o.mark).forEach((o) => rows.push([i + 1, o.mark.note, o.mark.sur, o.mark.appr || ''])));
+  const rows = []; S.pages.forEach((p, i) => pageMarks(p).forEach((m) => rows.push([i + 1, m.note, m.sur, m.appr || ''])));
   if (!rows.length) return alert('Aucune note inscrite dans ce document : outil « Noter », puis cliquez sur la copie.');
   const moy = rows.reduce((s, r) => s + (r[1] / r[2]) * 20, 0) / rows.length;
   const tsv = 'Page\tNote\tSur\tAppréciation\n' + rows.map((r) => r.join('\t')).join('\n');

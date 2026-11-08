@@ -510,7 +510,9 @@ window.EN_EXTRA = {
   'Aucune note inscrite dans ce document : outil « Noter », puis cliquez sur la copie.': 'No grade in this document: use the "Grade" tool, then click the paper.',
   'Copier pour un tableur': 'Copy for a spreadsheet', 'Relevé copié : collez-le dans Excel ou Google Sheets.': 'Summary copied: paste it into Excel or Google Sheets.',
   'Nouvelle page ajoutée, au même format que la page précédente.': 'New page added, same size as the previous page.',
-  'Nouvelle page ajoutée, identique au modèle de la page précédente.': 'New page added, identical to the template of the previous page.'
+  'Nouvelle page ajoutée, identique au modèle de la page précédente.': 'New page added, identical to the template of the previous page.',
+  'Mises à jour installées par le Microsoft Store': 'Updates installed by the Microsoft Store',
+  'Cette copie de récupération est illisible (session Windows ou clé de chiffrement changée) : elle a été supprimée.': 'This recovery copy is unreadable (Windows session or encryption key changed): it has been deleted.'
 };
 
 // Messages composés (avec une partie variable) : expression régulière → traduction

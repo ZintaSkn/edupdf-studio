@@ -22,7 +22,16 @@ l'auto-test complet avant publication.
 - Nouvelle page ou diapositive identique à la précédente par défaut : même format, même orientation et même modèle
   (lignes, carreaux, portée…)
 - Attribution de note : outil « Noter » (Classe et Modifier) — note sur 20 ou sur un autre barème, appréciation au choix
-  ou libre, inscrite entourée en vert ou en rouge ; « Relevé des notes » avec la moyenne, à copier dans un tableur
+  ou libre, inscrite entourée en vert ou en rouge ; « Relevé des notes » avec la moyenne, à copier dans un tableur ;
+  les notes sont conservées dans le PDF enregistré : le relevé fonctionne aussi après réouverture
+- Ruban allégé : doublons retirés (zoom et numéro de page du panneau Propriétés, déjà dans la barre d'état ; « Équation »
+  et « IA locale » de l'onglet Classe, déjà dans Modifier et Assistant IA ; « Word / PPT / Excel → PDF » de Convertir,
+  identique à Ouvrir et à « Insérer / Fusionner »)
+- Corrections : interface plus fluide pendant l'OCR et les conversions (statut du compte mis en cache au lieu d'être relu
+  à chaque page) ; copie de récupération illisible supprimée avec un message clair au lieu d'être proposée à chaque
+  démarrage, clé de chiffrement jamais écrasée ; nombre exact de documents récupérés ; version Microsoft Store :
+  « Rechercher les mises à jour » indique que le Store s'en charge
+- Auto-test : chaque bouton du ruban et chaque outil sont cliqués à chaque version (aucune erreur tolérée)
 - Fichiers lourds : dessin des pages annulé quand il devient inutile, impression adaptée au nombre de pages, sauvegardes
   automatiques espacées pour les gros documents, aucune copie mémoire superflue à l'ouverture
 - Sécurité (configuration de référence, docs/SECURITE.md) : TLS 1.3 minimum pour toutes les connexions ; copies de

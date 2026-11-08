@@ -601,10 +601,13 @@ let DATA_KEY = null;
 function dataKey() {
   if (DATA_KEY) return DATA_KEY;
   const f = path.join(app.getPath('userData'), 'cle-donnees.bin'); const prot = safeStorage.isEncryptionAvailable();
-  try {
-    const raw = fs.readFileSync(f);
-    DATA_KEY = raw[0] === 0x50 ? Buffer.from(safeStorage.decryptString(raw.subarray(1)), 'base64') : raw.subarray(1); // P = protégée, R = brute
-  } catch {
+  let raw = null; try { raw = fs.readFileSync(f); } catch { /* première utilisation */ }
+  if (raw) {
+    try { DATA_KEY = raw[0] === 0x50 ? Buffer.from(safeStorage.decryptString(raw.subarray(1)), 'base64') : raw.subarray(1); } catch { DATA_KEY = null; } // P = protégée, R = brute
+    if (DATA_KEY && DATA_KEY.length === 32) return DATA_KEY;
+    try { fs.renameSync(f, f + '.illisible'); } catch { /* */ } // profil Windows changé : l'ancienne clé est gardée de côté, jamais écrasée
+  }
+  {
     DATA_KEY = crypto.randomBytes(32);
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, prot ? Buffer.concat([Buffer.from('P'), safeStorage.encryptString(DATA_KEY.toString('base64'))]) : Buffer.concat([Buffer.from('R'), DATA_KEY]), { mode: 0o600 });
@@ -638,7 +641,9 @@ ipcMain.handle('recovery-list', () => {
 ipcMain.handle('recovery-load', async (_e, { id }) => {
   const p = path.join(recoveryDir(), recId(id) + '.pdf');
   const m = (() => { try { return JSON.parse(fs.readFileSync(path.join(recoveryDir(), recId(id) + '.json'), 'utf8')); } catch { return {}; } })();
-  return { name: m.name || 'Document récupéré.pdf', path: null, kind: 'pdf', bytes: decryptData(fs.readFileSync(p)), note: 'recovered' };
+  let bytes; try { bytes = decryptData(fs.readFileSync(p)); }
+  catch { recoveryClear(id); throw new Error('Cette copie de récupération est illisible (session Windows ou clé de chiffrement changée) : elle a été supprimée.'); }
+  return { name: m.name || 'Document récupéré.pdf', path: null, kind: 'pdf', bytes, note: 'recovered' };
 });
 ipcMain.handle('recovery-clear', (_e, { id }) => { recoveryClear(id); return true; });
 ipcMain.handle('cloud-list', () => ({ clouds: cloud.detect(readSettings().clouds || []), install: cloud.INSTALL }));
@@ -968,7 +973,10 @@ ipcMain.handle('smart-app-control', () => smartAppControlEnforced());
 
 function setupAutoUpdate() {
   if (!app.isPackaged) return;
-  if (process.windowsStore) return; // version Microsoft Store : mises à jour signées et installées par le Store
+  if (process.windowsStore) { // version Microsoft Store : mises à jour signées et installées par le Store
+    ipcMain.handle('check-update', () => { if (win) win.webContents.send('update-status', { status: 'store' }); });
+    return;
+  }
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
   // Journal des mises à jour (diagnostic) : %APPDATA%\SknEDU-studio\logs\mises-a-jour.log, limité à 1 Mo

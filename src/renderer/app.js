@@ -96,8 +96,25 @@ function restore(from, to) {
 async function addSource(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); // pas de copie supplémentaire (fichiers lourds)
   const doc = await openPdfJs(u8.slice()); // PDF.js reçoit sa propre copie (transférée à son processus)
-  S.sources.push({ bytes: u8, doc, cache: {} });
+  S.sources.push({ bytes: u8, doc, cache: {}, notes: await savedMarks(doc) });
   return S.sources.length - 1;
+}
+/** Notes inscrites avec l'outil « Noter » et enregistrées dans le PDF (clé SknNotes des propriétés du document). */
+async function savedMarks(doc) {
+  const out = {};
+  try {
+    const md = await doc.getMetadata(); const C = md && md.info && md.info.Custom; const raw = C instanceof Map ? C.get('SknNotes') : C && C.SknNotes; // PDF.js : Map
+    if (raw) for (const x of JSON.parse(raw).slice(0, 5000)) {
+      if (!Number.isInteger(x.p) || x.p < 1 || !Array.isArray(x.l)) continue;
+      out[x.p - 1] = x.l.filter((m) => m && Number.isFinite(+m.note) && +m.sur > 0).slice(0, 50).map((m) => ({ note: +m.note, sur: +m.sur, appr: String(m.appr || '').slice(0, 40) }));
+    }
+  } catch { /* PDF sans notes */ }
+  return out;
+}
+/** Notes d'une page : celles déjà enregistrées dans le fichier + celles inscrites depuis l'ouverture. */
+function pageMarks(p) {
+  const src = S.sources[p.src];
+  return [...((src && src.notes && src.notes[p.idx]) || []), ...p.items.filter((o) => o.mark).map((o) => ({ note: o.mark.note, sur: o.mark.sur, appr: o.mark.appr || '' }))];
 }
 async function getPdfPage(p) {
   const s = S.sources[p.src];
@@ -499,6 +516,10 @@ async function buildPdf(list = S.pages) {
       } catch (e) { console.warn('champ', name, e); }
     }
   }
+  try { // notes attribuées (outil « Noter ») : gardées dans le fichier pour le relevé des notes après réouverture
+    const notes = list.map((p, i) => ({ p: i + 1, l: pageMarks(p) })).filter((x) => x.l.length); const info = out.getInfoDict();
+    if (notes.length) info.set(N('SknNotes'), PDFHexString.fromText(JSON.stringify(notes))); else info.delete(N('SknNotes'));
+  } catch (e) { console.warn('notes', e); }
   return out.save({ updateFieldAppearances: false });
 }
 
@@ -2161,7 +2182,7 @@ const actions = {
   toWord, toText, toImages,
   protect: protectDialog, unprotect, signPad: signaturePad, compare: compareDocs, clearCompare, scanCopy,
   toPpt: () => toOffice('pptx'), toExcel: () => toOffice('xlsx'), exportAs: exportDialog, convertOffice: convertOfficeFileDialog,
-  aiPanel: () => toggleAi(), aiSettings, aiSubscription, aiPreset: null,
+  aiPanel: () => toggleAi(), aiSettings, aiSubscription,
   cloudSave: () => cloudDialog('save'), cloudOpen: () => cloudDialog('open'), admin: adminDialog, print: printDoc, find: () => toggleFind(true), watermark: watermarkDialog, uncrop, compress: compressDoc, certSign,
   zoomIn() { S.zoom = Math.min(4, (typeof S.zoom === 'number' ? S.zoom : S.scale) * 1.2); renderPage(); },
   zoomOut() { S.zoom = Math.max(0.25, (typeof S.zoom === 'number' ? S.zoom : S.scale) / 1.2); renderPage(); },
@@ -2241,7 +2262,7 @@ window.api.onOpenPaths(async (paths) => {
 // Mises à jour automatiques
 window.api.onUpdate(({ status, info }) => {
   const el = $('#update');
-  const t = { checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
+  const t = { store: 'Mises à jour installées par le Microsoft Store', checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
   if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ZintaSkn/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
   if (status === 'blocked') {
     el.innerHTML = `Version ${info} disponible — <button id="updWhy">installation bloquée par Windows</button>`;
