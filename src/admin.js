@@ -310,8 +310,8 @@ function init(deps) {
   h('log-event', ({ type, detail }) => { if (['blocked', 'export', 'print', 'cloud', 'sign', 'protect', 'save'].includes(type)) logEvent(type, detail); });
   h('admin-status', () => ({ admin: !!adminCfg(), adminFolder: adminCfg() && adminCfg().folder, enrollment: enrollment(), defaultFolder: path.join(MACHINE_DIR, 'gestion'), host, user }));
   h('admin-open-console', () => { openConsole(); return true; });
-  h('admin-setup', (a) => { const r = setupAdmin(a); openConsole(); return r; });
-  h('admin-enroll', (a) => enroll(a));
+  h('admin-setup', (a) => { require('./license').requirePremium('Administration des postes', true); const r = setupAdmin(a); openConsole(); return r; });
+  h('admin-enroll', (a) => { require('./license').requirePremium('Gestion des postes', true); return enroll(a); });
   h('admin-unenroll', ({ password }) => unenroll(password));
   h('admin-pick-folder', async () => { const r = await A.dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Dossier de gestion' }); return r.canceled ? null : r.filePaths[0]; });
   // console

@@ -70,7 +70,7 @@ function openPdfJs(data, password) {
 const imgStore = new Map();
 function putImg(dataUrl) { for (const [k, v] of imgStore) if (v === dataUrl) return k; const id = 'img' + (imgStore.size + 1); imgStore.set(id, dataUrl); return id; }
 const srcOf = (o) => (o.ref ? imgStore.get(o.ref) : o.src);
-const errMsg = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '').replace(/^BLOQUE_ADMIN: /, '');
+const errMsg = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '').replace(/^BLOQUE_ADMIN: /, '').replace(/^PREMIUM: /, '⭐ ');
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function normRect(r) { return [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])]; }
 function viewRect(vp, rect) { const [a, b, c, d] = normRect([...vp.convertToViewportPoint(rect[0], rect[1]), ...vp.convertToViewportPoint(rect[2], rect[3])]); return { l: a, t: b, w: c - a, h: d - b }; }
@@ -1183,6 +1183,7 @@ function editTextItem(i) {
 
 function setTool(t) {
   const need = FEATURE_OF.tool[t]; if (need && !can(need)) { denied(need); t = 'select'; } // droits d'accès et lecture seule
+  if (t !== 'select' && window.premiumGate && !window.premiumGate('tool', t)) t = 'select'; // fonction Premium
   S.tool = t; $$('.tool').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
   const box = $('#pageBox'); box.className = 't-' + t;
   if (t !== 'select') { S.selItem = -1; drawItems(); }
@@ -1753,6 +1754,7 @@ async function replaceInPage(p, hits, repl) {
 }
 async function replaceHits(all) {
   if (!can('edit')) return denied('edit');
+  if (window.premiumGate && !window.premiumGate('act', 'replace')) return;
   const repl = $('#replText').value; const hits = all ? FIND.hits : [FIND.hits[FIND.i]].filter(Boolean);
   if (!hits.length) return;
   busy('Remplacement…'); snapshot(); let n = 0;
@@ -2017,6 +2019,7 @@ async function refreshAiBadge() {
 }
 async function aiRun(preset) {
   if (!can('ai')) return denied('ai');
+  if (window.premiumGate && !window.premiumGate('ai', 'run')) return;
   if (!S.pages.length && preset) return alert('Ouvrez d\'abord un document.');
   $('#aiPanel').hidden = false;
   if (preset) $('#aiPrompt').value = AI_PRESETS[preset][1];
@@ -2161,7 +2164,7 @@ const actions = {
 
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
-  if (b && actions[b.dataset.act]) { const f = FEATURE_OF.act[b.dataset.act]; if (f && !can(f)) denied(f); else actions[b.dataset.act](); }
+  if (b && actions[b.dataset.act]) { const f = FEATURE_OF.act[b.dataset.act]; if (f && !can(f)) denied(f); else if (window.premiumGate && !window.premiumGate('act', b.dataset.act)) { /* fonction Premium : fenêtre d'explication affichée */ } else actions[b.dataset.act](); }
   const t = e.target.closest('[data-tool]');
   if (t) { const f = FEATURE_OF.tool[t.dataset.tool]; if (f && !can(f)) denied(f); else setTool(t.dataset.tool); }
   const tab = e.target.closest('[data-tab]'); if (tab) switchTab(tab.dataset.tab);
@@ -2603,7 +2606,7 @@ async function aboutDialog() {
   await applyLicense();
   const v = await window.api.version();
   const r = await modal('À propos de SknEDU-studio', `<p><b>SknEDU-studio ${esc(v)}</b> — éditeur PDF hors-ligne pour l'enseignement.<br>
-    Édition : <b>${esc(LIC.edition === 'communaute' ? 'Communauté' : LIC.label + (LIC.org ? ' — ' + LIC.org : ''))}</b></p>
+    Édition : <b>${esc(window.__licensing ? window.__licensing.editionText(LIC) : LIC.label)}</b>${LIC.account ? ' — ' + esc(LIC.account.email) : ''}</p>
     <p>Logiciel libre sous licence <b>GNU AGPL-3.0</b> : vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer selon cette licence.
     Le code source complet est publié. Le nom et le logo « SknEDU-studio » sont des marques réservées (voir la politique de marque).</p>
     <p class="muted">Rendu PDF.js · Édition pdf-lib · Protection et formats MuPDF · OCR Tesseract · IA : Claude, ChatGPT, Gemini, Mistral, Ollama.</p>`,

@@ -18,6 +18,14 @@ statistique d'utilisation. Il ne se connecte à un autre système que dans ces c
 - Classe connectée : uniquement quand vous partagez un document sur le réseau local de la classe.
 - Administration : notifications envoyées seulement si l'administrateur de l'établissement les configure.
 
+COMPTE ET ESSAI
+Au premier démarrage, une adresse e-mail est demandée (compte obligatoire) et un essai de 30 jours de toutes
+les fonctions commence. L'adresse reste sur l'ordinateur. L'essai est lié au poste : sa date de début est
+conservée (registre, dossier ProgramData\EduPDF) même après désinstallation, et il ne peut pas être recommencé.
+Ensuite, la version gratuite reste utilisable ; les fonctions Premium demandent une licence. Une licence
+est activée en ligne (clé, adresse e-mail et identifiant anonyme du poste envoyés au service de l'éditeur)
+et revérifiée au moins tous les 14 jours.
+
 MODIFICATIONS DU SYSTÈME
 L'installation ajoute l'application, ses raccourcis (Bureau, menu Démarrer) et l'association des fichiers PDF.
 Tout est retiré par la désinstallation (Paramètres › Applications). Vos documents ne sont jamais supprimés.

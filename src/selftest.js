@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 module.exports = (win, outDir) => {
+  try { require('./account').save({ email: 'enseignant@ecole.test', name: 'Mme Test', org: 'Lycée Test' }); } catch (e) { console.error('compte de test', e); }
   const logFile = path.join(outDir, 'selftest.log');
   fs.writeFileSync(logFile, '');
   const log = (...a) => fs.appendFileSync(logFile, a.join(' ') + '\n');
@@ -203,6 +204,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       })()`);
 
       await step('cert-sign', `(async () => {
+        const picked = await window.api.pickCertificate();
         const signed = await window.api.signPdf({ bytes: window.__wm, certPath: ${JSON.stringify(path.join(outDir, 'test.p12'))}, passphrase: 'secret', name: 'Prof', reason: 'Test' });
         const s = new TextDecoder('latin1').decode(signed);
         let bad = null; try { await window.api.signPdf({ bytes: window.__wm, certPath: ${JSON.stringify(path.join(outDir, 'test.p12'))}, passphrase: 'faux' }); } catch (e) { bad = e.message; }
@@ -595,11 +597,151 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       if (process.env.EDUPDF_I18N_DEBUG) await step('reste-5', `(window.__left || []).slice(45, 54).join(" || ")`);
       if (process.env.EDUPDF_I18N_DEBUG) await step('reste-6', `(window.__left || []).slice(54, 63).join(" || ")`);
       if (process.env.EDUPDF_I18N_DEBUG) await step('reste-7', `(window.__left || []).slice(63, 72).join(" || ")`);
+      // ---------- Compte obligatoire, essai de 30 jours lié au poste, fonctions Premium ----------
+      {
+        const ACC = require('./account');
+        const recFiles = ['a', 'b', 'c'].map((n) => path.join(outDir, 'essai', n, '.sknedu'));
+        await step('essai-compte', `(async () => {
+          const L = await window.api.licenseStatus(); const q = (s) => document.querySelector(s);
+          await new Promise((r) => setTimeout(r, 300));
+          return { mode: L.mode, compte: L.account && L.account.email, jours: L.trial.daysLeft, premium: L.premium, etablissement: L.establishment,
+            codePoste: /^[0-9A-F]{4}(-[0-9A-F]{4}){3}$/.test(L.machineCode), barre: q('#editionTag').textContent, verrous: document.querySelectorAll('.plocked').length,
+            boutonsPremium: document.querySelectorAll('.premium').length, fenetreCompte: q('#modal').hidden ? 'fermée' : q('#mTitle').textContent };
+        })()`);
+        try {
+          const start0 = ACC.status().trial.start;
+          fs.rmSync(recFiles[2], { force: true });
+          const apresSuppression = ACC.status().trial.start === start0;
+          ACC.touch(); const repare = fs.existsSync(recFiles[2]);
+          ACC.save({ email: 'autre.adresse@ecole.test', name: 'Autre' }); const irreversible = ACC.status().trial.start === start0;
+          ACC.save({ email: 'enseignant@ecole.test', name: 'Mme Test', org: 'Lycée Test' });
+          const blob = fs.readFileSync(recFiles[0], 'utf8'); const j = JSON.parse(Buffer.from(blob.split('.')[0], 'base64url').toString());
+          j.start = Date.now() + 86400000 * 400; fs.writeFileSync(recFiles[0], Buffer.from(JSON.stringify(j)).toString('base64url') + '.' + blob.split('.')[1]);
+          const falsifieIgnore = ACC.status().trial.start === start0 && ACC.status().trial.daysLeft === 30;
+          fs.writeFileSync(recFiles[0], blob);
+          log('OK   essai-persistance', JSON.stringify({ apresSuppression, repare, irreversible, falsifieIgnore, emplacements: recFiles.filter((f) => fs.existsSync(f)).length }));
+        } catch (e) { log('FAIL essai-persistance', e.stack); results.essai = { error: e.message }; }
+        process.env.EDUPDF_NOW_OFFSET_DAYS = '31';
+        await step('essai-termine', `(async () => {
+          const T = window.__edupdf; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+          const L = await window.__licensing.refresh(); out.mode = L.mode + ' / premium ' + L.premium + ' / essai terminé ' + L.trial.ended;
+          out.barre = q('#editionTag').textContent; out.verrous = document.querySelectorAll('.plocked').length;
+          out.conversionBloquee = window.premiumGate('act', 'toWord') === false && q('#mTitle').textContent; q('#mBtns button').click(); await wait(150);
+          out.gratuitPermis = window.premiumGate('act', 'rotR') === true && window.premiumGate('act', 'print') === true && window.premiumGate('tool', 'highlight') === true;
+          T.setTool('edit'); await wait(100); out.outilModifierRefuse = T.S.tool === 'select'; if (!q('#modal').hidden) q('#mBtns button').click(); await wait(100);
+          try { await window.api.pdfToOffice(new Uint8Array([37, 80, 68, 70]), 'docx', 'x.docx'); out.gardeSysteme = 'NON BLOQUÉ'; } catch (e) { out.gardeSysteme = /PREMIUM/.test(e.message) ? 'bloqué' : e.message.slice(0, 60); }
+          try { await window.api.aiChat({ id: 'x', system: '', prompt: 'ok' }); out.gardeIA = 'NON BLOQUÉ'; } catch (e) { out.gardeIA = /PREMIUM/.test(e.message) ? 'bloqué' : e.message.slice(0, 60); }
+          return out;
+        })()`);
+        process.env.EDUPDF_NOW_OFFSET_DAYS = '-1';
+        await step('horloge-reculee', `(async () => { const T = window.__edupdf; await window.__licensing.refresh(); const L = await window.api.licenseStatus(); return { mode: L.mode, horlogeReculee: L.trial.clockBack, barre: document.querySelector('#editionTag').textContent }; })()`);
+        // licence liée au compte et au poste (si la clé de l'éditeur est sur ce PC)
+        const priv = ['SknEDUpdf-licences', 'SknEDU-licences'].map((d) => path.join(require('os').homedir(), d, 'cle-privee-licences.pem')).find((f) => fs.existsSync(f));
+        if (priv) {
+          const crypto = require('crypto');
+          const mk = (extra) => { const data = Buffer.from(JSON.stringify({ v: 1, product: 'SknEDU-studio', edition: 'enseignant', org: 'Mme Test', seats: 1, ref: 'TEST-LIEE', issued: '2026-11-08', expires: '2099-12-31', ...extra })).toString('base64url'); return `SKN1.${data}.${crypto.sign(null, Buffer.from(data), crypto.createPrivateKey(fs.readFileSync(priv))).toString('base64url')}`; };
+          process.env.EDUPDF_NOW_OFFSET_DAYS = '31';
+          await step('licence-liee', `(async () => {
+            const T = window.__edupdf; const out = {};
+            try { await window.api.licenseActivate(${JSON.stringify(mk({ email: 'quelquun@ailleurs.test' }))}, 'user'); out.autreEmail = 'ACCEPTÉE (anomalie)'; } catch (e) { out.autreEmail = e.message.replace(/^.*Error: /, '').slice(0, 70); }
+            try { await window.api.licenseActivate(${JSON.stringify(mk({ email: 'enseignant@ecole.test', machines: ['AAAA-BBBB-CCCC-DDDD'] }))}, 'user'); out.autrePoste = 'ACCEPTÉE (anomalie)'; } catch (e) { out.autrePoste = e.message.replace(/^.*Error: /, '').slice(0, 70); }
+            const st = await window.api.licenseActivate(${JSON.stringify(mk({ email: 'Enseignant@Ecole.test', machines: [ACC.machineCode()] }))}, 'user');
+            await window.__licensing.refresh(); out.bonneLicence = st.mode + ' / premium ' + st.premium + ' / ' + document.querySelector('#editionTag').textContent;
+            out.verrousApresLicence = document.querySelectorAll('.plocked').length;
+            await window.api.licenseRemove(); return out;
+          })()`);
+        } else log('SKIP', 'licence-liee', '(clé de l\'éditeur absente sur ce PC)');
+        process.env.EDUPDF_NOW_OFFSET_DAYS = '0';
+        await step('essai-retour', `(async () => { const T = window.__edupdf; await window.__licensing.refresh(); const L = await window.api.licenseStatus(); return { mode: L.mode, verrous: document.querySelectorAll('.plocked').length }; })()`);
+        // fenêtre de création du compte (premier démarrage), parcourue comme un utilisateur
+        for (const f of recFiles) fs.rmSync(f, { force: true });
+        await step('fenetre-compte', `(async () => {
+          const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+          const p = window.__licensing.ensureAccount(); await wait(500);
+          out.titre = q('#mTitle').textContent; out.boutons = [...document.querySelectorAll('#mBtns button')].map((b) => b.textContent).join(' | ');
+          q('#acEmail').value = 'pas-une-adresse'; q('#mBtns button.primary').click(); await wait(150); out.adresseInvalide = q('#acErr').textContent;
+          q('#acEmail').value = 'Nouvel.Enseignant@Ecole.test'; q('#acName').value = 'M. Nouveau'; q('#mBtns button.primary').click(); await wait(150); out.sansAccord = q('#acErr').textContent;
+          window.__shot = true; return out;
+        })()`);
+        try { fs.writeFileSync(path.join(outDir, 'compte.png'), (await win.webContents.capturePage()).toPNG()); } catch (e) { log('note capture compte', e.message); }
+        await step('fenetre-compte-fin', `(async () => {
+          const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+          q('#acOk').checked = true; q('#mBtns button.primary').click(); await wait(800);
+          const L = await window.api.licenseStatus();
+          return { fenetreFermee: q('#modal').hidden, compte: L.account && L.account.email, mode: L.mode, jours: L.trial.daysLeft, message: q('#msg').textContent.slice(0, 70) };
+        })()`);
+      // ---------- Licences en ligne : un poste à la fois, transfert pour les jours restants, cumul de 2 (service local de test) ----------
+      if (!fs.existsSync(path.join(__dirname, '..', 'server', 'core.js'))) log('SKIP', 'licences-en-ligne', '(service absent de la version installée)'); else {
+        const crypto = require('crypto'); const http = require('http'); const ACC2 = require('./account');
+        const { createService, handle } = require('../server/core');
+        const kl = crypto.generateKeyPairSync('ed25519'); const ks = crypto.generateKeyPairSync('ed25519');
+        const db = new Map(); const DAYMS = 86400000;
+        const svc = createService({
+          store: { get: async (k) => (db.has(k) ? JSON.parse(db.get(k)) : null), put: async (k, v) => db.set(k, JSON.stringify(v)) },
+          now: () => Date.now() + (Number(process.env.EDUPDF_NOW_OFFSET_DAYS) || 0) * DAYMS,
+          verifyLicence: async (d, s) => crypto.verify(null, Buffer.from(d), kl.publicKey, Buffer.from(s, 'base64url')),
+          sign: async (d) => crypto.sign(null, Buffer.from(d), ks.privateKey).toString('base64url')
+        });
+        const srv = http.createServer((req, res) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', async () => { let b = null; try { b = JSON.parse(Buffer.concat(c).toString()); } catch { /* */ } const r = await handle(svc, req.method, req.url, b); res.writeHead(r.status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(r.body)); }); });
+        await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+        process.env.EDUPDF_LICENCE_SERVER = `http://127.0.0.1:${srv.address().port}`;
+        process.env.EDUPDF_TEST_SERVER_PUBKEY = ks.publicKey.export({ type: 'spki', format: 'pem' });
+        process.env.EDUPDF_TEST_LICENCE_PUBKEY = kl.publicKey.export({ type: 'spki', format: 'pem' });
+        const email = ACC2.status().account.email;
+        const mk = (p) => { const data = Buffer.from(JSON.stringify({ v: 2, product: 'SknEDU-studio', issued: '2026-11-08', email, ...p })).toString('base64url'); return `SKN1.${data}.${crypto.sign(null, Buffer.from(data), kl.privateKey).toString('base64url')}`; };
+        const L1 = mk({ ref: 'EN-LIGNE-1', edition: 'enseignant', org: 'Mme Test', days: 365 });
+        const L2 = mk({ ref: 'EN-LIGNE-2', edition: 'etablissement', org: 'Lycée Test', days: 30 });
+        const L3 = mk({ ref: 'EN-LIGNE-3', edition: 'enseignant', days: 90 });
+        const B = 'f'.repeat(32);
+        const msgOf = async (p) => { try { await p; return 'ACCEPTÉ'; } catch (e) { return String(e.message).replace(/^.*Error: /, '').slice(0, 75); } };
+        await step('licence-en-ligne-1', `(async () => {
+          const out = {}; const m = async (p) => { try { await p; return 'ACCEPTÉ'; } catch (e) { return String(e.message).replace(/^.*Error: /, '').slice(0, 75); } };
+          let L = await window.api.licenseActivate(${JSON.stringify(L1)}, 'user'); out.l1 = L.mode + ' / ' + L.daysLeft + ' j / ' + L.licences.length + ' licence';
+          L = await window.api.licenseActivate(${JSON.stringify(L2)}, 'user'); out.cumul = L.daysLeft + ' j / ' + L.label + ' / ' + L.licences.map((l) => l.remainingDays).join('+');
+          out.troisieme = await m(window.api.licenseActivate(${JSON.stringify(L3)}, 'user'));
+          return out;
+        })()`);
+        const autrePosteRefuse = await msgOf(svc.activate({ key: L1, email, machine: B }));
+        await step('licence-en-ligne-2', `(async () => {
+          const out = {}; const m = async (p) => { try { await p; return 'ACCEPTÉ'; } catch (e) { return String(e.message).replace(/^.*Error: /, '').slice(0, 75); } };
+          const d = await window.api.licenseDeactivate('EN-LIGNE-1'); out.desactivee = d.remainingDays + ' j gardés ; ce PC : ' + d.daysLeft + ' j';
+          return out;
+        })()`);
+        const transfert = await msgOf(svc.activate({ key: L1, email, machine: B }));
+        const surB = (await svc.status({ email, machine: B })).licences.map((l) => l.ref + ' ' + l.remainingDays + ' j').join(', ');
+        await step('licence-en-ligne-3', `(async () => {
+          const m = async (p) => { try { await p; return 'ACCEPTÉ'; } catch (e) { return String(e.message).replace(/^.*Error: /, '').slice(0, 75); } };
+          return { retourSurA: await m(window.api.licenseActivate(${JSON.stringify(L1)}, 'user')) };
+        })()`);
+        log('OK   licence-autre-poste', JSON.stringify({ autrePosteRefuse, transfert, surB }));
+        await svc.deactivate({ ref: 'EN-LIGNE-1', email, machine: B });
+        // jeton falsifié : ignoré
+        const tokFile = path.join(outDir, 'userdata', 'licence-jeton.sknt'); const tok = fs.readFileSync(tokFile, 'utf8');
+        fs.writeFileSync(tokFile, tok.replace(/\.([A-Za-z0-9_-])/, (m0, c) => '.' + (c === 'A' ? 'B' : 'A')));
+        await step('licence-jeton-falsifie', `(async () => { const L = await window.api.licenseStatus(); return { licenceValide: L.licValid, mode: L.mode }; })()`);
+        fs.writeFileSync(tokFile, tok);
+        // 20 jours sans vérification en ligne puis vérification : jours décomptés, licence de nouveau valable
+        process.env.EDUPDF_NOW_OFFSET_DAYS = '20';
+        await step('licence-14-jours', `(async () => {
+          const out = {}; let L = await window.api.licenseStatus(); out.avantVerification = 'valide ' + L.licValid + ' / ' + (L.mismatch || '').slice(0, 40);
+          L = await window.api.licenseRefresh(); out.apresVerification = 'valide ' + L.licValid + ' / ' + L.daysLeft + ' j restants';
+          await window.__licensing.refresh(); const d = window.__licensing.licenceDialog(); await new Promise((r) => setTimeout(r, 800));
+          out.fenetre = document.querySelectorAll('#mBody .licrow').length + ' licence(s) affichée(s), ' + document.querySelectorAll('#mBody [data-deact]').length + ' bouton(s) Désactiver';
+          const bs = [...document.querySelectorAll('#mBtns button')]; bs[bs.length - 2].click(); await d;
+          await window.api.licenseDeactivate('EN-LIGNE-2'); out.final = (await window.api.licenseStatus()).mode;
+          return out;
+        })()`);
+        process.env.EDUPDF_NOW_OFFSET_DAYS = '0';
+        delete process.env.EDUPDF_LICENCE_SERVER; srv.close();
+      }
+
+      }
+
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;
-        const priv = path.join(require('os').homedir(), 'SknEDU-licences', 'cle-privee-licences.pem');
-        if (fs.existsSync(priv)) {
+        const priv = ['SknEDUpdf-licences', 'SknEDU-licences'].map((d) => path.join(require('os').homedir(), d, 'cle-privee-licences.pem')).find((f) => fs.existsSync(f));
+        if (priv) {
           const crypto = require('crypto');
           const data = Buffer.from(JSON.stringify({ v: 1, product: 'SknEDU-studio', edition: 'etablissement', org: 'Lycée de démonstration', seats: 25, ref: 'TEST', issued: '2026-11-07', expires: '2099-12-31' })).toString('base64url');
           realKey = `SKN1.${data}.${crypto.sign(null, Buffer.from(data), crypto.createPrivateKey(fs.readFileSync(priv))).toString('base64url')}`;

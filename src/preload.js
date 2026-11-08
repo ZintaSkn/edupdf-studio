@@ -24,8 +24,12 @@ contextBridge.exposeInMainWorld('api', {
   officeTargets: () => ipcRenderer.invoke('office-targets'),
   // licence (éditions commerciales) et mentions légales
   licenseStatus: () => ipcRenderer.invoke('license-status'),
+  accountStatus: () => ipcRenderer.invoke('account-status'),
+  accountSave: (data) => ipcRenderer.invoke('account-save', data),
   licenseActivate: (text, scope) => ipcRenderer.invoke('license-activate', { text, scope }),
   licenseRemove: () => ipcRenderer.invoke('license-remove'),
+  licenseDeactivate: (ref) => ipcRenderer.invoke('license-deactivate', { ref }),
+  licenseRefresh: () => ipcRenderer.invoke('license-refresh'),
   licensePick: () => ipcRenderer.invoke('license-pick'),
   notices: () => ipcRenderer.invoke('notices'),
   // classe connectée, présentateur, publipostage, IA locale

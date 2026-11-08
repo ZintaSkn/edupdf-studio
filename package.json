@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "SknEDU-studio",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "SknEDU-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -196,5 +196,11 @@
     "uuid": "^11.1.1",
     "image-size": "^2.1.0",
     "minimatch@>=7.0.0 <11.0.1": "^11.0.5"
+  },
+  "commercial": {
+    "buyUrl": "https://github.com/ZintaSkn/edupdf-studio/blob/main/docs/EDITIONS.md",
+    "contact": "",
+    "licenceServer": "",
+    "serverPublicKey": ""
   }
 }

@@ -135,6 +135,7 @@ async function runCompatible({ id, provider, model, key, system, prompt, images,
 }
 
 async function chat(evt, { id, system, prompt, pdfBase64, images }) {
+  require('./license').requirePremium('Assistant IA');
   const c = readCfg(); const provider = c.provider || 'anthropic'; const P = PROVIDERS[provider];
   const model = (c.models && c.models[provider]) || P.models[0];
   const key = getKey(provider);

@@ -65,6 +65,7 @@ function handler(req, res) {
   }
   if (req.method === 'GET' && sub === '/document.pdf') { session.downloads++; notify(); return send(200, session.bytes, 'application/pdf'); }
   if (req.method === 'POST' && sub === '/rendre' && session.collect) {
+    if (session.received.length >= 400) return send(429, page('Erreur', '<div class="card err">Trop de copies reçues pour ce partage : prévenez l\'enseignant.</div>'));
     const m = /boundary=(.+)$/.exec(req.headers['content-type'] || ''); if (!m) return send(400, 'Requête invalide');
     readBody(req, 30 * 1048576).then((buf) => {
       const f = parseMultipart(buf, m[1].replace(/^"|"$/g, ''));
@@ -87,6 +88,7 @@ function status() {
     received: session.received.map((r) => ({ eleve: r.eleve, file: r.file, at: r.at })), dir: session.dir };
 }
 async function start({ bytes, title, fileName, message, collect }) {
+  require('./license').requirePremium('Classe connectée');
   await stop();
   const ips = lanAddresses();
   if (!ips.length) throw new Error('Aucun réseau local détecté : connectez ce PC au Wi-Fi ou au réseau de la classe.');
@@ -95,6 +97,7 @@ async function start({ bytes, title, fileName, message, collect }) {
   fs.mkdirSync(dir, { recursive: true });
   session = { token, bytes: Buffer.from(bytes), title: title || 'Document', fileName: fileName || 'document.pdf', message, collect: collect !== false, dir, received: [], downloads: 0 };
   server = http.createServer(handler);
+  server.requestTimeout = 120000; server.headersTimeout = 15000; server.maxConnections = 200; // réseau de classe : pas de connexion bloquée indéfiniment
   await new Promise((res, rej) => { server.once('error', rej); server.listen(0, '0.0.0.0', res); });
   const port = server.address().port;
   session.urls = ips.map((ip) => `http://${ip.address}:${port}/c/${token}/`); session.url = session.urls[0];

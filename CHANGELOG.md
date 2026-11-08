@@ -4,6 +4,20 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.0] — Compte, essai de 30 jours et fonctions Premium
+- Compte obligatoire au premier démarrage (adresse e-mail ; nom et établissement facultatifs), enregistré sur l'ordinateur
+- Essai de 30 jours de toutes les fonctions, lié au poste et non renouvelable (désinstallation, réinstallation ou
+  nouveau compte Windows ne le remettent pas à zéro ; horloge reculée détectée)
+- Après l'essai : version gratuite (lire, annoter, organiser, remplir, signer, imprimer) ; fonctions Premium avec licence
+  (modification du texte, OCR, conversions, assistant IA, outils de la classe, protection, cloud automatique…)
+- Licences liées à l'adresse e-mail du compte et au poste : actives sur un seul ordinateur à la fois, transférables vers un
+  autre poste pour leurs jours restants (« Désactiver de ce PC »), deux licences au plus cumulées (jours additionnés) ;
+  service d'activation fourni (server/, Cloudflare Workers) et vérification en ligne au moins tous les 14 jours
+- Fonctions Premium marquées 🔒 et fenêtre d'explication ; contrôle également côté système
+- Sécurité : ouverture limitée aux documents existants d'un type pris en charge, déverrouillage Office et signature par
+  certificat limités aux fichiers choisis par l'utilisateur, noms de fichiers nettoyés, classe connectée protégée contre
+  la saturation
+
 ## [1.12.0] — Interface entièrement en français ou en anglais
 - Traduction anglaise complète : menus, ruban, boutons, info-bulles (toutes les lignes), panneau Accueil, barre d'état, fenêtres de dialogue, messages, alertes et confirmations
 - Bouton 🌐 FR / EN dans la barre d'état (et Aide › Langue) : changement immédiat, sans rechargement, documents ouverts conservés

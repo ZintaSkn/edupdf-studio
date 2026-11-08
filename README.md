@@ -7,26 +7,24 @@ modifiable (OCR), protéger, signer, comparer, convertir et préparer ses cours 
 
 Liens : [Historique des versions](CHANGELOG.md) · [Politique de signature de code](CODE_SIGNING.md) · [Confidentialité](PRIVACY.md) · [Sécurité](SECURITY.md) · [Téléchargements](https://github.com/ZintaSkn/edupdf-studio/releases/latest)
 
-**Open core** : le logiciel est libre (AGPL-3.0) et complet en édition Communauté ; les éditions Enseignant et
-Établissement financent le projet par des services (voir « Éditions et offres »).
+**Modèle** : code source libre (AGPL-3.0) ; la version officielle demande un compte, offre 30 jours d'essai de toutes les
+fonctions puis une version gratuite, et des licences Enseignant / Établissement pour les fonctions Premium (voir « Éditions et offres »).
 
 Couleurs : bleu marine **#001871** et or **#F1B434**, deux couleurs complémentaires ; leur dégradé (bleu → turquoise → vert → or) forme les vagues signature et toutes les nuances de l'interface.
 
 ## Éditions et offres
 
-| | **Communauté** | **Enseignant** | **Établissement** |
-|---|---|---|---|
-| Prix | Gratuit | Abonnement annuel ou licence perpétuelle | Licence par poste et par an |
-| Toutes les fonctions (édition, OCR, IA, conversions, administration…) | ✔ | ✔ | ✔ |
-| Mises à jour automatiques | ✔ | ✔ | ✔ |
-| Nom de l'établissement dans l'application et les modèles | | ✔ | ✔ |
-| Support prioritaire | | ✔ | ✔ (avec délai garanti) |
-| Aide au déploiement sur les postes, console d'administration accompagnée | | | ✔ |
-| Formation des enseignants, modèles personnalisés à l'établissement | | | ✔ |
-| Crédits IA, installateur signé, développements sur mesure | | En option | En option |
+Au premier démarrage, l'utilisateur crée son **compte** (adresse e-mail, obligatoire) et bénéficie de **30 jours d'essai
+de toutes les fonctions**, une seule fois par ordinateur. Ensuite : **version gratuite** (lire, annoter, organiser,
+remplir, signer, imprimer) ou **licence Enseignant / Établissement** pour les fonctions Premium (modification du texte,
+OCR, conversions Office, assistant IA, outils de la classe, protection, cloud automatique) — comparatif complet :
+[docs/EDITIONS.md](docs/EDITIONS.md).
 
-Activation : Aide › **Licence et édition** (clé `SKN1.…` ou fichier `.sknlic`, vérifiée hors ligne ; option « pour tous
-les comptes Windows de ce PC »). Une licence expirée ne bloque rien : le logiciel repasse en édition Communauté.
+Activation : Aide › **Licence et édition** (clé `SKN1.…` ou fichier `.sknlic`). Une licence est émise pour l'adresse e-mail
+du compte et une durée ; elle n'est active que sur **un ordinateur à la fois**, se déplace vers un autre poste pour ses
+jours restants (« Désactiver de ce PC »), et **deux licences** au plus s'additionnent. Service d'activation : `server/`
+(Cloudflare Workers, gratuit) — mise en ligne : [docs/SERVEUR-LICENCES.md](docs/SERVEUR-LICENCES.md).
+Une licence expirée rend les fonctions Premium indisponibles ; la version gratuite reste utilisable.
 
 **Licence et marque.** Le code est sous **GNU AGPL-3.0** ([LICENSE](LICENSE)) : utilisation, étude, modification et
 redistribution libres, à condition de publier le code source des versions modifiées. Le nom et le logo
@@ -36,10 +34,10 @@ Composants tiers : [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 ### Émettre une licence (éditeur uniquement)
 
 ```bash
-node tools/licence.js emettre "%USERPROFILE%\SknEDU-licences" --org "Lycée X" --edition etablissement --postes 50 --fin 2027-09-30 --ref FACT-2026-001
+node tools/licence.js emettre "%USERPROFILE%\SknEDUpdf-licences" --org "Lycée X" --edition etablissement --postes 50 --fin 2027-09-30 --email contact@lycee.ci --ref FACT-2026-001
 ```
 
-La clé privée de signature reste dans `%USERPROFILE%\SknEDU-licences` (jamais dans le dépôt) : sauvegardez-la en lieu sûr.
+La clé privée de signature reste dans `%USERPROFILE%\SknEDUpdf-licences` (jamais dans le dépôt) : sauvegardez-la en lieu sûr.
 ## Fonctions
 
 | Domaine | Ce que fait le logiciel |

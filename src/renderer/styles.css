@@ -420,3 +420,13 @@ footer > #msg { flex: 1 1 auto; }
 /* ---------- Langue ---------- */
 #langBtn { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); margin-left: 8px; }
 #langBtn:hover { background: rgba(255,255,255,.26); }
+
+/* ---------- Compte, essai et fonctions Premium ---------- */
+.plocked { position: relative; opacity: .78; }
+.plocked::after { content: '🔒'; position: absolute; top: 1px; right: 3px; font-size: 10px; line-height: 1; }
+#editionTag { cursor: pointer; }
+#editionTag.trial { color: var(--brand-gold); font-weight: 600; }
+#editionTag.expired { color: #ffd166; }
+.premlist { margin: 4px 0 8px 18px; padding: 0; }
+.premlist li { margin: 2px 0; }
+.licrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
