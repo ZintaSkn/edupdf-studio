@@ -5,10 +5,15 @@ main = "worker.js"
 compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Espace de stockage : créer avec « npx wrangler kv namespace create LICENCES » puis coller l'identifiant ci-dessous.
-[[kv_namespaces]]
-binding = "LICENCES"
-id = "003f5a9416c64274a51eaa8c76b5b136"
+# Stockage : un Durable Object unique (SQLite, offre gratuite). Toutes les demandes y sont traitées l'une après l'autre :
+# une licence ne peut jamais être activée sur deux postes en même temps, et un transfert est pris en compte immédiatement.
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "LicenceStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LicenceStore"]
 
 [vars]
 # Clé publique de l'éditeur (identique à PUBLIC_KEY dans src/license.js)
@@ -17,3 +22,4 @@ MCowBQYDK2VwAyEAAWJBQvHRbjGXeR/8N0o1OQtxGqcDumYikk/rFmLnNyQ=
 -----END PUBLIC KEY-----"""
 
 # Secret (jamais dans ce fichier) : npx wrangler secret put SERVER_PRIVATE_KEY  ← contenu de cle-privee-serveur.pem
+# (L'ancien espace KV « LICENCES » n'est plus utilisé ; il peut être supprimé dans le tableau de bord.)

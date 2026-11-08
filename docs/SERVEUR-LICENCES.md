@@ -5,7 +5,10 @@ vers un autre poste pour ses jours restants, et qu'**au plus deux licences** s'a
 licences « en ligne » (émises avec `--jours`) ne peuvent pas être activées ; les anciennes licences hors ligne (`--fin`)
 continuent de fonctionner.
 
-Hébergement prévu : **Cloudflare Workers** (offre gratuite : 100 000 requêtes par jour, largement suffisant).
+**En service** : https://sknedu-licences.ksehibi.workers.dev (compte Cloudflare ksehibi@gmail.com, offre gratuite :
+100 000 requêtes par jour, largement suffisant). Les données sont dans un **Durable Object** unique : les demandes y
+sont traitées l'une après l'autre, donc une licence ne peut jamais être activée sur deux postes en même temps, et un
+transfert est pris en compte immédiatement (testé en ligne le 8 novembre 2026).
 Code : dossier `server/` (`core.js` = règles, testées par `node server/test-core.js` ; `worker.js` = version en ligne).
 
 ## Ce que le service enregistre
@@ -13,15 +16,11 @@ Code : dossier `server/` (`core.js` = règles, testées par `node server/test-co
 Pour chaque licence : sa référence, l'adresse e-mail, l'édition, la durée, le temps déjà consommé et le poste qui l'utilise
 (identifiant de poste anonyme, dérivé de l'identifiant de Windows). Rien d'autre : ni nom de fichier, ni document.
 
-## Étapes (une seule fois, avec votre compte)
+## Étapes (déjà faites le 8 novembre 2026 ; à refaire seulement sur un autre compte)
 
 1. Créez un compte gratuit sur https://dash.cloudflare.com (activez la double authentification).
-2. Sur votre PC, dans le dossier `server` du projet :
-   ```
-   npx wrangler login
-   npx wrangler kv namespace create LICENCES
-   ```
-   Copiez l'identifiant affiché dans `server/wrangler.toml` (ligne `id = "…"`).
+2. Sur votre PC, dans le dossier `server` du projet (pas dans C:\Windows\System32) : `npx wrangler login`, puis
+   choisissez un sous-domaine workers.dev (proposé au premier `npx wrangler deploy` lancé dans un terminal).
 3. Créez la clé du service (dans votre dossier privé, jamais dans le dépôt) :
    ```
    node tools/licence.js init-serveur "%USERPROFILE%\SknEDUpdf-licences"
@@ -49,9 +48,12 @@ Envoyez la clé `SKN1.…` (ou le fichier `.sknlic`) au client : il la colle dan
   (même adresse e-mail) : elle reprend ses jours restants.
 - **Cumuler** : une deuxième licence s'ajoute à la première (les jours s'additionnent) ; une troisième est refusée.
 
+## Mettre à jour le service
+
+Après une modification de `server/core.js` ou `server/worker.js` : `node server/test-core.js`, puis, dans `server` :
+`npx --yes wrangler@4 deploy`. Les licences et activations enregistrées sont conservées.
+
 ## Limites à connaître
 
-- Le stockage KV de Cloudflare est « éventuellement cohérent » : deux activations envoyées dans la même seconde depuis deux
-  PC pourraient passer toutes les deux. Pour une garantie stricte, la logique peut être déplacée dans un Durable Object.
-- Si un PC est perdu, ou si Windows est réinstallé sans désactivation (réinstaller seulement SknEDU-studio ne pose pas de problème), la licence reste attachée à l'ancien poste : l'éditeur peut la
-  libérer en supprimant la clé `lic:<référence>` → champ `machine` dans le tableau de bord Cloudflare (KV).
+- Si un PC est perdu, ou si Windows est réinstallé sans désactivation (réinstaller seulement SknEDU-studio ne pose pas de problème), la licence reste attachée à l'ancien poste : l'éditeur doit la
+  libérer (outil d'administration à prévoir ; en attendant, demandez-le-moi).
