@@ -31,6 +31,19 @@ redistribution libres, à condition de publier le code source des versions modif
 « SknEDU-studio » sont des marques réservées ([TRADEMARK.md](TRADEMARK.md)). Contributions : [CONTRIBUTING.md](CONTRIBUTING.md).
 Composants tiers : [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+### Vendre une licence (éditeur uniquement)
+
+Le client commande depuis **Aide › Obtenir une licence** (WhatsApp, Mobile Money, e-mail ou page de paiement ; numéros,
+adresses, offres et prix dans `package.json` › `commercial`). Sa demande contient un code `SKNC.…`. Une fois le
+paiement vérifié :
+
+```
+node tools/licence.js commande "%USERPROFILE%\SknEDUpdf-licences" SKNC.… --paye
+```
+
+L'outil émet la ou les licences (une par poste), tient le registre `registre-commandes.csv` et affiche le message à
+renvoyer au client.
+
 ### Émettre une licence (éditeur uniquement)
 
 ```bash

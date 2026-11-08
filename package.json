@@ -201,6 +201,60 @@
     "buyUrl": "https://github.com/ZintaSkn/edupdf-studio/blob/main/docs/EDITIONS.md",
     "contact": "",
     "licenceServer": "",
-    "serverPublicKey": ""
+    "serverPublicKey": "",
+    "vendeur": "SEHI BI Kouahi Nestor",
+    "whatsapp": "",
+    "email": "",
+    "page": "",
+    "mobileMoney": [
+      {
+        "operateur": "Orange Money",
+        "numero": ""
+      },
+      {
+        "operateur": "MTN MoMo",
+        "numero": ""
+      },
+      {
+        "operateur": "Moov Money",
+        "numero": ""
+      },
+      {
+        "operateur": "Wave",
+        "numero": ""
+      }
+    ],
+    "devise": "FCFA",
+    "offres": [
+      {
+        "id": "ens-3m",
+        "edition": "enseignant",
+        "jours": 90,
+        "libelle": "Enseignant — 3 mois",
+        "prix": ""
+      },
+      {
+        "id": "ens-1a",
+        "edition": "enseignant",
+        "jours": 365,
+        "libelle": "Enseignant — 1 an",
+        "prix": ""
+      },
+      {
+        "id": "ens-2a",
+        "edition": "enseignant",
+        "jours": 730,
+        "libelle": "Enseignant — 2 ans",
+        "prix": ""
+      },
+      {
+        "id": "etab-1a",
+        "edition": "etablissement",
+        "jours": 365,
+        "libelle": "Établissement — 1 an (par poste)",
+        "prix": "",
+        "parPoste": true
+      }
+    ]
   }
 }

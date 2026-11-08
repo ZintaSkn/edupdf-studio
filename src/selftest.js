@@ -737,6 +737,29 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
 
       }
 
+      // ---------- Commande d'une licence : offres, Mobile Money, code de commande (aucun message réellement envoyé) ----------
+      process.env.EDUPDF_TEST_SALES = JSON.stringify({ whatsapp: '+225 07 00 00 00 00', email: 'ventes@exemple.ci', page: 'https://exemple.ci/paiement',
+        mobileMoney: [{ operateur: 'Orange Money', numero: '0700000000' }, { operateur: 'Wave', numero: '0500000000' }, { operateur: 'MTN MoMo', numero: '' }],
+        offres: [{ id: 'ens-1a', edition: 'enseignant', jours: 365, libelle: 'Enseignant — 1 an', prix: '15000' }, { id: 'etab-1a', edition: 'etablissement', jours: 365, libelle: 'Établissement — 1 an (par poste)', prix: '7000', parPoste: true }] });
+      await step('commande-licence', `(async () => {
+        const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        await window.__licensing.refresh();
+        let p = window.__licensing.purchaseDialog(); await wait(500);
+        out.titre = q('#mTitle').textContent; out.boutons = [...document.querySelectorAll('#mBtns button')].map((b) => b.textContent).join(' | ');
+        out.offres = [...document.querySelectorAll('#poOffre option')].map((o) => o.textContent).join(' / ');
+        out.postesMasques = q('#poQteRow').hidden;
+        q('#poOffre').value = '1'; q('#poOffre').dispatchEvent(new Event('change', { bubbles: true })); await wait(100); out.postesVisibles = !q('#poQteRow').hidden;
+        q('#poQte').value = '3'; [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Mobile Money').click(); await wait(600);
+        out.mobileMoney = q('#mTitle').textContent + ' | ' + q('#mBody').textContent.replace(/\\s+/g, ' ').slice(0, 150);
+        out.boutonsPaiement = [...document.querySelectorAll('#mBtns button')].map((b) => b.textContent).join(' | ');
+        [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Fermer').click(); await p; await wait(100);
+        const o = window.__derniereCommande; const d = JSON.parse(decodeURIComponent(escape(atob(o.code.slice(5).replace(/-/g, '+').replace(/_/g, '/')))));
+        out.commande = o.ref + ' | ' + d.edition + ' ' + d.jours + ' j × ' + d.qte + ' | ' + d.email + ' | poste ' + d.poste;
+        out.texte = o.text.split('\\n').slice(0, 2).join(' / ');
+        return out;
+      })()`);
+      delete process.env.EDUPDF_TEST_SALES;
+
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;

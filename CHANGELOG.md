@@ -14,6 +14,9 @@ l'auto-test complet avant publication.
   autre poste pour leurs jours restants (« Désactiver de ce PC »), deux licences au plus cumulées (jours additionnés) ;
   service d'activation fourni (server/, Cloudflare Workers) et vérification en ligne au moins tous les 14 jours
 - Fonctions Premium marquées 🔒 et fenêtre d'explication ; contrôle également côté système
+- Commande d'une licence dans l'application (Aide › Obtenir une licence) : offres et prix, paiement par WhatsApp,
+  Mobile Money (Orange Money, MTN MoMo, Moov Money, Wave), e-mail ou page ; demande prête à envoyer avec un code de
+  commande que l'outil de l'éditeur transforme en licence (node tools/licence.js commande … --paye)
 - Sécurité : ouverture limitée aux documents existants d'un type pris en charge, déverrouillage Office et signature par
   certificat limités aux fichiers choisis par l'utilisateur, noms de fichiers nettoyés, classe connectée protégée contre
   la saturation

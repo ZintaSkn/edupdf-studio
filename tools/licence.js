@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // Outil du vendeur : émettre les licences commerciales de SknEDU-studio (à utiliser sur VOTRE PC uniquement).
 //
+//   node tools/licence.js commande <dossier-prive> SKNC.… --paye
+//       Transforme une commande reçue (WhatsApp, e-mail, page, Mobile Money) en licence(s) en ligne,
+//       tient le registre des commandes et affiche le message à renvoyer au client.
+//
 //   node tools/licence.js init <dossier-prive>
 //       Crée la paire de clés de signature. La clé privée reste dans <dossier-prive> (JAMAIS dans le dépôt Git) ;
 //       la clé publique affichée est à copier dans src/license.js (PUBLIC_KEY).
@@ -32,6 +36,31 @@ if (cmd === 'init') {
   fs.writeFileSync(path.join(dir, 'cle-publique.pem'), pub);
   console.log('Clé privée : ' + keyFile + '\n→ sauvegardez-la (clé USB, coffre-fort) : sans elle, impossible d\'émettre de nouvelles licences.\n');
   console.log('Clé publique à placer dans src/license.js :\n' + pub);
+} else if (cmd === 'commande') {
+  // Commande reçue (WhatsApp, e-mail, page, Mobile Money) → licence(s) en ligne + message à renvoyer au client.
+  //   node tools/licence.js commande <dossier-prive> SKNC.xxxx --paye [--jours N] [--postes N]
+  if (!fs.existsSync(keyFile)) die('clé privée introuvable : lancez d\'abord « init ».');
+  const m = /SKNC\.([A-Za-z0-9_-]+)/.exec(rest.join(' ')); if (!m) die('collez le code de commande (il commence par « SKNC. »).');
+  let c; try { c = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8')); } catch { die('code de commande illisible.'); }
+  if (!['enseignant', 'etablissement'].includes(c.edition) || !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(c.email || '') || !/^CMD-[\w-]+$/.test(c.ref || '')) die('code de commande incomplet.');
+  const days = Number(arg('jours', c.jours)); const qte = Math.max(1, Math.min(500, Number(arg('postes', c.qte || 1))));
+  if (!Number.isInteger(days) || days < 1 || days > 3660) die('durée invalide (--jours pour la corriger).');
+  console.log(`Commande ${c.ref} du ${c.date} — ${c.edition}, ${days} jours × ${qte} — ${c.email}${c.nom ? ' — ' + c.nom : ''}${c.org ? ' — ' + c.org : ''} (poste ${c.poste || '?'})`);
+  if (!rest.includes('--paye')) die('vérifiez d\'abord le paiement, puis relancez la commande avec --paye.');
+  const priv = crypto.createPrivateKey(fs.readFileSync(keyFile)); const keys = [];
+  for (let i = 1; i <= qte; i++) {
+    const ref = qte > 1 ? `${c.ref}-${i}` : c.ref; const out = path.join(dir, ref + '.sknlic');
+    if (fs.existsSync(out)) die(`la licence ${ref} a déjà été émise (${out}).`);
+    const payload = { v: 2, product: 'SknEDU-studio', edition: c.edition, org: c.org || c.nom || c.email, email: String(c.email).toLowerCase(), days, ref, issued: new Date().toISOString().slice(0, 10), order: c.ref };
+    const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const key = `SKN1.${data}.${crypto.sign(null, Buffer.from(data), priv).toString('base64url')}`;
+    fs.writeFileSync(out, key + '\n'); keys.push(key);
+  }
+  fs.appendFileSync(path.join(dir, 'registre-commandes.csv'), `${new Date().toISOString()};${c.ref};${c.email};${c.edition};${days};${qte};${(c.nom || '').replace(/;/g, ',')};${(c.org || '').replace(/;/g, ',')}\n`);
+  console.log(`\n${qte} licence(s) émise(s) dans ${dir} (registre : registre-commandes.csv).\n\n----- Message à envoyer au client -----\n`
+    + `Bonjour${c.nom ? ' ' + c.nom : ''},\nMerci pour votre paiement (commande ${c.ref}). Voici ${qte > 1 ? 'vos clés' : 'votre clé'} de licence SknEDU-studio `
+    + `(édition ${c.edition === 'etablissement' ? 'Établissement' : 'Enseignant'}, ${days} jours${qte > 1 ? ', une clé par poste' : ''}) :\n\n${keys.join('\n\n')}\n\n`
+    + `Dans SknEDU-studio : Aide › Licence et édition › collez la clé › Activer (connexion Internet nécessaire).\nLa licence fonctionne avec le compte ${c.email}, sur un ordinateur à la fois.\n--------------------------------------`);
 } else if (cmd === 'emettre') {
   if (!fs.existsSync(keyFile)) die('clé privée introuvable : lancez d\'abord « init ».');
   const edition = arg('edition', 'etablissement');

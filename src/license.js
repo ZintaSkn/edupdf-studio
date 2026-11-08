@@ -95,13 +95,20 @@ function licenceStatus() {
   }
   return { edition: 'communaute', label: EDITIONS.communaute, org: '', expired: false };
 }
+/** Moyens de paiement et offres (package.json › commercial ; remplaçables en auto-test seulement). */
+function sales() {
+  let c = COMMERCIAL; if (testMode() && process.env.EDUPDF_TEST_SALES) { try { c = { ...c, ...JSON.parse(process.env.EDUPDF_TEST_SALES) }; } catch { /* */ } }
+  return { vendeur: c.vendeur || '', whatsapp: String(c.whatsapp || '').replace(/[^\d]/g, ''), email: /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(c.email || '') ? c.email : '',
+    page: /^https:\/\//i.test(c.page || '') ? c.page : '', devise: c.devise || 'FCFA',
+    mobileMoney: (c.mobileMoney || []).filter((m) => m && m.numero), offres: (c.offres || []).filter((o) => o && o.id && o.jours > 0) };
+}
 function status() {
   const lic = licenceStatus(); const acc = account.status();
   const licValid = lic.edition !== 'communaute' && !lic.expired && !lic.mismatch;
   const trial = acc.trial.active;
   return { ...lic, account: acc.account, trial: acc.trial, machineCode: acc.machineCode,
     licValid, premium: licValid || trial, establishment: (licValid && lic.edition === 'etablissement') || trial,
-    mode: licValid ? 'licence' : trial ? 'essai' : 'gratuit', buyUrl: COMMERCIAL.buyUrl || '', contact: COMMERCIAL.contact || '' };
+    mode: licValid ? 'licence' : trial ? 'essai' : 'gratuit', buyUrl: COMMERCIAL.buyUrl || '', contact: COMMERCIAL.contact || '', sales: sales() };
 }
 /** Contrôle côté système (en plus de l'interface) pour les fonctions Premium. */
 function requirePremium(label, establishment) {

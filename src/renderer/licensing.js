@@ -40,8 +40,8 @@ async function upgradeDialog(g) {
   const r = await modal('⭐ Fonction Premium', `${why}<p><b>${esc(PREMIUM_GROUPS[g])}</b> fait partie des fonctions Premium, incluses dans les éditions <b>Enseignant</b> et <b>Établissement</b>.</p>
     <p>Fonctions Premium :</p><ul class="premlist">${Object.values(PREMIUM_GROUPS).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
     <p class="muted">La version gratuite reste utilisable sans limite de durée : lire, annoter, organiser les pages, remplir et signer, imprimer.</p>`,
-  [['Plus tard', null], ['J\'ai une licence', 'lic'], ...(L.buyUrl ? [['Obtenir une licence', 'buy', true]] : [])]);
-  if (r === 'buy') window.api.openExternal(L.buyUrl);
+  [['Plus tard', null], ['J\'ai une licence', 'lic'], ['Obtenir une licence', 'buy', true]]);
+  if (r === 'buy') purchaseDialog();
   if (r === 'lic') actions.license();
 }
 
@@ -90,9 +90,9 @@ async function licenceDialogFull() {
     <div class="row"><button class="small" id="licFile">Importer un fichier .sknlic…</button>
     <label class="ck"><input type="checkbox" id="licMachine"> Pour tous les comptes Windows de ce PC</label></div>
     ${L.support ? `<p><a href="${esc(L.support)}" target="_blank">Support prioritaire</a></p>` : ''}`,
-  [...(!L.online && L.edition !== 'communaute' && L.scope === 'user' ? [['Retirer la licence', 'remove']] : []), ...(L.buyUrl ? [['Éditions et tarifs', 'buy']] : []), ['Fermer', null],
+  [...(!L.online && L.edition !== 'communaute' && L.scope === 'user' ? [['Retirer la licence', 'remove']] : []), ['Obtenir une licence', 'buy'], ['Fermer', null],
     ['Activer', () => ({ text: $('#licKey').value, scope: $('#licMachine').checked ? 'machine' : 'user' }), true]]);
-  if (r === 'buy') return window.api.openExternal(L.buyUrl);
+  if (r === 'buy') return purchaseDialog();
   if (r === 'remove') { if (confirm('Retirer la licence de ce compte ? Les fonctions Premium ne seront plus disponibles après l\'essai.')) { await window.api.licenseRemove(); await applyLicense(); } return; }
   if (!r || !r.text.trim()) return;
   try { await window.api.licenseActivate(r.text, r.scope); await applyLicense(); alert(`Licence activée : édition ${LIC.label}${LIC.org ? ' — ' + LIC.org : ''}. Toutes les fonctions Premium sont disponibles.`); }
@@ -107,6 +107,58 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('click', (e) => { if (e.target.id === 'mcodeCopy') { navigator.clipboard.writeText($('#mcode').textContent); msg('Code du poste copié.'); } });
 actions.license = licenceDialogFull;
+
+// ---------------------------------------------------------------- Commande d'une licence : WhatsApp, Mobile Money, e-mail ou page
+const b64u = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fmtPrix = (o, q, dev) => (o.prix ? `${(Number(String(o.prix).replace(/[^\d]/g, '')) * (q || 1)).toLocaleString('fr-FR')} ${dev}` : 'prix communiqué par l\'éditeur');
+/** Demande de licence : texte lisible + code de commande (SKNC.…) que l'outil de l'éditeur transforme en licence. */
+function buildOrder(L, o, q, nom, org) {
+  const d = new Date(); const ref = `CMD-${d.toISOString().slice(0, 10).replace(/-/g, '')}-${(L.machineCode || 'XXXX').slice(0, 4)}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+  const a = L.account || {}; const sv = L.sales || {};
+  const data = { v: 1, ref, offre: o.id, edition: o.edition, jours: o.jours, qte: q, email: a.email, nom, org, poste: L.machineCode, date: d.toISOString().slice(0, 10) };
+  const code = 'SKNC.' + b64u(JSON.stringify(data));
+  const text = [`Commande SknEDU-studio — ${ref}`, `Offre : ${o.libelle}${q > 1 ? ` × ${q} postes` : ''} — ${fmtPrix(o, q, sv.devise || 'FCFA')}`,
+    `Compte : ${a.email}`, `Nom : ${nom || '—'}${org ? ' — ' + org : ''}`, `Code du poste : ${L.machineCode}`, '', `Code de commande : ${code}`].join('\n');
+  return { ref, code, text, data };
+}
+async function purchaseDialog() {
+  const L = await applyLicense(); const sv = L.sales || {}; const a = L.account || {};
+  const offres = sv.offres || []; if (!offres.length) return alert('Les offres ne sont pas encore configurées : contactez l\'éditeur.');
+  const canaux = [sv.whatsapp && ['WhatsApp', 'wa'], sv.mobileMoney && sv.mobileMoney.length && ['Mobile Money', 'mm'], sv.email && ['E-mail', 'mail'], sv.page && ['Page de paiement', 'page']].filter(Boolean);
+  const pr = modal('🛒 Obtenir une licence', `<p>Choisissez votre offre, puis le moyen de paiement. La demande est préparée avec votre adresse e-mail et le code de ce poste : après le paiement, vous recevez votre clé de licence (WhatsApp ou e-mail) à coller dans Aide › Licence et édition.</p>
+    <label class="blk">Offre <select id="poOffre">${offres.map((o, i) => `<option value="${i}">${esc(o.libelle)} — ${esc(fmtPrix(o, 1, sv.devise || 'FCFA'))}</option>`).join('')}</select></label>
+    <label class="blk" id="poQteRow">Nombre de postes <input type="number" id="poQte" min="1" max="500" value="1"></label>
+    <label class="blk">Nom <input id="poNom" value="${esc(a.name || '')}"></label>
+    <label class="blk">Établissement <input id="poOrg" value="${esc(a.org || '')}"></label>
+    <p class="muted">Compte : <b>${esc(a.email || '')}</b> · Code du poste : <b>${esc(L.machineCode || '')}</b>${sv.vendeur ? ' · Éditeur : ' + esc(sv.vendeur) : ''}</p>
+    <p class="muted">Une licence est valable sur un ordinateur à la fois ; deux licences au plus s'additionnent sur un même poste.</p>
+    ${canaux.length ? '' : '<p class="err">Les moyens de paiement ne sont pas encore configurés : copiez la demande et envoyez-la à l\'éditeur.</p>'}`,
+  [['Annuler', null], ['Copier la demande', 'copy'], ...canaux.map(([lab, id], i) => [lab, id, i === 0])].map((b) => (b[1] ? [b[0], () => ({ ch: b[1], o: offres[+$('#poOffre').value], q: Math.max(1, Math.min(500, Math.round(+$('#poQte').value || 1))), nom: $('#poNom').value.trim(), org: $('#poOrg').value.trim() }), b[2]] : b)));
+  $('#poQteRow').hidden = !offres[0].parPoste; // nombre de postes : offres Établissement seulement
+  const r = await pr; if (!r) return;
+  const q = r.o.parPoste ? r.q : 1;
+  const ord = buildOrder(L, r.o, q, r.nom, r.org);
+  try { localStorage.setItem('edupdf.derniereCommande', JSON.stringify({ ref: ord.ref, offre: r.o.libelle, date: ord.data.date })); } catch { /* */ }
+  window.__derniereCommande = ord;
+  if (r.ch === 'copy') { await navigator.clipboard.writeText(ord.text); return msg(`Demande ${ord.ref} copiée : collez-la dans votre message à l'éditeur.`); }
+  if (r.ch === 'wa') { window.api.openExternal(`https://wa.me/${sv.whatsapp}?text=${encodeURIComponent(ord.text)}`); return msg(`Demande ${ord.ref} préparée dans WhatsApp : envoyez-la, puis réglez selon les instructions reçues.`); }
+  if (r.ch === 'mail') { window.api.openExternal(`mailto:${sv.email}?subject=${encodeURIComponent('Commande SknEDU-studio ' + ord.ref)}&body=${encodeURIComponent(ord.text)}`); return msg(`Demande ${ord.ref} préparée dans votre messagerie : envoyez-la.`); }
+  if (r.ch === 'page') { await navigator.clipboard.writeText(ord.text); window.api.openExternal(sv.page); return msg(`Demande ${ord.ref} copiée : collez-la dans la page de paiement qui s'ouvre.`); }
+  if (r.ch === 'mm') {
+    const montant = fmtPrix(r.o, q, sv.devise || 'FCFA');
+    const nums = sv.mobileMoney.map((x) => `<div class="licrow"><span><b>${esc(x.operateur)}</b> : <b>${esc(x.numero)}</b>${x.nom ? ' (' + esc(x.nom) + ')' : ''}</span><button class="small" data-copy="${esc(x.numero)}">Copier</button></div>`).join('');
+    const r2 = await modal('📱 Paiement Mobile Money', `<p>Envoyez <b>${esc(montant)}</b> à l'un de ces numéros${sv.vendeur ? ' (' + esc(sv.vendeur) + ')' : ''} :</p>${nums}
+      <p>Indiquez la référence <b>${esc(ord.ref)}</b> dans le motif du transfert, si l'opérateur le permet.</p>
+      <p>Ensuite, envoyez la demande et la preuve de paiement (capture ou SMS de confirmation) : vous recevrez votre clé de licence.</p>`,
+    [['Copier la demande', 'copy'], ...(sv.whatsapp ? [['Envoyer par WhatsApp', 'wa', true]] : []), ...(sv.email ? [['Envoyer par e-mail', 'mail', !sv.whatsapp]] : []), ['Fermer', null]]);
+    if (r2 === 'copy') { await navigator.clipboard.writeText(ord.text); msg(`Demande ${ord.ref} copiée.`); }
+    if (r2 === 'wa') window.api.openExternal(`https://wa.me/${sv.whatsapp}?text=${encodeURIComponent(ord.text + '\n\nPaiement Mobile Money effectué : ' + montant)}`);
+    if (r2 === 'mail') window.api.openExternal(`mailto:${sv.email}?subject=${encodeURIComponent('Commande SknEDU-studio ' + ord.ref)}&body=${encodeURIComponent(ord.text + '\n\nPaiement Mobile Money effectué : ' + montant)}`);
+  }
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) { navigator.clipboard.writeText(b.dataset.copy); msg('Numéro copié.'); } });
+document.addEventListener('change', (e) => { if (e.target.id === 'poOffre') { const sv = (LIC && LIC.sales) || {}; const o = (sv.offres || [])[+e.target.value]; const row = $('#poQteRow'); if (row) row.hidden = !(o && o.parPoste); } });
+actions.buyLicence = purchaseDialog;
 
 // ---------------------------------------------------------------- Compte obligatoire au premier démarrage
 const EMAIL_RE = /^[^\s@<>()[\]\\,;:"]{1,64}@[^\s@<>()[\]\\,;:"]+\.[a-z]{2,}$/i;
@@ -145,8 +197,8 @@ async function trialNotices(L) {
   if (L.mode === 'essai' && L.trial.daysLeft <= 7 && last !== day) {
     try { localStorage.setItem('edupdf.trialNotice', day); } catch { /* */ }
     const r = await modal('⭐ Essai Premium', `<p>Il reste <b>${L.trial.daysLeft} jour(s)</b> à votre essai des fonctions Premium.</p><p class="muted">Ensuite, la version gratuite reste utilisable ; les fonctions Premium demandent une licence.</p>`,
-      [['Plus tard', null], ['J\'ai une licence', 'lic'], ...(L.buyUrl ? [['Obtenir une licence', 'buy', true]] : [])]);
-    if (r === 'buy') window.api.openExternal(L.buyUrl); if (r === 'lic') actions.license();
+      [['Plus tard', null], ['J\'ai une licence', 'lic'], ['Obtenir une licence', 'buy', true]]);
+    if (r === 'buy') purchaseDialog(); if (r === 'lic') actions.license();
   } else if (L.mode === 'gratuit' && L.trial.ended && last !== 'fin') {
     try { localStorage.setItem('edupdf.trialNotice', 'fin'); } catch { /* */ }
     upgradeDialog('edit');
@@ -154,4 +206,4 @@ async function trialNotices(L) {
 }
 setInterval(() => applyLicense(), 3600000);
 (async () => { const L = await ensureAccount(); trialNotices(L); })();
-window.__licensing = { licenceDialog: licenceDialogFull, refresh: () => applyLicense(), PREMIUM_ACTS, PREMIUM_TOOLS, PREMIUM_GROUPS, markPremium, ensureAccount, editionText };
+window.__licensing = { purchaseDialog, buildOrder, licenceDialog: licenceDialogFull, refresh: () => applyLicense(), PREMIUM_ACTS, PREMIUM_TOOLS, PREMIUM_GROUPS, markPremium, ensureAccount, editionText };

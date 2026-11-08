@@ -24,10 +24,15 @@ reste utilisable sans limite de durée ; les fonctions Premium demandent une lic
 
 ## Obtenir une licence
 
-1. Dans SknEDU-studio, ouvrez **Aide › Licence et édition** et notez l'**adresse e-mail du compte** (et, pour une
-   licence liée au PC, le **code du poste**).
-2. Contactez l'éditeur avec ces informations et l'édition souhaitée.
-3. Vous recevez une clé `SKN1.…` (ou un fichier `.sknlic`) : collez-la dans **Aide › Licence et édition › Activer**.
+1. Dans SknEDU-studio : **Aide › 🛒 Obtenir une licence** (ou le bouton « Obtenir une licence » des fenêtres Premium).
+2. Choisissez l'offre (et le nombre de postes pour un établissement), puis le moyen de paiement :
+   - **WhatsApp** : la demande s'ouvre, prête à envoyer ;
+   - **Mobile Money** (Orange Money, MTN MoMo, Moov Money, Wave) : les numéros et le montant s'affichent ; envoyez ensuite
+     la demande et la preuve de paiement par WhatsApp ou e-mail ;
+   - **E-mail** : le message s'ouvre dans votre messagerie ;
+   - **Page de paiement** : la demande est copiée, collez-la dans la page.
+   La demande contient votre adresse e-mail, le code de votre poste et une référence de commande.
+3. Après le paiement, vous recevez votre clé `SKN1.…` : collez-la dans **Aide › Licence et édition › Activer**.
 
 Une licence est liée à l'adresse e-mail du compte et n'est **active que sur un ordinateur à la fois** :
 - pour changer de poste, « Désactiver de ce PC » dans Aide › Licence et édition, puis activer la même clé sur l'autre

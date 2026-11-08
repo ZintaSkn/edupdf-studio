@@ -775,7 +775,7 @@ ipcMain.handle('font-file', (_e, spec) => {
   fontFiles.set(spec, data);
   return data;
 });
-ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) ? shell.openExternal(url) : null));
+ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) || /^mailto:[^\s<>"']+$/i.test(String(url)) ? shell.openExternal(String(url)) : null)); // pages https et e-mails seulement
 ipcMain.handle('show-in-folder', (_e, p) => { if (typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)) shell.showItemInFolder(p); });
 ipcMain.handle('app-version', () => app.getVersion());
 
