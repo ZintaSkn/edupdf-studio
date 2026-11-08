@@ -45,6 +45,10 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
     const js = (code) => win.webContents.executeJavaScript(code);
     for (let i = 0; i < 100 && !(await js('!!window.__edupdf')); i++) await new Promise((r) => setTimeout(r, 100)); // éditeur chargé (module PDF.js)
     await new Promise((r) => setTimeout(r, 600)); try { fs.writeFileSync(path.join(outDir, 'accueil.png'), (await win.webContents.capturePage()).toPNG()); } catch { /* capture facultative */ }
+    if (process.env.EDUPDF_CAPTURES) { // captures du guide d'utilisation seulement (tools/guide-captures.js)
+      try { const list = await require(path.join(__dirname, '..', 'tools', 'guide-captures.js'))(win, js, outDir); log('CAPTURES', list.length, list.join(' ')); } catch (e) { log('ECHEC captures', e.stack); }
+      setTimeout(() => process.exit(0), 300); return;
+    }
     const results = {};
     const step = async (name, code, ms = 60000) => {
       if (process.env.EDUPDF_ONLY && !process.env.EDUPDF_ONLY.split(',').includes(name)) return; // mise au point : quelques étapes seulement
