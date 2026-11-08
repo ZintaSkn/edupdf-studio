@@ -501,12 +501,13 @@ window.EN_EXTRA = {
 
 // Messages composés (avec une partie variable) : expression régulière → traduction
 window.EN_PATTERNS = [
+  [/^(Enseignant|Établissement) — ([^—]+)$/, (m, e, d) => (e === 'Enseignant' ? 'Teacher' : 'School') + ' — ' + d.replace('mois', 'months').replace(/\ban\b/, 'year').replace(/\bans\b/, 'years').replace('par poste', 'per computer').replace('postes minimum', 'computers minimum')],
   [/^Demande (CMD-\S+) copiée : collez-la dans votre message à l'éditeur\.$/, 'Request $1 copied: paste it into your message to the publisher.'],
   [/^Demande (CMD-\S+) préparée dans WhatsApp : envoyez-la, puis réglez selon les instructions reçues\.$/, 'Request $1 ready in WhatsApp: send it, then pay as instructed.'],
   [/^Demande (CMD-\S+) préparée dans votre messagerie : envoyez-la\.$/, 'Request $1 ready in your email app: send it.'],
   [/^Demande (CMD-\S+) copiée : collez-la dans la page de paiement qui s'ouvre\.$/, 'Request $1 copied: paste it into the payment page that opens.'],
   [/^Demande (CMD-\S+) copiée\.$/, 'Request $1 copied.'],
-  [/^(Enseignant|Établissement) — (.+) — (.+)$/, (m, e, d, p) => (e === 'Enseignant' ? 'Teacher' : 'School') + ' — ' + d.replace('mois', 'months').replace(/\ban\b/, 'year').replace('ans', 'years').replace('(par poste)', '(per computer)') + ' — ' + p.replace("prix communiqué par l'éditeur", 'price given by the publisher')],
+  [/^(Enseignant|Établissement) — (.+) — (.+)$/, (m, e, d, p) => (e === 'Enseignant' ? 'Teacher' : 'School') + ' — ' + d.replace('mois', 'months').replace(/\ban\b/, 'year').replace(/\bans\b/, 'years').replace('(par poste)', '(per computer)').replace('par poste', 'per computer').replace('postes minimum', 'computers minimum') + ' — ' + p.replace("prix communiqué par l'éditeur", 'price given by the publisher')],
   [/^Licence désactivée de ce PC : (\d+) jour\(s\) restant\(s\), activable sur un autre poste\.$/, 'Licence deactivated from this PC: $1 day(s) left, can be activated on another computer.'],
   [/^⭐ Essai Premium : (\d+) jour\(s\)$/, '⭐ Premium trial: $1 day(s)'],
   [/^(\d+) jour\(s\)$/, '$1 day(s)'],

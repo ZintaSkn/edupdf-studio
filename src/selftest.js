@@ -759,6 +759,21 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         return out;
       })()`);
       delete process.env.EDUPDF_TEST_SALES;
+      await step('commande-reglages-reels', `(async () => {
+        const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        const L = await window.__licensing.refresh(); const sv = L.sales;
+        out.contacts = 'WhatsApp ' + sv.whatsapp + ' | e-mail ' + sv.email + ' | ' + sv.mobileMoney.map((m) => m.operateur + ' ' + m.numero + ' (' + m.nom + ')').join(', ');
+        const p = window.__licensing.purchaseDialog(); await wait(500);
+        out.offres = [...document.querySelectorAll('#poOffre option')].map((o) => o.textContent).join(' / ');
+        out.canaux = [...document.querySelectorAll('#mBtns button')].map((b) => b.textContent).join(' | ');
+        q('#poOffre').value = '3'; q('#poOffre').dispatchEvent(new Event('change', { bubbles: true })); await wait(100);
+        out.minimum = q('#poQte').min + ' / ' + q('#poQte').value; q('#poQte').value = '4';
+        [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Mobile Money').click(); await wait(600);
+        out.paiement = q('#mBody').textContent.replace(/\s+/g, ' ').slice(0, 120);
+        [...document.querySelectorAll('#mBtns button')].find((b) => b.textContent === 'Fermer').click(); await p;
+        out.lienWhatsApp = 'https://wa.me/' + sv.whatsapp + '?text=…';
+        return out;
+      })()`);
 
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {

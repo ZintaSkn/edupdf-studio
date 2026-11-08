@@ -202,26 +202,20 @@
     "contact": "",
     "licenceServer": "",
     "serverPublicKey": "",
-    "vendeur": "SEHI BI Kouahi Nestor",
-    "whatsapp": "",
-    "email": "",
+    "vendeur": "ZintaServices",
+    "whatsapp": "+2250506848164",
+    "email": "sknzinta@gmail.com",
     "page": "",
     "mobileMoney": [
       {
-        "operateur": "Orange Money",
-        "numero": ""
+        "operateur": "Wave",
+        "numero": "+2250506848164",
+        "nom": "ZintaServices"
       },
       {
         "operateur": "MTN MoMo",
-        "numero": ""
-      },
-      {
-        "operateur": "Moov Money",
-        "numero": ""
-      },
-      {
-        "operateur": "Wave",
-        "numero": ""
+        "numero": "+2250506848164",
+        "nom": "ZintaServices"
       }
     ],
     "devise": "FCFA",
@@ -231,29 +225,30 @@
         "edition": "enseignant",
         "jours": 90,
         "libelle": "Enseignant — 3 mois",
-        "prix": ""
+        "prix": "5000"
       },
       {
         "id": "ens-1a",
         "edition": "enseignant",
         "jours": 365,
         "libelle": "Enseignant — 1 an",
-        "prix": ""
+        "prix": "15000"
       },
       {
         "id": "ens-2a",
         "edition": "enseignant",
         "jours": 730,
         "libelle": "Enseignant — 2 ans",
-        "prix": ""
+        "prix": "27000"
       },
       {
         "id": "etab-1a",
         "edition": "etablissement",
         "jours": 365,
-        "libelle": "Établissement — 1 an (par poste)",
-        "prix": "",
-        "parPoste": true
+        "libelle": "Établissement — 1 an par poste (10 postes minimum)",
+        "prix": "7000",
+        "parPoste": true,
+        "min": 10
       }
     ]
   }

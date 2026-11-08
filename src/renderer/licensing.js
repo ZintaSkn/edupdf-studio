@@ -135,8 +135,9 @@ async function purchaseDialog() {
     ${canaux.length ? '' : '<p class="err">Les moyens de paiement ne sont pas encore configurés : copiez la demande et envoyez-la à l\'éditeur.</p>'}`,
   [['Annuler', null], ['Copier la demande', 'copy'], ...canaux.map(([lab, id], i) => [lab, id, i === 0])].map((b) => (b[1] ? [b[0], () => ({ ch: b[1], o: offres[+$('#poOffre').value], q: Math.max(1, Math.min(500, Math.round(+$('#poQte').value || 1))), nom: $('#poNom').value.trim(), org: $('#poOrg').value.trim() }), b[2]] : b)));
   $('#poQteRow').hidden = !offres[0].parPoste; // nombre de postes : offres Établissement seulement
+  if (offres[0].min) { $('#poQte').min = offres[0].min; $('#poQte').value = offres[0].min; }
   const r = await pr; if (!r) return;
-  const q = r.o.parPoste ? r.q : 1;
+  const q = r.o.parPoste ? Math.max(r.o.min || 1, r.q) : 1; // minimum de postes de l'offre Établissement
   const ord = buildOrder(L, r.o, q, r.nom, r.org);
   try { localStorage.setItem('edupdf.derniereCommande', JSON.stringify({ ref: ord.ref, offre: r.o.libelle, date: ord.data.date })); } catch { /* */ }
   window.__derniereCommande = ord;
@@ -157,7 +158,11 @@ async function purchaseDialog() {
   }
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) { navigator.clipboard.writeText(b.dataset.copy); msg('Numéro copié.'); } });
-document.addEventListener('change', (e) => { if (e.target.id === 'poOffre') { const sv = (LIC && LIC.sales) || {}; const o = (sv.offres || [])[+e.target.value]; const row = $('#poQteRow'); if (row) row.hidden = !(o && o.parPoste); } });
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'poOffre') return;
+  const sv = (LIC && LIC.sales) || {}; const o = (sv.offres || [])[+e.target.value]; const row = $('#poQteRow'); if (!row) return;
+  row.hidden = !(o && o.parPoste); const inp = $('#poQte'); const min = (o && o.min) || 1; inp.min = min; if (+inp.value < min) inp.value = min;
+});
 actions.buyLicence = purchaseDialog;
 
 // ---------------------------------------------------------------- Compte obligatoire au premier démarrage

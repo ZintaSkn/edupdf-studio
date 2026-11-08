@@ -22,15 +22,26 @@ reste utilisable sans limite de durée ; les fonctions Premium demandent une lic
 | 🛡️ Administration des postes (droits, journal, notifications), licence pour tout le PC | | | ✅ |
 | Nom de l'établissement dans l'application et les modèles, support prioritaire, formation | | | ✅ |
 
+## Tarifs
+
+| Offre | Prix |
+|---|---|
+| Enseignant — 3 mois | 5 000 FCFA |
+| Enseignant — 1 an | 15 000 FCFA |
+| Enseignant — 2 ans | 27 000 FCFA |
+| Établissement — 1 an, par poste (10 postes minimum) | 7 000 FCFA par poste |
+
+Paiement : **Wave** ou **MTN MoMo** au **+225 05 06 84 81 64** (ZintaServices), puis envoi de la demande et de la preuve
+de paiement par **WhatsApp** (+225 05 06 84 81 64) ou par **e-mail** (sknzinta@gmail.com).
+
 ## Obtenir une licence
 
 1. Dans SknEDU-studio : **Aide › 🛒 Obtenir une licence** (ou le bouton « Obtenir une licence » des fenêtres Premium).
 2. Choisissez l'offre (et le nombre de postes pour un établissement), puis le moyen de paiement :
    - **WhatsApp** : la demande s'ouvre, prête à envoyer ;
-   - **Mobile Money** (Orange Money, MTN MoMo, Moov Money, Wave) : les numéros et le montant s'affichent ; envoyez ensuite
+   - **Mobile Money** (Wave ou MTN MoMo) : le numéro et le montant s'affichent ; envoyez ensuite
      la demande et la preuve de paiement par WhatsApp ou e-mail ;
    - **E-mail** : le message s'ouvre dans votre messagerie ;
-   - **Page de paiement** : la demande est copiée, collez-la dans la page.
    La demande contient votre adresse e-mail, le code de votre poste et une référence de commande.
 3. Après le paiement, vous recevez votre clé `SKN1.…` : collez-la dans **Aide › Licence et édition › Activer**.
 
@@ -40,4 +51,4 @@ Une licence est liée à l'adresse e-mail du compte et n'est **active que sur un
 - **deux licences au plus** peuvent être actives ensemble sur un poste : leurs jours **s'additionnent** ;
 - activation et désactivation demandent Internet ; ensuite, une vérification automatique au moins tous les 14 jours.
 
-Contact : SEHI BI Kouahi Nestor — https://github.com/ZintaSkn/edupdf-studio/issues
+Contact : ZintaServices (SEHI BI Kouahi Nestor) — WhatsApp +225 05 06 84 81 64 — sknzinta@gmail.com

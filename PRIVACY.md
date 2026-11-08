@@ -12,6 +12,7 @@ sauf dans les cas suivants, tous visibles et à l'initiative de l'utilisateur ou
 | **Classe connectée** (réseau local) | Uniquement quand l'enseignant démarre un partage | Le document partagé, aux appareils de la classe connectés au même réseau | Arrêter le partage (arrêt automatique à la fermeture) |
 | **Notifications d'administration** (ntfy) | Uniquement si l'administrateur de l'établissement les configure | Type d'évènement, poste et utilisateur concernés | Console d'administration |
 | **Activation des licences** (service de l'éditeur, Cloudflare) | Uniquement pour activer, désactiver ou revérifier une licence (au plus une fois par 12 h) | Clé de licence, adresse e-mail du compte, identifiant anonyme du poste | Ne pas activer de licence en ligne ; la version gratuite et l'essai fonctionnent sans connexion |
+| **Commande d'une licence** | Uniquement si vous envoyez la demande (Aide › Obtenir une licence) | Adresse e-mail, nom, établissement, code du poste, offre choisie — envoyés à l'éditeur par WhatsApp ou e-mail, depuis votre propre application | Ne pas envoyer de demande |
 | **Compte et essai** | Au premier démarrage | **Rien n'est envoyé** : l'adresse e-mail, le nom et l'établissement saisis restent sur l'ordinateur, avec la date de début de l'essai | — |
 | **Installation d'outils** (winget, Ollama) | Uniquement sur demande explicite (LibreOffice, Google Drive, IA locale…) | Aucune donnée personnelle | Ne pas lancer l'installation |
 
