@@ -22,6 +22,7 @@ const admin = require('./admin');
 const cloud = require('./cloud');
 const ai = require('./ai');
 const license = require('./license');
+const codeupdate = require('./codeupdate');
 // ---------- Chiffrement en transit : TLS 1.3 minimum pour toutes les connexions sortantes (Node et Chromium) ----------
 require('tls').DEFAULT_MIN_VERSION = 'TLSv1.3';
 app.commandLine.appendSwitch('ssl-version-min', 'tls1.3');
@@ -280,7 +281,7 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   // Taille adaptée à l'écran (portables 1366×768, écrans 4K…) : plein écran utile si l'écran est petit
   fitWindowToScreen(win);
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { win.show(); codeupdate.confirmStart(); }); // démarrage réussi après une mise à jour du contenu
   // mémorise la taille et la position pour la prochaine ouverture (si l'écran est toujours le même)
   const remember = () => { try { const s = readSettings(); s.window = { bounds: win.getNormalBounds(), maximized: win.isMaximized() }; writeSettings(s); } catch { /* */ } };
   win.on('close', remember);
@@ -351,6 +352,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
+    codeupdate.init({ app, net: require('electron').net });
     classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win });
     ai.init({ app, ipcMain, safeStorage: require('electron').safeStorage, guard: admin.guard, logEvent: admin.logEvent });
     admin.logEvent('app_start', {});
@@ -984,13 +986,29 @@ function setupAutoUpdate() {
   const write = (lvl) => (m) => { try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1048576) fs.renameSync(logFile, logFile + '.1'); fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${lvl} ${m}\n`); } catch { /* */ } };
   autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };
   autoUpdater.allowDowngrade = false;
-  autoUpdater.autoDownload = process.platform !== 'darwin'; // macOS : l'installation automatique exige une signature Apple
-  const sac = smartAppControlEnforced();
-  autoUpdater.autoInstallOnAppQuit = !sac; // autorisé seulement après vérification de la signature de l'installateur
-  let installable = !sac;
+  autoUpdater.disableWebInstaller = true;
+  const sac = smartAppControlEnforced(); const portable = codeupdate.isPortable();
+  // Contrôle intelligent actif ou version sans installation : mise à jour du contenu signée, sans installateur
+  const contentFirst = process.platform === 'win32' && (sac || portable);
+  autoUpdater.autoDownload = process.platform !== 'darwin' && !contentFirst; // macOS : l'installation automatique exige une signature Apple
+  autoUpdater.autoInstallOnAppQuit = !sac && !portable; // installateur : autorisé seulement après vérification de sa signature
+  let installable = !sac && !portable; let staged = null;
   const send = (status, info) => win && win.webContents.send('update-status', { status, info });
   autoUpdater.on('checking-for-update', () => send('checking'));
-  autoUpdater.on('update-available', (i) => send('available', i.version));
+  autoUpdater.on('update-available', async (i) => {
+    send('available', i.version);
+    if (!contentFirst) return;
+    if (staged && staged.version === i.version) return send('ready', i.version); // déjà prête
+    try {
+      const r = await codeupdate.prepare(i.version, (p) => send('progress', p));
+      if (r.ready) { staged = r; write('INFO')(`Contenu ${i.version} téléchargé et vérifié (signature et empreintes) : mise en place à la fermeture`); return send('ready', i.version); }
+      write('INFO')(`Mise à jour du contenu impossible (${r.reason})`);
+    } catch (e) { write('ERREUR')('Mise à jour du contenu : ' + e.message); }
+    if (portable) return send('manual', i.version); // version sans installation : nouvelle archive à télécharger
+    autoUpdater.downloadUpdate().catch(() => send('offline')); // installateur : sa signature est vérifiée à l'arrivée
+  });
+  // fermeture normale : le contenu préparé est mis en place juste après (sans redémarrage)
+  app.on('will-quit', () => { if (staged) { codeupdate.apply(staged, false); staged = null; } });
   autoUpdater.on('update-not-available', () => send('none'));
   autoUpdater.on('download-progress', (p) => send('progress', Math.round(p.percent)));
   autoUpdater.on('update-downloaded', async (i) => {
@@ -1005,6 +1023,18 @@ function setupAutoUpdate() {
   setTimeout(check, 5000);
   setInterval(check, 4 * 60 * 60 * 1000); // toutes les 4 h
   ipcMain.handle('check-update', () => autoUpdater.checkForUpdates().catch(() => send('offline'))); // vérification demandée par l'utilisateur
-  ipcMain.handle('install-update', () => { if (!installable) return false; autoUpdater.quitAndInstall(); return true; });
+  ipcMain.handle('install-update', () => {
+    if (staged) { codeupdate.apply(staged, true); staged = null; setImmediate(() => app.quit()); return true; } // redémarrage, retour arrière si besoin
+    if (!installable) return false; autoUpdater.quitAndInstall(); return true;
+  });
 }
 ipcMain.handle('is-packaged', () => app.isPackaged);
+// Version sans installation : raccourcis Bureau et menu Démarrer créés à la demande (aucun installateur nécessaire)
+ipcMain.handle('portable-info', () => ({ portable: codeupdate.isPortable(), asked: !!readSettings().shortcutsAsked }));
+ipcMain.handle('create-shortcuts', (_e, yes) => {
+  const s = readSettings(); s.shortcutsAsked = true; writeSettings(s);
+  if (!yes || !codeupdate.isPortable()) return false;
+  const opt = { target: process.execPath, icon: path.join(process.resourcesPath, 'icon.ico'), iconIndex: 0, appUserModelId: 'com.edupdf.studio', description: 'SknEDU-studio' };
+  const lnks = [path.join(app.getPath('desktop'), 'SknEDU-studio.lnk'), path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'SknEDU-studio.lnk')];
+  return lnks.map((l) => { try { fs.mkdirSync(path.dirname(l), { recursive: true }); return shell.writeShortcutLink(l, 'create', opt); } catch { return false; } }).every(Boolean);
+});

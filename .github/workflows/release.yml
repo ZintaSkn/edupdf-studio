@@ -60,6 +60,15 @@ jobs:
           SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      # Mise à jour du contenu sans installateur (contrôle intelligent de Windows) : publiée ici, puis signée par
+      # l'éditeur sur son ordinateur (node tools/maj.js signer X.Y.Z) — la clé de signature n'est jamais sur GitHub.
+      - name: Contenu à signer (mise à jour sans installateur)
+        shell: pwsh
+        run: |
+          node tools/maj.js paquet dist\win-unpacked\resources dist\contenu
+          gh release upload "${{ github.ref_name }}" (Get-ChildItem dist\contenu -File).FullName --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Paquet Microsoft Store (.appx) : signé par Microsoft à la publication dans le Store, donc accepté par le
       # contrôle intelligent des applications. Identité fournie par l'Espace partenaires (variables du dépôt
       # STORE_IDENTITY_NAME et STORE_PUBLISHER) ; à téléverser dans l'Espace partenaires (voir docs/MICROSOFT-STORE.md).
@@ -85,7 +94,7 @@ jobs:
       - name: Empreintes
         shell: pwsh
         run: |
-          Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.yml' } | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content dist\SHA256SUMS-windows.txt
+          Get-ChildItem dist, dist\contenu -File | Where-Object { $_.Extension -in '.exe', '.yml', '.zip', '.asar', '.json' } | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content dist\SHA256SUMS-windows.txt
           gh release upload "${{ github.ref_name }}" dist\SHA256SUMS-windows.txt --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

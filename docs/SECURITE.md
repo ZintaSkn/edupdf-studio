@@ -75,6 +75,7 @@ pas chiffrés.
 | Clé | Rôle | Emplacement | Sauvegarde | Rotation |
 |---|---|---|---|---|
 | Clé de l'éditeur (Ed25519) | Signe les licences | `%USERPROFILE%\SknEDUpdf-licences\cle-privee-licences.pem` sur le PC de l'éditeur, **jamais dans le dépôt** | Copie hors-ligne chiffrée (clé USB chiffrée BitLocker, rangée à part) | Nouvelle clé ajoutée à `licencePublicKeys` dans une version, puis utilisée pour les nouvelles licences ; l'ancienne reste acceptée jusqu'à expiration des licences émises |
+| Clé de mise à jour (Ed25519) | Signe le contenu des mises à jour sans installateur | `%USERPROFILE%\SknEDUpdf-licences\cle-privee-mises-a-jour.pem` sur le PC de l'éditeur, **jamais sur GitHub** (signature après la publication : `node tools/maj.js signer X.Y.Z`) | Même copie hors-ligne | Nouvelle clé publique ajoutée à `KEYS` dans `src/codeupdate.js` dans une version, puis signature avec elle |
 | Clé du service (Ed25519) | Signe les jetons d'activation | Secret Cloudflare `SERVER_PRIVATE_KEY` + copie hors-ligne `cle-privee-serveur.pem` | Même copie hors-ligne | Nouvelle clé publique ajoutée à `serverPublicKey` (qui accepte une liste) dans une version ; une fois cette version diffusée, `wrangler secret put SERVER_PRIVATE_KEY` |
 | Clé de données du poste (AES-256) | Copies de récupération | `cle-donnees.bin` (protégée par DPAPI) | Aucune (les copies ne servent qu'en cas de panne sur ce poste) | Effacer le fichier : une nouvelle clé est créée |
 | Clé de l'administrateur d'établissement (Ed25519) | Signe les règles de l'établissement | `admin.json`, chiffrée AES-256-GCM par le mot de passe administrateur | Copier `admin.json` (déjà chiffré) hors du poste | Rechiffrée à chaque changement de mot de passe |
@@ -137,7 +138,9 @@ avec vérification ASVS niveau 3. Ce test n'a pas encore été réalisé.
 - Les fonctions gratuites ne dépendent d'aucun service.
 - Le service d'activation tourne sur le réseau mondial de Cloudflare (aucun serveur unique) ; l'offre gratuite
   (100 000 demandes par jour) couvre environ 30 000 postes actifs par jour.
-- Mises à jour : publiées sur GitHub Releases, installées seulement après vérification d'intégrité.
+- Mises à jour : publiées sur GitHub Releases, installées seulement après vérification d'intégrité ; quand Windows bloque
+  l'installateur (contrôle intelligent), le contenu signé est mis en place sans installateur, avec retour automatique à la
+  version précédente si la nouvelle ne démarre pas.
 
 ## 8. Consommation énergétique et fichiers lourds
 

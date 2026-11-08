@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld('api', {
   isPackaged: () => ipcRenderer.invoke('is-packaged'),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  portableInfo: () => ipcRenderer.invoke('portable-info'),
+  createShortcuts: (yes) => ipcRenderer.invoke('create-shortcuts', !!yes),
   onUpdate: (cb) => ipcRenderer.on('update-status', (_e, s) => cb(s)),
   onOpenPaths: (cb) => ipcRenderer.on('open-paths', (_e, p) => cb(p)),
   setDirty: (v) => ipcRenderer.send('set-dirty', v),

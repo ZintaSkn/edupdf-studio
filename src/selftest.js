@@ -5,7 +5,8 @@ module.exports = (win, outDir) => {
   try { require('./account').save({ email: 'enseignant@ecole.test', name: 'Mme Test', org: 'Lycée Test' }); } catch (e) { console.error('compte de test', e); }
   const logFile = path.join(outDir, 'selftest.log');
   fs.writeFileSync(logFile, '');
-  const log = (...a) => fs.appendFileSync(logFile, a.join(' ') + '\n');
+  let anyFail = false; // une vérification en échec, même hors des étapes standard, fait échouer l'auto-test
+  const log = (...a) => { const s = a.join(' '); if (/^(FAIL|ECHEC)\b/.test(s)) anyFail = true; fs.appendFileSync(logFile, s + '\n'); };
   const timeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout ' + what)), ms)), ]);
   setTimeout(() => { log('GLOBAL TIMEOUT'); process.exit(1); }, 480000);
   win.webContents.on('console-message', (e, level, m) => { const lv = e && e.level !== undefined ? e.level : level; const txt = e && e.message !== undefined ? e.message : m; if (lv === 'error' || lv === 'warning' || lv >= 2) log('[renderer]', txt, e && e.sourceId ? e.sourceId.split('/').pop() + ':' + e.lineNumber : ''); });
@@ -942,6 +943,63 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         } catch (e) { log('FAIL depot-utilisateur', e.stack); }
       }
 
+      // ---------- Mise à jour du contenu sans installateur (contrôle intelligent de Windows) ----------
+      try {
+        const ofs = require('original-fs'); const crypto = require('crypto'); const http = require('http'); const cp = require('child_process'); const CU = require('./codeupdate'); const JSZip = require('jszip');
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const root = path.join(outDir, 'maj'); const res = path.join(root, 'resources'); const attente = path.join(root, 'attente');
+        ofs.rmSync(root, { recursive: true, force: true }); ofs.mkdirSync(path.join(res, 'app.asar.unpacked', 'mod'), { recursive: true });
+        ofs.writeFileSync(path.join(res, 'app.asar'), 'ANCIENNE'); ofs.writeFileSync(path.join(res, 'app.asar.unpacked', 'mod', 'a.txt'), 'module 1');
+        const k = crypto.generateKeyPairSync('ed25519'); const kp = k.publicKey.export({ type: 'spki', format: 'pem' });
+        const files = {};
+        const publish = async (v, asarText, modText) => { // version publiée par l'éditeur (contenu + modules, description signée)
+          const N = CU.names(v); const asar = Buffer.from(asarText + ' ' + 'x'.repeat(4000));
+          const entries = [{ rel: 'mod/a.txt', data: Buffer.from(modText) }, { rel: 'mod/b.wasm', data: crypto.createHash('sha512').update(modText).digest() }];
+          const zip = new JSZip(); for (const e of entries) zip.file(e.rel, e.data); const zbuf = await zip.generateAsync({ type: 'nodebuffer' });
+          const data = { produit: 'SknEDU-studio', version: v, electron: process.versions.electron, asar: { nom: N.asar, taille: asar.length, sha512: CU.sha512(asar) }, unpacked: { nom: N.unpacked, taille: zbuf.length, sha512: CU.sha512(zbuf), empreinte: CU.treeHashOf(entries) } };
+          Object.assign(files, { [N.asar]: asar, [N.unpacked]: zbuf, [N.manifest]: Buffer.from(CU.signManifest(data, k.privateKey)) }); return { N, data };
+        };
+        const srv = http.createServer((q, s) => { const n = decodeURIComponent(q.url.split('/').pop()); if (files[n]) { s.writeHead(200); s.end(files[n]); } else { s.writeHead(404); s.end(); } });
+        await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+        const o = { base: `http://127.0.0.1:${srv.address().port}`, keys: [kp], resources: res, stagingRoot: attente, fetch: (u) => fetch(u) };
+        const out = {}; const refused = (p) => p.then((r) => (r && r.ready ? 'ACCEPTÉE' : 'non prête : ' + (r && r.reason)), () => 'refusée');
+        const { N, data } = await publish('9.9.1', 'NOUVELLE', 'module 2');
+        // falsifications
+        const good = { ...files };
+        files[N.manifest] = Buffer.from(CU.signManifest(data, crypto.generateKeyPairSync('ed25519').privateKey)); out.signatureEtrangere = await refused(CU.prepare('9.9.1', null, o));
+        files[N.manifest] = good[N.manifest]; files[N.asar] = Buffer.concat([good[N.asar].subarray(0, -1), Buffer.from('!')]); out.contenuModifie = await refused(CU.prepare('9.9.1', null, o));
+        files[N.asar] = good[N.asar]; files[N.unpacked] = Buffer.concat([good[N.unpacked], Buffer.from('?')]); out.modulesModifies = await refused(CU.prepare('9.9.1', null, o));
+        files[N.unpacked] = good[N.unpacked];
+        out.autreElectron = (await CU.prepare('9.9.1', null, { ...o, electron: '1.0.0' })).reason;
+        out.nonPubliee = (await CU.prepare('9.9.7', null, o)).reason;
+        // préparation puis mise en place à la fermeture (processus « application » qui se termine)
+        let st = await CU.prepare('9.9.1', null, o); out.preparee = st.ready + ', modules ' + st.unpacked;
+        const app1 = cp.spawn(process.execPath, ['-e', 'setTimeout(() => {}, 1200)'], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+        CU._test.reset(); CU.apply(st, false, { pid: app1.pid, stagingRoot: attente });
+        const read = () => ofs.readFileSync(path.join(res, 'app.asar'), 'latin1').slice(0, 8);
+        for (let i = 0; i < 80 && read() !== 'NOUVELLE'; i++) await wait(250);
+        out.miseEnPlace = read() + ' / module ' + ofs.readFileSync(path.join(res, 'app.asar.unpacked', 'mod', 'a.txt'), 'utf8') + ' / copie ' + ofs.readFileSync(path.join(res, 'app.asar.precedent'), 'latin1');
+        // redémarrage confirmé (le logiciel relancé écrit son accord)
+        const okApp = path.join(root, 'demarre-ok.js'); ofs.writeFileSync(okApp, "require('fs').writeFileSync(process.argv[process.argv.length - 1], 'ok'); require('electron').app.quit();");
+        const badApp = path.join(root, 'demarre-pas.js'); ofs.writeFileSync(badApp, "require('electron').app.quit();");
+        await publish('9.9.2', 'VERSION2', 'module 2'); st = await CU.prepare('9.9.2', null, o); out.modulesInchanges = 'téléchargés : ' + st.unpacked;
+        CU._test.reset(); CU.apply(st, true, { pid: 999999, stagingRoot: attente, exe: process.execPath, exeArgs: [okApp, path.join(st.dir, 'demarrage-ok')], timeoutMs: 20000 });
+        const journal = (d) => { try { return ofs.readFileSync(path.join(d, 'journal.txt'), 'utf8'); } catch { return ''; } };
+        for (let i = 0; i < 100 && !/confirmé|rétablie/.test(journal(st.dir)); i++) await wait(250);
+        out.redemarrage = /confirmé/.test(journal(st.dir)) ? 'confirmé, ' + read() : 'ÉCHEC ' + journal(st.dir).slice(-120);
+        // nouvelle version qui ne démarre pas : retour automatique à la précédente
+        await publish('9.9.3', 'DEFAUT03', 'module 3'); st = await CU.prepare('9.9.3', null, o);
+        CU._test.reset(); CU.apply(st, true, { pid: 999999, stagingRoot: attente, exe: process.execPath, exeArgs: [badApp], timeoutMs: 4000 });
+        for (let i = 0; i < 100 && !/rétablie/.test(journal(st.dir)); i++) await wait(250);
+        await wait(500);
+        out.retourArriere = /rétablie/.test(journal(st.dir)) ? 'version rétablie : ' + read() + ' / module ' + ofs.readFileSync(path.join(res, 'app.asar.unpacked', 'mod', 'a.txt'), 'utf8') : 'ÉCHEC ' + journal(st.dir).slice(-160);
+        srv.close(); CU._test.reset();
+        const ok = out.signatureEtrangere === 'refusée' && out.contenuModifie === 'refusée' && out.modulesModifies === 'refusée' && /Electron/.test(out.autreElectron) && /pas encore publié/.test(out.nonPubliee)
+          && out.preparee === 'true, modules true' && out.miseEnPlace === 'NOUVELLE / module module 2 / copie ANCIENNE' && out.modulesInchanges === 'téléchargés : false'
+          && out.redemarrage === 'confirmé, VERSION2' && out.retourArriere === 'version rétablie : VERSION2 / module module 2';
+        log((ok ? 'OK   ' : 'FAIL ') + 'maj-sans-installateur', JSON.stringify(out));
+      } catch (e) { log('FAIL maj-sans-installateur', e.stack); }
+
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;
@@ -1012,7 +1070,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
 
       await new Promise((res) => setTimeout(res, 800));
       fs.writeFileSync(path.join(outDir, 'ui.png'), (await win.webContents.capturePage()).toPNG());
-      log(Object.values(results).some((r) => r && r.error) ? 'DONE WITH FAILURES' : 'ALL OK');
+      log(anyFail || Object.values(results).some((r) => r && r.error) ? 'DONE WITH FAILURES' : 'ALL OK');
     } catch (e) {
       log('ECHEC', e.stack || e.message);
     }

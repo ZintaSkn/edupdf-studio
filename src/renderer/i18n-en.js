@@ -512,6 +512,13 @@ window.EN_EXTRA = {
   'Nouvelle page ajoutée, au même format que la page précédente.': 'New page added, same size as the previous page.',
   'Nouvelle page ajoutée, identique au modèle de la page précédente.': 'New page added, identical to the template of the previous page.',
   'Mises à jour installées par le Microsoft Store': 'Updates installed by the Microsoft Store',
+  'SknEDU-studio sans installation': 'SknEDU-studio without installation',
+  'SknEDU-studio fonctionne depuis ce dossier, sans installation : idéal quand Windows bloque les installateurs.': 'SknEDU-studio runs from this folder, without installation: ideal when Windows blocks installers.',
+  'Créer un raccourci sur le Bureau et dans le menu Démarrer ?': 'Create a shortcut on the Desktop and in the Start menu?',
+  "Gardez le dossier à cet emplacement (pas dans Téléchargements) : les mises à jour s'y installent automatiquement.": 'Keep the folder in this location (not in Downloads): updates install there automatically.',
+  'Non merci': 'No thanks', 'Créer les raccourcis': 'Create shortcuts',
+  'Raccourcis créés sur le Bureau et dans le menu Démarrer.': 'Shortcuts created on the Desktop and in the Start menu.', 'Raccourcis non créés.': 'Shortcuts not created.',
+  'Nouvelle version': 'New version', 'télécharger': 'download',
   'Cette copie de récupération est illisible (session Windows ou clé de chiffrement changée) : elle a été supprimée.': 'This recovery copy is unreadable (Windows session or encryption key changed): it has been deleted.'
 };
 
@@ -546,6 +553,7 @@ window.EN_PATTERNS = [
   [/^(\d+) page\(s\) ajoutée\(s\)\.$/, '$1 page(s) added.'],
   [/^(\d+) remplacement\(s\) effectué\(s\)(.*)$/, '$1 replacement(s) made$2'],
   [/^Version (\S+) prête — $/, 'Version $1 ready — '],
+  [/^Nouvelle version (\S+) — $/, 'New version $1 — '],
   [/^Version (\S+) disponible — $/, 'Version $1 available — '],
   [/^Mise à jour (\S+) en téléchargement…$/, 'Downloading update $1…'],
   [/^Téléchargement de la mise à jour : (\d+) %$/, 'Downloading update: $1%'],

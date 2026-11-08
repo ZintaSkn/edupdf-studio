@@ -4,6 +4,16 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.2] — Mises à jour sans installateur (contrôle intelligent de Windows)
+- Quand le contrôle intelligent des applications de Windows 11 bloque l'installateur (non signé), la mise à jour se fait
+  quand même : seul le contenu de l'application est remplacé (le programme, déjà autorisé par Windows, ne change pas),
+  après vérification de sa signature numérique (clé de l'éditeur, Ed25519) et de ses empreintes SHA-512
+- Mise en place à la fermeture du logiciel, ou tout de suite avec « Redémarrer et installer » ; l'ancienne version est
+  gardée et rétablie automatiquement si la nouvelle ne démarre pas
+- Nouvelle **version sans installation** (archive ZIP) pour les ordinateurs où Windows refuse l'installateur : extraire,
+  lancer SknEDU-studio.exe ; raccourcis Bureau et menu Démarrer proposés au premier lancement ; mises à jour automatiques
+- Auto-test : toute vérification en échec fait désormais échouer l'auto-test (même hors des étapes principales)
+
 ## [1.13.1] — Compte, essai de 30 jours, fonctions Premium et notes
 (Première diffusion de ces nouveautés ; le numéro 1.13.0 n'a pas été distribué.)
 - Compte obligatoire au premier démarrage (adresse e-mail ; nom et établissement facultatifs), enregistré sur l'ordinateur

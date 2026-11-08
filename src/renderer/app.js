@@ -2260,8 +2260,19 @@ window.api.onOpenPaths(async (paths) => {
 });
 
 // Mises à jour automatiques
+// Version sans installation (archive ZIP) : raccourcis Bureau et menu Démarrer proposés une fois
+(async () => {
+  try {
+    const p = await window.api.portableInfo(); if (!p.portable || p.asked) return;
+    const r = await modal('SknEDU-studio sans installation', `<p>SknEDU-studio fonctionne depuis ce dossier, sans installation : idéal quand Windows bloque les installateurs.</p>
+      <p>Créer un raccourci sur le Bureau et dans le menu Démarrer ?</p>
+      <p class="muted">Gardez le dossier à cet emplacement (pas dans Téléchargements) : les mises à jour s'y installent automatiquement.</p>`, [['Non merci', 'non'], ['Créer les raccourcis', 'oui', true]]);
+    const yes = r === 'oui'; const ok = await window.api.createShortcuts(yes); if (yes) msg(ok ? 'Raccourcis créés sur le Bureau et dans le menu Démarrer.' : 'Raccourcis non créés.');
+  } catch { /* version installée */ }
+})();
 window.api.onUpdate(({ status, info }) => {
   const el = $('#update');
+  if (status === 'manual') { el.innerHTML = `Nouvelle version ${esc(info)} — <a href="https://github.com/ZintaSkn/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
   const t = { store: 'Mises à jour installées par le Microsoft Store', checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
   if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ZintaSkn/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
   if (status === 'blocked') {

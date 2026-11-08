@@ -177,6 +177,7 @@ l'installateur sur les serveurs de GitHub et le publie ; les PC déjà équipés
 
 ## Bon à savoir
 
+- Windows 11 avec le **contrôle intelligent des applications** : l'installateur (pas encore signé) est bloqué. Téléchargez la **version sans installation** (`SknEDU-studio-X.Y.Z-win.zip` sur la page des versions), extrayez-la par exemple dans Documents, puis lancez `SknEDU-studio.exe` : le logiciel propose les raccourcis Bureau et menu Démarrer, et ses mises à jour (contenu signé par l'éditeur) s'installent sans installateur. Les installations existantes se mettent à jour de la même façon.
 - macOS : l'application n'est pas encore signée par Apple ; à la première ouverture, clic droit › Ouvrir. La mise à jour automatique y affiche un lien de téléchargement au lieu de s'installer seule. Le scanner WIA et la lecture des fichiers XPS sont propres à Windows.
 - Signature : la signature avec certificat est une signature électronique avancée ; une signature **qualifiée** (eIDAS) exige un prestataire qualifié et un support matériel, hors de portée d'un logiciel seul.
 - Anglais : les détails techniques renvoyés par Windows ou par un service extérieur (message d'erreur d'un fournisseur) peuvent rester dans leur langue d'origine.
