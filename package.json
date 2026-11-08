@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "SknEDU-studio",
-  "version": "1.11.4",
+  "version": "1.11.5",
   "description": "SknEDU-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -173,7 +173,21 @@
         "from": "build/icon.ico",
         "to": "icon.ico"
       }
-    ]
+    ],
+    "appx": {
+      "applicationId": "SknEDUstudio",
+      "displayName": "SknEDU-studio",
+      "identityName": "SknEDU-studio",
+      "publisher": "CN=00000000-0000-0000-0000-000000000000",
+      "publisherDisplayName": "SEHI BI Kouahi Nestor",
+      "backgroundColor": "#001871",
+      "languages": [
+        "fr-FR",
+        "en-US"
+      ],
+      "showNameOnTiles": true,
+      "artifactName": "SknEDU-studio-${version}-Store.${ext}"
+    }
   },
   "allowScripts": {
     "electron@45.2.3": true

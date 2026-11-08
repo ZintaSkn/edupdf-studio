@@ -2221,6 +2221,14 @@ window.api.onUpdate(({ status, info }) => {
   const el = $('#update');
   const t = { checking: 'Recherche de mises à jour…', available: `Mise à jour ${info} en téléchargement…`, progress: `Téléchargement de la mise à jour : ${info} %`, none: 'À jour ✔', offline: 'Mises à jour non vérifiées (connexion ?) — nouvel essai plus tard' }[status];
   if (status === 'available' && window.api.platform === 'darwin') { el.innerHTML = `Nouvelle version ${info} — <a href="https://github.com/ZintaSkn/edupdf-studio/releases/latest" target="_blank">télécharger</a>`; return; }
+  if (status === 'blocked') {
+    el.innerHTML = `Version ${info} disponible — <button id="updWhy">installation bloquée par Windows</button>`;
+    $('#updWhy').onclick = () => modal('Mise à jour en attente', `<p>La version <b>${esc(info)}</b> est téléchargée, mais le <b>contrôle intelligent des applications</b> de Windows 11 bloque son installateur, qui n'est pas encore signé numériquement.</p>
+      <p>Pour ne pas vous laisser sans logiciel, SknEDU-studio <b>ne se ferme pas</b> pour l'installer : votre version actuelle continue de fonctionner normalement, avec vos documents et réglages.</p>
+      <p>La mise à jour s'installera automatiquement dès que les versions seront signées (démarche en cours), ou depuis le Microsoft Store.</p>
+      <p class="muted">Ce réglage se trouve dans Sécurité Windows › Contrôle des applications et du navigateur › Contrôle intelligent des applications. Le désactiver est un choix qui vous appartient : il réduit la protection de l'ordinateur et ne peut pas être réactivé sans réinstaller Windows.</p>`, [['Compris', null, true]]);
+    return;
+  }
   if (status === 'ready') {
     el.innerHTML = `Version ${info} prête — <button id="doUpd">Redémarrer et installer</button>`;
     $('#doUpd').onclick = () => { if (confirmDiscard()) { window.api.setDirty(false); window.api.installUpdate(); } };

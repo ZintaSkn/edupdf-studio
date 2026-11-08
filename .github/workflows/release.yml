@@ -58,6 +58,27 @@ jobs:
           SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      # Paquet Microsoft Store (.appx) : signé par Microsoft à la publication dans le Store, donc accepté par le
+      # contrôle intelligent des applications. Identité fournie par l'Espace partenaires (variables du dépôt
+      # STORE_IDENTITY_NAME et STORE_PUBLISHER) ; à téléverser dans l'Espace partenaires (voir docs/MICROSOFT-STORE.md).
+      - name: Paquet Microsoft Store
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $extra = @()
+          if ($env:STORE_IDENTITY_NAME) { $extra += "-c.appx.identityName=$env:STORE_IDENTITY_NAME" }
+          if ($env:STORE_PUBLISHER) { $extra += "-c.appx.publisher=$env:STORE_PUBLISHER" }
+          npx electron-builder --win appx --publish never @extra
+        env:
+          STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: microsoft-store-${{ github.ref_name }}
+          path: dist/*.appx
+          if-no-files-found: error
+          retention-days: 90
       # Empreintes SHA-256 publiées avec la version (vérification par les établissements)
       - name: Empreintes
         shell: pwsh

@@ -4,6 +4,12 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.11.5] — Mises à jour et contrôle intelligent des applications
+- Quand le contrôle intelligent des applications de Windows 11 est appliqué, une mise à jour dont l'installateur n'est pas signé n'est plus lancée : l'application ne se ferme plus pour un installateur que Windows bloquerait, la version actuelle continue de fonctionner
+- Message « installation bloquée par Windows » avec l'explication et les solutions
+- Paquet Microsoft Store construit à chaque version (signé par Microsoft à la publication) ; guide docs/MICROSOFT-STORE.md
+- Titulaire du projet : SEHI BI Kouahi Nestor
+
 ## [1.11.4] — Assistant IA : erreurs expliquées et solutions
 - Messages clairs en français à la place des réponses techniques des fournisseurs d'IA : crédit épuisé, clé refusée, modèle introuvable, document trop long, limite atteinte, service surchargé, connexion absente
 - Crédit épuisé : explique que l'API est facturée à part (un abonnement Claude Pro / Max ou ChatGPT Plus n'inclut pas de crédit API) et propose « Ajouter du crédit », « Utiliser mon abonnement (navigateur) » ou « IA locale gratuite »

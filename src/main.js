@@ -867,8 +867,28 @@ ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
 });
 
 // ---------- Mises à jour automatiques ----------
+// ---------- Contrôle intelligent des applications (Windows 11) ----------
+// En mode « appliqué », Windows bloque tout installateur non signé : la mise à jour ne doit alors jamais fermer
+// l'application pour lancer un installateur qui ne démarrera pas.
+function smartAppControlEnforced() {
+  if (process.platform !== 'win32') return false;
+  try {
+    const out = require('child_process').execFileSync('reg.exe', ['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\CI\\Policy', '/v', 'VerifiedAndReputablePolicyState'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+    return /VerifiedAndReputablePolicyState\s+REG_DWORD\s+0x1\b/i.test(out);
+  } catch { return false; }
+}
+function authenticodeStatus(file) {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32' || !file) return resolve('Unknown');
+    const ps = `(Get-AuthenticodeSignature -LiteralPath '${String(file).replace(/'/g, "''")}').Status`;
+    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 30000 }, (err, out) => resolve(err ? 'Unknown' : String(out).trim()));
+  });
+}
+ipcMain.handle('smart-app-control', () => smartAppControlEnforced());
+
 function setupAutoUpdate() {
   if (!app.isPackaged) return;
+  if (process.windowsStore) return; // version Microsoft Store : mises à jour signées et installées par le Store
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
   // Journal des mises à jour (diagnostic) : %APPDATA%\SknEDU-studio\logs\mises-a-jour.log, limité à 1 Mo
@@ -877,18 +897,26 @@ function setupAutoUpdate() {
   autoUpdater.logger = { info: write('INFO'), warn: write('WARN'), error: write('ERREUR'), debug: () => {} };
   autoUpdater.allowDowngrade = false;
   autoUpdater.autoDownload = process.platform !== 'darwin'; // macOS : l'installation automatique exige une signature Apple
-  autoUpdater.autoInstallOnAppQuit = true;
+  const sac = smartAppControlEnforced();
+  autoUpdater.autoInstallOnAppQuit = !sac; // autorisé seulement après vérification de la signature de l'installateur
+  let installable = !sac;
   const send = (status, info) => win && win.webContents.send('update-status', { status, info });
   autoUpdater.on('checking-for-update', () => send('checking'));
   autoUpdater.on('update-available', (i) => send('available', i.version));
   autoUpdater.on('update-not-available', () => send('none'));
   autoUpdater.on('download-progress', (p) => send('progress', Math.round(p.percent)));
-  autoUpdater.on('update-downloaded', (i) => send('ready', i.version));
+  autoUpdater.on('update-downloaded', async (i) => {
+    if (!sac) return send('ready', i.version);
+    const st = await authenticodeStatus(i.downloadedFile);
+    write('INFO')(`Contrôle intelligent des applications actif ; signature de l'installateur ${i.version} : ${st}`);
+    installable = st === 'Valid'; autoUpdater.autoInstallOnAppQuit = installable;
+    send(installable ? 'ready' : 'blocked', i.version);
+  });
   autoUpdater.on('error', () => send('offline'));
   const check = () => { if (readSettings().autoUpdate === false) return Promise.resolve(); return autoUpdater.checkForUpdates().catch(() => send('offline')); }; // désactivable dans Préférences
   setTimeout(check, 5000);
   setInterval(check, 4 * 60 * 60 * 1000); // toutes les 4 h
   ipcMain.handle('check-update', () => autoUpdater.checkForUpdates().catch(() => send('offline'))); // vérification demandée par l'utilisateur
-  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall());
+  ipcMain.handle('install-update', () => { if (!installable) return false; autoUpdater.quitAndInstall(); return true; });
 }
 ipcMain.handle('is-packaged', () => app.isPackaged);
