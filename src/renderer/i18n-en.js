@@ -516,6 +516,7 @@ window.EN_EXTRA = {
   'SknEDU-studio fonctionne depuis ce dossier, sans installation : idéal quand Windows bloque les installateurs.': 'SknEDU-studio runs from this folder, without installation: ideal when Windows blocks installers.',
   'Créer un raccourci sur le Bureau et dans le menu Démarrer ?': 'Create a shortcut on the Desktop and in the Start menu?',
   "Gardez le dossier à cet emplacement (pas dans Téléchargements) : les mises à jour s'y installent automatiquement.": 'Keep the folder in this location (not in Downloads): updates install there automatically.',
+  'Logiciel installé pour tous les utilisateurs : Windows demandera l\'autorisation d\'un administrateur (fenêtre « Windows PowerShell »).': 'Software installed for all users: Windows will ask for administrator permission ("Windows PowerShell" window).',
   'Non merci': 'No thanks', 'Créer les raccourcis': 'Create shortcuts',
   'Raccourcis créés sur le Bureau et dans le menu Démarrer.': 'Shortcuts created on the Desktop and in the Start menu.', 'Raccourcis non créés.': 'Shortcuts not created.',
   'Nouvelle version': 'New version', 'télécharger': 'download',

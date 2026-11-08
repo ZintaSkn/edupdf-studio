@@ -4,6 +4,14 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.3] — Mises à jour sans installateur aussi pour une installation « pour tous les utilisateurs »
+- Logiciel installé pour tous les utilisateurs (C:\Program Files) avec le contrôle intelligent de Windows actif : la mise
+  à jour du contenu signée fonctionne aussi, après une seule autorisation administrateur de Windows (fenêtre « Windows
+  PowerShell ») ; le contenu est recopié dans le dossier protégé et revérifié sur place (SHA-512) avant l'échange, pour
+  qu'aucun programme ne puisse le substituer entre-temps ; retour automatique si la nouvelle version ne démarre pas
+- PowerShell de Windows appelé par son chemin complet et avec ses seuls modules système : la mise à jour ne dépend plus
+  d'un PowerShell 7 installé ni de l'emplacement du dossier Documents (par exemple sur le disque D)
+
 ## [1.13.2] — Mises à jour sans installateur (contrôle intelligent de Windows)
 - Quand le contrôle intelligent des applications de Windows 11 bloque l'installateur (non signé), la mise à jour se fait
   quand même : seul le contenu de l'application est remplacé (le programme, déjà autorisé par Windows, ne change pas),

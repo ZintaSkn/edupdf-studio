@@ -92,7 +92,9 @@ async function download(url, dest, f, onProgress, o) {
 
 /**
  * Prépare la mise à jour du contenu vers la version v. Retourne { ready: true, … } ou { ready: false, reason }.
- * o (auto-test uniquement) : base, keys, resources, stagingRoot, electron, fetch.
+ * o (auto-test uniquement) : base, keys, resources, stagingRoot, electron, fetch, forceElevate.
+ * Installation pour tous les utilisateurs (dossier protégé) : préparée de la même façon, mise en place après une
+ * autorisation administrateur de Windows (voir maj-appliquer.js).
  */
 async function prepare(v, onProgress, o = {}) {
   if (!testMode()) o = {};
@@ -103,7 +105,8 @@ async function prepare(v, onProgress, o = {}) {
   catch (e) { if (e.status === 404) return { ready: false, reason: 'contenu pas encore publié' }; throw e; }
   if (m.version !== v) throw new Error('Version de la mise à jour inattendue.');
   if (m.electron !== (o.electron || process.versions.electron)) return { ready: false, reason: `Electron ${m.electron} requis (installé : ${o.electron || process.versions.electron})` };
-  const res = resourcesDir(o); if (!writable(res)) return { ready: false, reason: 'dossier du logiciel protégé en écriture' };
+  const res = resourcesDir(o); const elevate = !!o.forceElevate || !writable(res);
+  if (elevate && process.platform !== 'win32') return { ready: false, reason: 'dossier du logiciel protégé en écriture' };
   const dir = path.join(stagingRoot(o), v); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const total = m.asar.taille + (treeHash(path.join(res, 'app.asar.unpacked')) === m.unpacked.empreinte ? 0 : m.unpacked.taille);
   const prog = (base) => (n) => onProgress && onProgress(Math.min(99, Math.round(((base + n) / total) * 100)));
@@ -118,11 +121,13 @@ async function prepare(v, onProgress, o = {}) {
       fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, data); entries.push({ rel, data });
     }
     if (treeHashOf(entries) !== m.unpacked.empreinte) throw new Error('Modules de mise à jour endommagés : mise à jour refusée.');
-    fs.rmSync(zipPath, { force: true }); unpacked = true;
+    if (!elevate) fs.rmSync(zipPath, { force: true }); // dossier protégé : l'archive est revérifiée puis extraite sur place
+    unpacked = true;
   }
   fs.writeFileSync(path.join(dir, 'pret.json'), JSON.stringify({ version: v, unpacked }));
   if (onProgress) onProgress(100);
-  return { ready: true, version: v, dir, unpacked, resources: res };
+  const hex = (b64) => Buffer.from(b64, 'base64').toString('hex').toUpperCase();
+  return { ready: true, version: v, dir, unpacked, resources: res, elevate, hex: { asar: hex(m.asar.sha512), zip: hex(m.unpacked.sha512) } };
 }
 
 let applying = false;
@@ -135,7 +140,8 @@ function apply(staged, relaunch, o = {}) {
   const fs = rawFs(); const helper = path.join(staged.dir, 'maj-appliquer.js');
   fs.writeFileSync(helper, require('fs').readFileSync(path.join(__dirname, 'maj-appliquer.js'))); // copié hors de l'archive
   const args = { pid: o.pid || process.pid, resources: staged.resources, staging: staged.dir, version: staged.version, unpacked: staged.unpacked, relaunch: !!relaunch,
-    exe: o.exe || process.execPath, exeArgs: o.exeArgs || ['--apres-maj'], marker: path.join(staged.dir, 'demarrage-ok'), timeoutMs: o.timeoutMs || 120000 };
+    exe: o.exe || process.execPath, exeArgs: o.exeArgs || ['--apres-maj'], marker: path.join(staged.dir, 'demarrage-ok'), timeoutMs: o.timeoutMs || 120000,
+    elevate: !!staged.elevate, hex: staged.hex, noElevate: testMode() && !!o.noElevate };
   fs.writeFileSync(path.join(stagingRoot(o), 'en-cours.json'), JSON.stringify({ version: staged.version, dir: staged.dir }));
   const child = spawn(process.execPath, [helper, JSON.stringify(args)], { detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   child.unref(); return child;

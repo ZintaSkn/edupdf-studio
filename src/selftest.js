@@ -993,10 +993,22 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         for (let i = 0; i < 100 && !/rétablie/.test(journal(st.dir)); i++) await wait(250);
         await wait(500);
         out.retourArriere = /rétablie/.test(journal(st.dir)) ? 'version rétablie : ' + read() + ' / module ' + ofs.readFileSync(path.join(res, 'app.asar.unpacked', 'mod', 'a.txt'), 'utf8') : 'ÉCHEC ' + journal(st.dir).slice(-160);
+        // installation pour tous les utilisateurs (Program Files) : même script PowerShell, ici sans demande d'autorisation
+        await publish('9.9.4', 'ADMIN004', 'module 4'); st = await CU.prepare('9.9.4', null, { ...o, forceElevate: true }); out.modeAdministrateur = 'préparée ' + st.ready + ', archive gardée ' + ofs.existsSync(path.join(st.dir, 'unpacked.zip'));
+        CU._test.reset(); CU.apply(st, true, { pid: 999999, stagingRoot: attente, exe: process.execPath, exeArgs: [okApp, path.join(st.dir, 'demarrage-ok')], timeoutMs: 20000, noElevate: true });
+        for (let i = 0; i < 160 && !/confirmé|rétablie|échec/.test(journal(st.dir)); i++) await wait(250);
+        out.miseEnPlaceAdmin = /confirmé/.test(journal(st.dir)) ? read() + ' / module ' + ofs.readFileSync(path.join(res, 'app.asar.unpacked', 'mod', 'a.txt'), 'utf8') + ' / copie ' + ofs.readFileSync(path.join(res, 'app.asar.precedent'), 'latin1').slice(0, 8) : 'ÉCHEC ' + journal(st.dir).slice(-160);
+        // contenu substitué après la vérification (programme malveillant) : refusé dans le dossier protégé
+        await publish('9.9.5', 'ADMIN005', 'module 4'); st = await CU.prepare('9.9.5', null, { ...o, forceElevate: true });
+        ofs.writeFileSync(path.join(st.dir, 'app.asar.nouveau'), 'PIEGE!!! ' + 'x'.repeat(4000));
+        CU._test.reset(); CU.apply(st, true, { pid: 999999, stagingRoot: attente, exe: process.execPath, exeArgs: [okApp, path.join(st.dir, 'demarrage-ok')], timeoutMs: 20000, noElevate: true });
+        for (let i = 0; i < 160 && !/confirmé|échec/.test(journal(st.dir)); i++) await wait(250);
+        out.substitution = (/empreinte incorrecte/.test(journal(st.dir)) ? 'refusée' : 'ACCEPTÉE ' + journal(st.dir).slice(-120)) + ', version en place : ' + read();
         srv.close(); CU._test.reset();
         const ok = out.signatureEtrangere === 'refusée' && out.contenuModifie === 'refusée' && out.modulesModifies === 'refusée' && /Electron/.test(out.autreElectron) && /pas encore publié/.test(out.nonPubliee)
           && out.preparee === 'true, modules true' && out.miseEnPlace === 'NOUVELLE / module module 2 / copie ANCIENNE' && out.modulesInchanges === 'téléchargés : false'
-          && out.redemarrage === 'confirmé, VERSION2' && out.retourArriere === 'version rétablie : VERSION2 / module module 2';
+          && out.redemarrage === 'confirmé, VERSION2' && out.retourArriere === 'version rétablie : VERSION2 / module module 2'
+          && out.modeAdministrateur === 'préparée true, archive gardée true' && out.miseEnPlaceAdmin === 'ADMIN004 / module module 4 / copie VERSION2' && out.substitution === 'refusée, version en place : ADMIN004';
         log((ok ? 'OK   ' : 'FAIL ') + 'maj-sans-installateur', JSON.stringify(out));
       } catch (e) { log('FAIL maj-sans-installateur', e.stack); }
 

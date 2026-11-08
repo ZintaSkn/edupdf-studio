@@ -2283,8 +2283,9 @@ window.api.onUpdate(({ status, info }) => {
       <p class="muted">Ce réglage se trouve dans Sécurité Windows › Contrôle des applications et du navigateur › Contrôle intelligent des applications. Le désactiver est un choix qui vous appartient : il réduit la protection de l'ordinateur et ne peut pas être réactivé sans réinstaller Windows.</p>`, [['Compris', null, true]]);
     return;
   }
-  if (status === 'ready') {
+  if (status === 'ready' || status === 'ready-admin') {
     el.innerHTML = `Version ${info} prête — <button id="doUpd">Redémarrer et installer</button>`;
+    if (status === 'ready-admin') $('#doUpd').title = 'Logiciel installé pour tous les utilisateurs : Windows demandera l\'autorisation d\'un administrateur (fenêtre « Windows PowerShell »).';
     $('#doUpd').onclick = () => { if (confirmDiscard()) { window.api.setDirty(false); window.api.installUpdate(); } };
   } else el.textContent = t || '';
 });

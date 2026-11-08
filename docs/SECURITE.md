@@ -140,7 +140,9 @@ avec vérification ASVS niveau 3. Ce test n'a pas encore été réalisé.
   (100 000 demandes par jour) couvre environ 30 000 postes actifs par jour.
 - Mises à jour : publiées sur GitHub Releases, installées seulement après vérification d'intégrité ; quand Windows bloque
   l'installateur (contrôle intelligent), le contenu signé est mis en place sans installateur, avec retour automatique à la
-  version précédente si la nouvelle ne démarre pas.
+  version précédente si la nouvelle ne démarre pas. Installation pour tous les utilisateurs (Program Files) : une
+  autorisation administrateur est demandée ; le contenu est copié dans le dossier protégé puis revérifié sur place
+  (SHA-512 de la description signée) avant l'échange, pour qu'un programme de l'utilisateur ne puisse pas le substituer.
 
 ## 8. Consommation énergétique et fichiers lourds
 

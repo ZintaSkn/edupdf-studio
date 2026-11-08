@@ -968,7 +968,7 @@ function authenticodeStatus(file) {
   return new Promise((resolve) => {
     if (process.platform !== 'win32' || !file) return resolve('Unknown');
     const ps = `(Get-AuthenticodeSignature -LiteralPath '${String(file).replace(/'/g, "''")}').Status`;
-    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 30000 }, (err, out) => resolve(err ? 'Unknown' : String(out).trim()));
+    require('child_process').execFile(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 30000, env: (({ PSModulePath, ...e }) => e)(process.env) }, (err, out) => resolve(err ? 'Unknown' : String(out).trim()));
   });
 }
 ipcMain.handle('smart-app-control', () => smartAppControlEnforced());
@@ -998,17 +998,17 @@ function setupAutoUpdate() {
   autoUpdater.on('update-available', async (i) => {
     send('available', i.version);
     if (!contentFirst) return;
-    if (staged && staged.version === i.version) return send('ready', i.version); // déjà prête
+    if (staged && staged.version === i.version) return send(staged.elevate ? 'ready-admin' : 'ready', i.version); // déjà prête
     try {
       const r = await codeupdate.prepare(i.version, (p) => send('progress', p));
-      if (r.ready) { staged = r; write('INFO')(`Contenu ${i.version} téléchargé et vérifié (signature et empreintes) : mise en place à la fermeture`); return send('ready', i.version); }
+      if (r.ready) { staged = r; write('INFO')(`Contenu ${i.version} téléchargé et vérifié (signature et empreintes)${r.elevate ? ' : installation pour tous les utilisateurs, autorisation administrateur à la mise en place' : ' : mise en place à la fermeture'}`); return send(r.elevate ? 'ready-admin' : 'ready', i.version); }
       write('INFO')(`Mise à jour du contenu impossible (${r.reason})`);
     } catch (e) { write('ERREUR')('Mise à jour du contenu : ' + e.message); }
     if (portable) return send('manual', i.version); // version sans installation : nouvelle archive à télécharger
     autoUpdater.downloadUpdate().catch(() => send('offline')); // installateur : sa signature est vérifiée à l'arrivée
   });
   // fermeture normale : le contenu préparé est mis en place juste après (sans redémarrage)
-  app.on('will-quit', () => { if (staged) { codeupdate.apply(staged, false); staged = null; } });
+  app.on('will-quit', () => { if (staged && !staged.elevate) { codeupdate.apply(staged, false); staged = null; } });
   autoUpdater.on('update-not-available', () => send('none'));
   autoUpdater.on('download-progress', (p) => send('progress', Math.round(p.percent)));
   autoUpdater.on('update-downloaded', async (i) => {
