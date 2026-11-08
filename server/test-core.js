@@ -28,7 +28,7 @@ const ok = []; const step = (n) => ok.push(n);
   r = await svc.activate({ key: L2, email, machine: A }); assert.strictEqual(days(r), 395); assert.strictEqual(r.edition, 'etablissement'); step('2e licence : jours additionnés (395) et meilleure édition');
   await fails(svc.activate({ key: L3, email, machine: A }), 'MAX'); step('3e licence refusée (maximum 2)');
   await fails(svc.activate({ key: mk({ ref: 'X', edition: 'enseignant', email: 'autre@ecole.test', days: 10 }), email, machine: A }), 'EMAIL_MISMATCH'); step('licence d\'une autre adresse refusée');
-  await fails(svc.activate({ key: L1.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')), email, machine: A }), 'INVALID'); step('clé falsifiée refusée');
+  await fails(svc.activate({ key: L1.slice(0, -20) + (L1[L1.length - 20] === 'A' ? 'B' : 'A') + L1.slice(-19), email, machine: A }), 'INVALID'); step('clé falsifiée refusée');
   T += 100 * DAY; r = await svc.status({ email, machine: A }); assert.strictEqual(days(r), 295); step('100 jours plus tard : 295 jours restants au total');
   assert.deepStrictEqual(r.licences.map((l) => l.remainingDays), [265, 30]); step('consommation dans l\'ordre : la 1re licence d\'abord');
   r = await svc.deactivate({ ref: 'L1', email, machine: A }); assert.strictEqual(r.remainingDays, 265); assert.strictEqual(days(r), 30); step('désactivation de L1 sur A : elle garde 265 jours');
@@ -37,5 +37,11 @@ const ok = []; const step = (n) => ok.push(n);
   await fails(svc.activate({ key: L2, email, machine: B }), 'EXPIRED'); step('licence épuisée refusée');
   r = await svc.activate({ key: L3, email, machine: B }); assert.strictEqual(days(r), 225 + 90); step('B : L1 (225 j) + L3 (90 j) = 315 jours');
   const h = await handle(svc, 'POST', '/v1/activate', { key: L1, email, machine: A }); assert.strictEqual(h.status, 409); assert.strictEqual(h.body.code, 'ACTIVE_ELSEWHERE'); step('réponse HTTP 409 claire');
+  for (const bad of [null, {}, { key: 123, email: [], machine: {} }, { key: 'SKN1.x.y', email: 'a@b.cd', machine: '../../etc' }, { ref: { $gt: '' }, email, machine: A }]) {
+    const h2 = await handle(svc, 'POST', '/v1/activate', bad); assert.ok(h2.status >= 400 && h2.status < 500 && h2.body.ok === false, JSON.stringify(h2));
+    const h3 = await handle(svc, 'POST', '/v1/deactivate', bad); assert.ok(h3.status >= 400 && h3.status < 500, JSON.stringify(h3));
+  }
+  step('entrées malformées ou hostiles refusées proprement (4xx, aucun plantage)');
+  const h4 = await handle(svc, 'GET', '/v1/activate', {}); assert.strictEqual(h4.status, 405); const h5 = await handle(svc, 'POST', '/admin', {}); assert.strictEqual(h5.status, 404); step('méthodes et adresses inconnues refusées');
   console.log(ok.map((s) => '✔ ' + s).join('\n') + `\nTOUS LES TESTS RÉUSSIS (${ok.length})`);
 })().catch((e) => { console.error('ÉCHEC après :', ok.length, 'tests réussis\n', e); process.exit(1); });

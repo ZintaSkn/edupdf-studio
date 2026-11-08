@@ -35,10 +35,12 @@ async function prefsDialog() {
 
 // ================================================================ 2. Récupération après coupure ou plantage
 const newRid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const recHash = new Map(); let recBusy = false; let recLast = 0;
+const recHash = new Map(); let recBusy = false; let recLast = 0; let lastInput = 0;
+['keydown', 'pointerdown', 'wheel'].forEach((ev) => window.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
 async function recoveryTick(force) {
-  const every = +PREFS.recoveryMin; if (!every || recBusy || !S.pages.length || !S.dirty) return;
-  if (!force && Date.now() - recLast < every * 60000 - 500) return;
+  const base = +PREFS.recoveryMin; if (!base || recBusy || !S.pages.length || !S.dirty) return;
+  const mb = docMegabytes(); const every = Math.max(base, mb > 100 ? 10 : mb > 20 ? 5 : base); // fichiers lourds : moins souvent
+  if (!force && (Date.now() - recLast < every * 60000 - 500 || Date.now() - lastInput < 3000)) return; // jamais pendant la frappe
   const ae = document.activeElement; if (!$('#busy').hidden || (ae && ae.isContentEditable)) return;
   if (!S.rid) S.rid = newRid();
   const h = hashStr(stateJson() + S.fileName); if (!force && recHash.get(S.rid) === h) return;
@@ -108,6 +110,50 @@ async function stampsDialog() {
   $$('#mBody .stampbtn').forEach((b) => { b.onclick = () => { const [t, , c] = STAMPS[+b.dataset.i]; pick = { text: t, color: c }; $('#mBtns button').click(); }; });
   const r = (await pr) || pick; if (!r) return;
   STAMP = r; setTool('stamp'); msg(`Tampon « ${r.text} » : cliquez sur la page pour le poser.`);
+}
+
+// ================================================================ 3 bis. Attribution de note
+const APPRECIATIONS = ['', 'Excellent', 'Très bien', 'Bien', 'Assez bien', 'Passable', 'Insuffisant', 'Peut mieux faire', 'Félicitations'];
+async function markImage(note, sur, appr) {
+  const ratio = sur > 0 ? note / sur : 0; const color = ratio >= 0.5 ? '#1e8e3e' : '#d93025';
+  const score = `${String(note).replace('.', ',')}/${sur}`; const H = appr ? 230 : 170;
+  const m = document.createElement('canvas').getContext('2d'); m.font = 'bold 34px "Segoe UI", Arial'; const aw = appr ? m.measureText(appr).width : 0;
+  const W = Math.ceil(Math.max(170, aw + 40)); const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 7; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.beginPath(); ctx.ellipse(W / 2, 82, 80, 74, -0.08, 0, 2 * Math.PI); ctx.stroke();
+  ctx.font = `bold ${score.length > 6 ? 44 : 54}px "Segoe UI", Arial`; ctx.fillText(score, W / 2, 86);
+  if (appr) { ctx.font = 'bold 34px "Segoe UI", Arial'; ctx.fillText(appr, W / 2, 200); }
+  return { url: c.toDataURL('image/png'), ratio: W / H, score };
+}
+/** Clic sur la copie : la note (et une appréciation) s'inscrit, entourée, en vert si ≥ la moyenne, sinon en rouge. */
+window.placeMark = async (pos) => {
+  const p = curPage(); if (!p) return;
+  let last = { sur: 20 }; try { last = { ...last, ...JSON.parse(localStorage.getItem('edupdf.note') || '{}') }; } catch { /* */ }
+  const r = await modal('📝 Attribuer une note', `<div class="row"><label>Note <input type="text" id="mkNote" inputmode="decimal" style="width:80px" placeholder="15,5"></label>
+    <label>sur <input type="number" id="mkSur" min="1" max="1000" value="${last.sur}" style="width:70px"></label></div>
+    <label class="row">Appréciation <select id="mkAppr">${APPRECIATIONS.map((x) => `<option ${x === (last.appr || '') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+    <label class="row">ou appréciation libre <input id="mkLibre" maxlength="40" placeholder="ex. Revoir les fractions"></label><p class="err" id="mkErr"></p>`,
+  [['Annuler', null], ['Inscrire la note', () => {
+    const note = Number($('#mkNote').value.replace(',', '.')); const sur = Number($('#mkSur').value);
+    if (!(sur > 0) || !Number.isFinite(note) || note < 0 || note > sur) { $('#mkErr').textContent = `Indiquez une note entre 0 et ${sur || '…'}.`; return false; }
+    return { note: Math.round(note * 100) / 100, sur, appr: $('#mkLibre').value.trim() || $('#mkAppr').value };
+  }, true]]);
+  if (!r) return;
+  try { localStorage.setItem('edupdf.note', JSON.stringify({ sur: r.sur, appr: r.appr && APPRECIATIONS.includes(r.appr) ? r.appr : '' })); } catch { /* */ }
+  const im = await markImage(r.note, r.sur, r.appr); const h = (r.appr ? 46 : 36) * S.scale; const w = h * im.ratio;
+  snapshot(); p.items.push({ type: 'image', rect: viewToPdfRect(S.vp, pos[0] - w / 2, pos[1] - h / 2, w, h), ref: putImg(im.url), stamp: 'note', mark: { note: r.note, sur: r.sur, appr: r.appr } });
+  S.selItem = p.items.length - 1; drawItems(); msg(`Note ${im.score} inscrite${r.appr ? ' — ' + r.appr : ''}. Cliquez sur une autre copie pour noter, ou sur l'outil pour l'arrêter.`);
+};
+/** Relevé des notes du document (page par page), copiable dans un tableur. */
+async function marksSummary() {
+  const rows = []; S.pages.forEach((p, i) => p.items.filter((o) => o.mark).forEach((o) => rows.push([i + 1, o.mark.note, o.mark.sur, o.mark.appr || ''])));
+  if (!rows.length) return alert('Aucune note inscrite dans ce document : outil « Noter », puis cliquez sur la copie.');
+  const moy = rows.reduce((s, r) => s + (r[1] / r[2]) * 20, 0) / rows.length;
+  const tsv = 'Page\tNote\tSur\tAppréciation\n' + rows.map((r) => r.join('\t')).join('\n');
+  const r = await modal('📋 Relevé des notes', `<p>${rows.length} note(s) — moyenne sur 20 : <b>${moy.toFixed(2).replace('.', ',')}</b></p>
+    <table class="grtable"><tr><th>Page</th><th>Note</th><th>Appréciation</th></tr>${rows.map((x) => `<tr><td>${x[0]}</td><td>${String(x[1]).replace('.', ',')}/${x[2]}</td><td>${esc(x[3])}</td></tr>`).join('')}</table>`,
+  [['Fermer', null], ['Copier pour un tableur', 'copy', true]]);
+  if (r === 'copy') { await navigator.clipboard.writeText(tsv); msg('Relevé copié : collez-le dans Excel ou Google Sheets.'); }
 }
 
 // ================================================================ 4. En-tête et pied de page
@@ -212,9 +258,9 @@ window.composePrint = async (pages, perSheet) => {
 };
 
 // ================================================================ Actions, raccourcis, démarrage
-Object.assign(actions, { prefs: prefsDialog, stamps: stampsDialog, headerFooter: headerFooterDialog });
+Object.assign(actions, { prefs: prefsDialog, stamps: stampsDialog, headerFooter: headerFooterDialog, marks: marksSummary });
 Object.assign(FEATURE_OF.act, { stamps: 'edit', headerFooter: 'pages' });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.tool === 'stamp' && !document.activeElement.isContentEditable && $('#modal').hidden) setTool('select'); });
 applyPrefs();
 setTimeout(() => { if (!/EDUPDF_SELFTEST/.test(location.search)) offerRecovery(); }, 1500);
-window.__teacher = { PREFS, savePrefs, recoveryTick, offerRecovery, stampImage, applyHeaderFooter, parseRange, composePrint: window.composePrint, setStamp: (t, c) => { STAMP = { text: t, color: c }; } };
+window.__teacher = { markImage, marksSummary, PREFS, savePrefs, recoveryTick, offerRecovery, stampImage, applyHeaderFooter, parseRange, composePrint: window.composePrint, setStamp: (t, c) => { STAMP = { text: t, color: c }; } };

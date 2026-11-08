@@ -496,7 +496,21 @@ window.EN_EXTRA = {
   'Pages :': 'Pages:', 'Pages par feuille': 'Pages per sheet', '(économie de papier)': '(saves paper)', "2 (format A5, feuille à l'italienne)": '2 (A5 size, landscape sheet)',
   "Copies, recto verso et choix de l'imprimante : dans la fenêtre d'impression qui suit.": 'Copies, double-sided and printer choice: in the print window that follows.',
   'Toutes': 'All', 'Page courante': 'Current page', 'Pages sélectionnées': 'Selected pages', 'Tout le document': 'Whole document', 'Contenu envoyé': 'Content sent',
-  'Établissement ': 'School', 'Langue': 'Language', "Langue de l'interface": 'Interface language', 'Interface': 'Interface'
+  'Établissement ': 'School', 'Langue': 'Language', "Langue de l'interface": 'Interface language', 'Interface': 'Interface',
+  // 1.13.0 : notes, relevé, pages identiques
+  'Noter': 'Grade', 'Inscrire une note (ex. 15/20) et une appréciation sur la copie.': 'Write a grade (e.g. 15/20) and a comment on the paper.',
+  "Cliquez sur la copie : la note (ex. 15/20) et une appréciation s'inscrivent, entourées, en vert ou en rouge. Recliquez sur l'outil pour l'arrêter.": 'Click the paper: the grade (e.g. 15/20) and a comment are written, circled, in green or red. Click the tool again to stop it.',
+  'Relevé des notes': 'Grade summary', '📋 Relevé des notes': '📋 Grade summary',
+  'Toutes les notes inscrites dans le document, avec la moyenne, à copier dans un tableur.': 'All grades written in the document, with the average, to copy into a spreadsheet.',
+  '📝 Attribuer une note': '📝 Give a grade', 'Note': 'Grade', 'sur': 'out of', 'Appréciation': 'Comment', 'ou appréciation libre': 'or free comment',
+  'ex. Revoir les fractions': 'e.g. Review fractions', 'Inscrire la note': 'Write the grade', 'Page': 'Page',
+  'Excellent': 'Excellent', 'Très bien': 'Very good', 'Bien': 'Good', 'Assez bien': 'Fairly good', 'Passable': 'Fair', 'Insuffisant': 'Insufficient',
+  'Peut mieux faire': 'Could do better', 'Félicitations': 'Congratulations',
+  "Cliquez sur la copie à l'endroit où inscrire la note.": 'Click the paper where the grade should go.',
+  'Aucune note inscrite dans ce document : outil « Noter », puis cliquez sur la copie.': 'No grade in this document: use the "Grade" tool, then click the paper.',
+  'Copier pour un tableur': 'Copy for a spreadsheet', 'Relevé copié : collez-le dans Excel ou Google Sheets.': 'Summary copied: paste it into Excel or Google Sheets.',
+  'Nouvelle page ajoutée, au même format que la page précédente.': 'New page added, same size as the previous page.',
+  'Nouvelle page ajoutée, identique au modèle de la page précédente.': 'New page added, identical to the template of the previous page.'
 };
 
 // Messages composés (avec une partie variable) : expression régulière → traduction
@@ -546,5 +560,8 @@ window.EN_PATTERNS = [
   [/^Pages : $/, 'Pages: '],
   [/^Largeur (\d+ %)$/, 'Width $1'],
   [/^Page (\d+ %)$/, 'Page $1'],
-  [/^Ajusté \((\d+ %)\)$/, 'Fitted ($1)']
+  [/^Ajusté \((\d+ %)\)$/, 'Fitted ($1)'],
+  [/^Indiquez une note entre 0 et (.+)\.$/, 'Enter a grade between 0 and $1.'],
+  [/^Note (\S+) inscrite(?: — (.+))?\. Cliquez sur une autre copie pour noter, ou sur l'outil pour l'arrêter\.$/, (m, s, a) => `Grade ${s} written${a ? ' — ' + ((window.EN_EXTRA && window.EN_EXTRA[a]) || a) : ''}. Click another paper to grade it, or the tool to stop.`],
+  [/^(\d+) note\(s\) — moyenne sur 20 : $/, '$1 grade(s) — average out of 20: ']
 ];

@@ -22,8 +22,10 @@ const DAY = 86400000;
 const testMode = () => !!process.env.EDUPDF_SELFTEST;
 // adresse et clé publique du service d'activation (package.json › commercial ; remplaçables en auto-test seulement)
 const serverUrl = () => ((testMode() && process.env.EDUPDF_LICENCE_SERVER) || COMMERCIAL.licenceServer || '').replace(/\/+$/, '');
-const serverKey = () => (testMode() && process.env.EDUPDF_TEST_SERVER_PUBKEY) || COMMERCIAL.serverPublicKey || '';
-const licenceKeys = () => [PUBLIC_KEY, ...(testMode() && process.env.EDUPDF_TEST_LICENCE_PUBKEY ? [process.env.EDUPDF_TEST_LICENCE_PUBKEY] : [])];
+// rotation des clés : serverPublicKey peut être une liste (clé actuelle + clé suivante)
+const serverKeys = () => [].concat((testMode() && process.env.EDUPDF_TEST_SERVER_PUBKEY) || COMMERCIAL.serverPublicKey || []).filter(Boolean);
+const serverKey = () => serverKeys()[0] || '';
+const licenceKeys = () => [PUBLIC_KEY, ...[].concat(COMMERCIAL.licencePublicKeys || []), ...(testMode() && process.env.EDUPDF_TEST_LICENCE_PUBKEY ? [process.env.EDUPDF_TEST_LICENCE_PUBKEY] : [])];
 
 /** Vérifie une clé « SKN1.<données>.<signature> » ; retourne la licence ou une erreur lisible. */
 function verify(text) {
@@ -51,7 +53,7 @@ const expiredAt = (d) => new Date(d + 'T23:59:59') < new Date();
 function readToken() {
   const t = read(P.token); const key = serverKey(); if (!t || !key) return null;
   const m = /^SKNT\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\s*$/.exec(t); if (!m) return null;
-  let ok = false; try { ok = crypto.verify(null, Buffer.from(m[1]), key, Buffer.from(m[2], 'base64url')); } catch { ok = false; }
+  let ok = false; for (const k of serverKeys()) { try { ok = ok || crypto.verify(null, Buffer.from(m[1]), k, Buffer.from(m[2], 'base64url')); } catch { /* clé suivante */ } }
   if (!ok) return null;
   let p; try { p = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8')); } catch { return null; }
   const acc = account.status().account;

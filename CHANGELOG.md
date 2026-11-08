@@ -17,9 +17,24 @@ l'auto-test complet avant publication.
 - Commande d'une licence dans l'application (Aide › Obtenir une licence) : offres et prix, paiement par WhatsApp,
   Mobile Money (Orange Money, MTN MoMo, Moov Money, Wave), e-mail ou page ; demande prête à envoyer avec un code de
   commande que l'outil de l'éditeur transforme en licence (node tools/licence.js commande … --paye)
-- Sécurité : ouverture limitée aux documents existants d'un type pris en charge, déverrouillage Office et signature par
-  certificat limités aux fichiers choisis par l'utilisateur, noms de fichiers nettoyés, classe connectée protégée contre
-  la saturation
+- Outils de modification activés et désactivés d'un clic (un second clic revient à « Sélectionner ») ; « Sélectionner »
+  est l'outil par défaut à l'ouverture, au changement d'onglet et après un outil à usage unique
+- Nouvelle page ou diapositive identique à la précédente par défaut : même format, même orientation et même modèle
+  (lignes, carreaux, portée…)
+- Attribution de note : outil « Noter » (Classe et Modifier) — note sur 20 ou sur un autre barème, appréciation au choix
+  ou libre, inscrite entourée en vert ou en rouge ; « Relevé des notes » avec la moyenne, à copier dans un tableur
+- Fichiers lourds : dessin des pages annulé quand il devient inutile, impression adaptée au nombre de pages, sauvegardes
+  automatiques espacées pour les gros documents, aucune copie mémoire superflue à l'ouverture
+- Sécurité (configuration de référence, docs/SECURITE.md) : TLS 1.3 minimum pour toutes les connexions ; copies de
+  récupération et compte chiffrés en AES-256-GCM ; mot de passe administrateur renforcé (scrypt 2¹⁷) ; Zero Trust :
+  l'interface ne peut ouvrir que les fichiers désignés par l'utilisateur, permissions du navigateur refusées, aucune
+  navigation ni fenêtre étrangère ; revue des droits tous les 90 jours dans la console d'administration ; rotation des
+  clés de licence possible
+- Ouverture limitée aux documents existants d'un type pris en charge, déverrouillage Office et signature par certificat
+  limités aux fichiers choisis par l'utilisateur, noms de fichiers nettoyés, classe connectée protégée contre la saturation
+- Tests d'intrusion automatisés à chaque version (fichiers système, chemins inventés, liens dangereux, noms d'élèves
+  piégés, jetons falsifiés) et supervision quotidienne du service d'activation (disponibilité, TLS, en-têtes, refus des
+  demandes invalides) ; service d'activation durci (taille et type des demandes, 60 demandes par minute et par adresse)
 
 ## [1.12.0] — Interface entièrement en français ou en anglais
 - Traduction anglaise complète : menus, ruban, boutons, info-bulles (toutes les lignes), panneau Accueil, barre d'état, fenêtres de dialogue, messages, alertes et confirmations

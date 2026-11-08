@@ -191,7 +191,8 @@ const saveCA = () => lsSet('edupdf.cloudauto', JSON.stringify(CA));
 function cloudTag(text, title) { const t = $('#cloudTag'); t.hidden = !CA.on; t.textContent = text; t.title = title || ''; }
 async function cloudAutoTick(force) {
   if (!CA.on || !CA.path || !S.pages.length || caBusy || !can('cloud')) return;
-  if (!force && Date.now() - caLast < CA.every * 60000) return;
+  const mb = docMegabytes(); const every = Math.max(CA.every, mb > 100 ? 15 : mb > 20 ? 5 : CA.every); // gros fichiers : envois espacés
+  if (!force && Date.now() - caLast < every * 60000) return;
   const ae = document.activeElement;
   if (!$('#busy').hidden || (ae && ae.isContentEditable) || (typeof SHOW !== 'undefined' && SHOW.on)) return;
   const h = hashStr(stateJson() + S.fileName + (S.watermark ? JSON.stringify(S.watermark) : ''));

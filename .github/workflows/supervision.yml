@@ -1,0 +1,39 @@
+# Supervision continue : chaque jour, contrôle des dépendances, des règles de licence et du service en ligne.
+# En cas d'échec, GitHub prévient par e-mail le propriétaire du dépôt (Actions › Supervision).
+name: Supervision
+on:
+  schedule:
+    - cron: '17 5 * * *'   # chaque jour à 05 h 17 UTC
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths: ['server/**', 'tools/supervision.js', 'package-lock.json', '.github/workflows/supervision.yml']
+permissions:
+  contents: read
+concurrency:
+  group: supervision
+  cancel-in-progress: true
+jobs:
+  dependances-et-regles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci --omit=optional --ignore-scripts
+      # Nouvelle faille élevée ou critique publiée dans une dépendance de l'application
+      - run: npm audit --omit=dev --audit-level=high
+      # Règles du service d'activation (un poste à la fois, transfert, cumul de 2, entrées hostiles)
+      - run: node server/test-core.js
+  service-en-ligne:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # Disponibilité, TLS 1.3, certificat, en-têtes de sécurité, refus des demandes invalides, temps de réponse, canal de mises à jour
+      - run: node tools/supervision.js

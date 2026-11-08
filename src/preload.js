@@ -92,7 +92,10 @@ contextBridge.exposeInMainWorld('api', {
   onUpdate: (cb) => ipcRenderer.on('update-status', (_e, s) => cb(s)),
   onOpenPaths: (cb) => ipcRenderer.on('open-paths', (_e, p) => cb(p)),
   setDirty: (v) => ipcRenderer.send('set-dirty', v),
+  // Chemin d'un fichier réellement déposé par l'utilisateur (calculé ici, hors de la page) : seul ce chemin pourra être ouvert
   pathForFile: (file) => {
-    try { return require('electron').webUtils.getPathForFile(file); } catch { return file.path; }
+    let p = ''; try { p = require('electron').webUtils.getPathForFile(file); } catch { p = ''; }
+    if (p) ipcRenderer.sendSync('grant-dropped', p);
+    return p;
   }
 });

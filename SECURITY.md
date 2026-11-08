@@ -15,6 +15,13 @@ Merci de **ne pas ouvrir de ticket public**. Utilisez l'onglet **Security › Re
 | Clés API (assistant IA) | Chiffrées par Windows (DPAPI), jamais renvoyées à l'interface, jamais écrites en clair |
 | Administration | Règles signées Ed25519, clé privée chiffrée (AES-256-GCM, scrypt) par le mot de passe administrateur |
 | Code source | Analyse CodeQL, alertes et mises à jour Dependabot, détection de secrets à l'envoi |
+| Communications | TLS 1.3 minimum pour toutes les connexions Internet ; service d'activation en HTTPS avec HSTS |
+| Données locales | Copies de récupération et compte chiffrés en AES-256-GCM (clé protégée par Windows) |
+| Accès (Zero Trust) | L'interface n'ouvre que les fichiers désignés par l'utilisateur ; permissions du navigateur refusées ; revue des droits tous les 90 jours |
+| Tests et supervision | Tests d'intrusion automatisés à chaque version ; supervision quotidienne du service (`.github/workflows/supervision.yml`) |
+
+Détail point par point (OWASP ASVS niveau 2, chiffrement, gestion des clés, Zero Trust, disponibilité, énergie) :
+[docs/SECURITE.md](docs/SECURITE.md).
 
 ## Limites connues
 

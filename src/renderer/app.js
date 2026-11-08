@@ -22,6 +22,8 @@ let textCache = new Map();
 const DOCS = []; let curDoc = 0;
 
 const curPage = () => S.pages[S.cur];
+/** Taille des fichiers sources du document, en Mo (sert à alléger le travail sur les fichiers lourds). */
+const docMegabytes = () => S.sources.reduce((s, x) => s + ((x && x.bytes && x.bytes.length) || 0), 0) / 1048576;
 const color = () => $('#color').value;
 const size = () => Math.max(4, +$('#size').value || 14);
 
@@ -92,8 +94,8 @@ function restore(from, to) {
 
 // ---------------- Sources PDF ----------------
 async function addSource(bytes) {
-  const u8 = bytes instanceof Uint8Array ? new Uint8Array(bytes) : new Uint8Array(bytes);
-  const doc = await openPdfJs(u8.slice());
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); // pas de copie supplémentaire (fichiers lourds)
+  const doc = await openPdfJs(u8.slice()); // PDF.js reçoit sa propre copie (transférée à son processus)
   S.sources.push({ bytes: u8, doc, cache: {} });
   return S.sources.length - 1;
 }
@@ -531,7 +533,10 @@ async function renderPage() {
   const c = document.createElement('canvas');
   c.width = Math.floor(vp.width * dpr); c.height = Math.floor(vp.height * dpr);
   c.style.width = vp.width + 'px'; c.style.height = vp.height + 'px';
-  await pg.render({ canvasContext: c.getContext('2d'), viewport: pg.getViewport({ scale: S.scale * dpr, rotation: R }), annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS }).promise;
+  if (S.renderTask) { try { S.renderTask.cancel(); } catch { /* déjà terminé */ } }
+  const task = pg.render({ canvasContext: c.getContext('2d'), viewport: pg.getViewport({ scale: S.scale * dpr, rotation: R }), annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS });
+  S.renderTask = task;
+  try { await task.promise; } catch (e) { if (e && e.name === 'RenderingCancelledException') return; throw e; } finally { if (S.renderTask === task) S.renderTask = null; }
   if (token !== S.renderToken) return;
   c.id = 'canvas'; $('#canvas').replaceWith(c);
   S.vp = vp;
@@ -1063,7 +1068,7 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
   } else if (S.tool === 'note') {
     e.preventDefault(); snapshot();
     const o = { type: 'note', at: S.vp.convertToPdfPoint(pos[0] - 10, pos[1] - 10), text: '', color: '#ffd400', author: (window.PREFS && PREFS.teacher) || undefined };
-    p.items.push(o); S.selItem = p.items.length - 1; drawItems(); editNote(o, true); return;
+    p.items.push(o); S.selItem = p.items.length - 1; drawItems(); Promise.resolve(editNote(o, true)).then(() => { if (S.tool === 'note') setTool('select'); }); return;
   } else if (S.tool === 'ink') {
     drag = { mode: 'ink', pts: [pos] };
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1078,6 +1083,7 @@ $('#overlayLayer').addEventListener('pointerdown', (e) => {
       layer.appendChild(svg); drag = { mode: 'line', start: pos, svg }; layer.setPointerCapture(e.pointerId); return;
     }
     if (S.tool === 'stamp') { e.preventDefault(); if (window.placeStamp) window.placeStamp(pos); return; }
+    if (S.tool === 'mark') { e.preventDefault(); if (window.placeMark) window.placeMark(pos); return; }
     const rb = document.createElement('div'); rb.className = 'rubber'; layer.appendChild(rb);
     drag = { mode: 'rubber', start: pos, rb };
   }
@@ -1136,6 +1142,7 @@ $('#overlayLayer').addEventListener('pointerup', async (e) => {
     if (S.tool === 'ftext' || S.tool === 'fcheck') {
       const n = S.pages.reduce((s, q) => s + q.items.filter((o) => o.type === 'field').length, 0) + 1;
       snapshot(); p.items.push({ type: 'field', kind: S.tool === 'fcheck' ? 'check' : 'text', rect, name: `${S.tool === 'fcheck' ? 'case' : 'champ'}_${n}` });
+      S.selItem = p.items.length - 1; setTool('select'); drawItems(); return;
     } else if (S.tool === 'image') {
       const files = await window.api.openDialog({ imagesOnly: true });
       if (!files.length || files[0].error) return;
@@ -1145,6 +1152,7 @@ $('#overlayLayer').addEventListener('pointerup', async (e) => {
       const k = Math.min(w / img.width, h / img.height); const rr = viewToPdfRect(S.vp, l, t, img.width * k, img.height * k);
       const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0);
       snapshot(); p.items.push({ type: 'image', rect: rr, ref: putImg(c.toDataURL('image/png')) });
+      S.selItem = p.items.length - 1; setTool('select'); drawItems(); return;
     } else {
       snapshot(); p.items.push({ type: 'rect', kind: S.tool, rect, color: S.tool === 'highlight' ? '#F1B434' : S.tool === 'whiteout' ? '#ffffff' : color(), width: +$('#width').value || 2 });
     }
@@ -1195,6 +1203,7 @@ function setTool(t) {
     line: 'Tracez un trait en faisant glisser la souris (Maj : horizontal ou vertical).',
     arrow: 'Tracez une flèche en faisant glisser la souris (Maj : horizontale ou verticale).',
     stamp: 'Cliquez sur la page pour poser le tampon choisi (Échap pour arrêter).',
+    mark: 'Cliquez sur la copie à l\'endroit où inscrire la note.',
     editpara: 'Cliquez sur un paragraphe pour le réécrire : il se recompose dans sa largeur, avec la police, la taille et la couleur d\'origine (Ctrl+Entrée pour valider).',
     text: 'Cliquez à l\'endroit où ajouter du texte.', image: 'Tracez un cadre puis choisissez une image.',
     highlight: 'Tracez un rectangle pour surligner.', whiteout: 'Tracez un rectangle pour masquer (effacer) une zone.',
@@ -1304,11 +1313,21 @@ function movePages(dir) {
   order.forEach((i) => { const [p] = S.pages.splice(i, 1); S.pages.splice(i + dir, 0, p); });
   S.sel = new Set(sel.map((i) => i + dir)); S.cur += dir; refresh();
 }
+/** Nouvelle page identique à la page courante : même modèle (Seyès, carreaux, évaluation…), sinon même format et orientation. */
 async function insertBlank() {
-  const bytes = await blankPdf();
+  const p = curPage(); let bytes; let rot = 0; let tpl = null;
+  if (p) {
+    const src = S.sources[p.src]; const pg = await getPdfPage(p);
+    tpl = src.tpl || null; rot = (pg.rotate + p.rot + 360) % 360;
+    if (tpl) bytes = await templatePdf(tpl);
+    else { const [x0, y0, x1, y1] = pg.view; const d = await PDFDocument.create(); d.addPage([Math.abs(x1 - x0), Math.abs(y1 - y0)]); bytes = await d.save(); }
+  } else bytes = await blankPdf();
   if (S.pages.length) snapshot();
   const at = S.pages.length ? S.cur + 1 : 0;
-  await insertPdf(bytes, at); S.cur = at; S.sel = new Set([at]); setDirty(true); refresh();
+  const list = await insertPdf(bytes, at);
+  if (tpl) S.sources[list[0].src].tpl = tpl; else list.forEach((q) => { q.rot = rot; });
+  S.cur = at; S.sel = new Set([at]); setDirty(true); refresh();
+  msg(tpl ? 'Nouvelle page ajoutée, identique au modèle de la page précédente.' : 'Nouvelle page ajoutée, au même format que la page précédente.');
 }
 async function numberPages() {
   if (!S.pages.length) return; snapshot();
@@ -1782,7 +1801,7 @@ async function printDoc() {
     for (const i of (opt.pages || [...Array(doc.numPages).keys()].map((k) => k + 1))) {
       if (i < 1 || i > doc.numPages) continue;
       busy(`Préparation de l'impression… page ${i} / ${doc.numPages}`);
-      const pg = await doc.getPage(i); const vp = pg.getViewport({ scale: 2.2 });
+      const pg = await doc.getPage(i); const vp = pg.getViewport({ scale: doc.numPages > 300 ? 1.5 : doc.numPages > 100 ? 1.8 : 2.2 }); // ≈ 110 à 160 ppp
       const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
       await pg.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
@@ -1909,7 +1928,7 @@ const FEATURE_OF = {
     ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr', toWord: 'convert', toPpt: 'convert', toExcel: 'convert', toImages: 'convert', toText: 'convert', exportAs: 'convert', convertOffice: 'convert',
     aiPanel: 'ai', aiSettings: 'ai', aiSubscription: 'ai',
     protect: 'protect', unprotect: 'protect', signPad: 'sign', certSign: 'sign', compare: 'compare', clearCompare: 'compare', find: 'edit', delItem: 'edit' },
-  tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ellipse: 'edit', line: 'edit', arrow: 'edit', stamp: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
+  tool: { edit: 'edit', editpara: 'edit', text: 'edit', image: 'edit', highlight: 'edit', whiteout: 'edit', box: 'edit', ellipse: 'edit', line: 'edit', arrow: 'edit', stamp: 'edit', mark: 'edit', ink: 'edit', note: 'edit', ftext: 'edit', fcheck: 'edit', sign: 'sign', crop: 'pages' }
 };
 function denied(f) {
   if (S.readOnly && RO_BLOCK.has(f) && !POLICY.blocked && POLICY.features[f] !== false) { msg('🔒 Document en lecture seule : les commentaires et le contenu sont verrouillés. Lisez, imprimez ou exportez-le.'); return false; }
@@ -2166,7 +2185,7 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
   if (b && actions[b.dataset.act]) { const f = FEATURE_OF.act[b.dataset.act]; if (f && !can(f)) denied(f); else if (window.premiumGate && !window.premiumGate('act', b.dataset.act)) { /* fonction Premium : fenêtre d'explication affichée */ } else actions[b.dataset.act](); }
   const t = e.target.closest('[data-tool]');
-  if (t) { const f = FEATURE_OF.tool[t.dataset.tool]; if (f && !can(f)) denied(f); else setTool(t.dataset.tool); }
+  if (t) { const f = FEATURE_OF.tool[t.dataset.tool]; if (f && !can(f)) denied(f); else setTool(S.tool === t.dataset.tool ? 'select' : t.dataset.tool); } // clic sur l'outil actif : désactivé
   const tab = e.target.closest('[data-tab]'); if (tab) switchTab(tab.dataset.tab);
 });
 function switchTab(name) {
@@ -2241,7 +2260,7 @@ window.api.onUpdate(({ status, info }) => {
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => typeof S.zoom !== 'number' && renderPage(), 150); });
 
 window.api.version().then((v) => { $('#ver').textContent = 'v' + v; });
-applyPolicy(); setInterval(applyPolicy, 60000);
+applyPolicy(); setInterval(() => { if (!document.hidden) applyPolicy(); }, 60000); // fenêtre réduite : aucune vérification (énergie)
 Object.keys(FONT_FAMILIES).forEach((f) => { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = cssFont({ family: f }); $('#fontFam').appendChild(o); });
 $('#fontFam').value = 'Arial';
 setTool('select'); refresh();
@@ -2300,7 +2319,7 @@ function initDocs() { DOCS.length = 0; DOCS.push(docState()); curDoc = 0; render
 function switchDoc(i) {
   if (i === curDoc || !DOCS[i]) return;
   DOCS[curDoc] = docState(); curDoc = i; loadDocState(DOCS[i]);
-  setDirty(S.dirty); refresh(); showSide(S.pages.length ? 'pages' : 'home');
+  setDirty(S.dirty); if (S.tool !== 'select') setTool('select'); refresh(); showSide(S.pages.length ? 'pages' : 'home');
 }
 function newTab() {
   DOCS[curDoc] = docState(); DOCS.push(emptyDoc()); curDoc = DOCS.length - 1; loadDocState(DOCS[curDoc]);
@@ -2423,7 +2442,7 @@ async function templatePdf(kind) {
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-tpl]'); if (!b) return;
   busy('Création du modèle…');
-  try { const bytes = await templatePdf(b.dataset.tpl); if (S.pages.length) newTab(); else resetDoc(); await insertPdf(bytes, 0); S.fileName = (b.dataset.name || 'Modèle') + '.pdf'; S.cur = 0; S.sel = new Set([0]); setDirty(true); refresh(); showSide('pages'); done('Modèle créé : complétez-le avec « Ajouter du texte », puis enregistrez ou imprimez.'); }
+  try { const bytes = await templatePdf(b.dataset.tpl); if (S.pages.length) newTab(); else resetDoc(); { const l0 = await insertPdf(bytes, 0); S.sources[l0[0].src].tpl = b.dataset.tpl; } S.fileName = (b.dataset.name || 'Modèle') + '.pdf'; S.cur = 0; S.sel = new Set([0]); setDirty(true); refresh(); showSide('pages'); done('Modèle créé : complétez-le avec « Ajouter du texte », puis enregistrez ou imprimez.'); }
   catch (err) { done(); alert(errMsg(err)); }
 });
 

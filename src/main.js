@@ -1,5 +1,6 @@
 // SknEDU-studio — processus principal (Electron)
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -21,6 +22,9 @@ const admin = require('./admin');
 const cloud = require('./cloud');
 const ai = require('./ai');
 const license = require('./license');
+// ---------- Chiffrement en transit : TLS 1.3 minimum pour toutes les connexions sortantes (Node et Chromium) ----------
+require('tls').DEFAULT_MIN_VERSION = 'TLSv1.3';
+app.commandLine.appendSwitch('ssl-version-min', 'tls1.3');
 const classroom = require('./classroom');
 const { Notification, Tray, nativeImage } = require('electron');
 const ICON = process.platform === 'win32' ? path.join(__dirname, 'icon.ico') : path.join(__dirname, 'renderer', 'icon.png');
@@ -292,7 +296,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   if (process.env.EDUPDF_SELFTEST) require('./selftest')(win, process.env.EDUPDF_SELFTEST);
   win.webContents.on('did-finish-load', () => {
-    if (pendingOpen.length) { win.webContents.send('open-paths', pendingOpen); pendingOpen = []; }
+    if (pendingOpen.length) { pendingOpen.forEach(grantPath); win.webContents.send('open-paths', pendingOpen); pendingOpen = []; }
   });
   // Liens externes dans le navigateur par défaut (https uniquement) ; aucune navigation hors de l'application
   try { win.webContents.session.setSpellCheckerLanguages(['fr', 'en-US']); } catch { /* macOS : correcteur du système */ }
@@ -309,6 +313,19 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
+
+// ---------- Zero Trust côté application : tout ce qui n'est pas explicitement permis est refusé ----------
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('will-attach-webview', (ev) => ev.preventDefault()); // aucune vue web intégrée
+  wc.setWindowOpenHandler(({ url }) => { if (/^https:\/\//i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  wc.on('will-navigate', (ev, url) => { if (!/^file:/i.test(url)) ev.preventDefault(); });
+});
+const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-read', 'clipboard-sanitized-write']); // diaporama, coller une réponse d'IA, copier
+app.whenReady().then(() => {
+  const { session } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(ALLOWED_PERMISSIONS.has(perm)));
+  session.defaultSession.setPermissionCheckHandler((_wc, perm) => ALLOWED_PERMISSIONS.has(perm));
+});
 
 function openMain() {
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); return; }
@@ -328,7 +345,7 @@ if (!app.requestSingleInstanceLock()) {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
-      if (files.length) win.webContents.send('open-paths', files);
+      if (files.length) { files.forEach(grantPath); win.webContents.send('open-paths', files); }
     }
   });
   app.whenReady().then(() => {
@@ -369,8 +386,21 @@ ipcMain.handle('dialog-open', async (_e, opts = {}) => {
 
 // Chemins venant de l'interface (glisser-déposer) : uniquement des fichiers existants d'un type pris en charge
 const DOC_EXT_RE = () => new RegExp('\\.(' + ALL_EXT.join('|') + ')$', 'i');
+// Zero Trust : l'interface n'ouvre que les fichiers désignés par l'utilisateur lui-même (glisser-déposer, double-clic dans
+// l'Explorateur, fichiers récents, copies reçues en classe) — jamais un chemin choisi par du code de la page.
+const grantedPaths = new Set();
+const pathKey = (p) => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+const grantPath = (p) => { if (typeof p === 'string' && path.isAbsolute(p) && !p.includes('\0')) grantedPaths.add(pathKey(p)); };
+const inside = (dir, p) => { const rel = path.relative(dir, path.resolve(p)); return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel); };
+function grantedPath(p) {
+  const k = pathKey(p);
+  if (grantedPaths.has(k) || (readSettings().recent || []).some((r) => r && typeof r.path === 'string' && pathKey(r.path) === k)) return true;
+  if (inside(path.join(app.getPath('userData'), 'classe'), p)) return true; // copies rendues par les élèves
+  return !!process.env.EDUPDF_SELFTEST && inside(process.env.EDUPDF_SELFTEST, p); // auto-test : son propre dossier seulement
+}
+ipcMain.on('grant-dropped', (e, p) => { if (win && e.sender === win.webContents) grantPath(p); e.returnValue = true; });
 function safeDocPath(p) {
-  if (typeof p !== 'string' || !path.isAbsolute(p) || p.includes('\0')) return false;
+  if (typeof p !== 'string' || !path.isAbsolute(p) || p.includes('\0') || !grantedPath(p)) return false;
   try { const st = fs.statSync(p); return st.isFile() && st.size <= 2 * 1024 ** 3 && DOC_EXT_RE().test(p); } catch { return false; }
 }
 ipcMain.handle('load-paths', (_e, paths) => loadMany((Array.isArray(paths) ? paths : []).filter(safeDocPath).slice(0, 200)));
@@ -564,9 +594,36 @@ function recoveryClear(id) {
   } catch { /* */ }
 }
 ipcMain.handle('update-pref', (_e, v) => { const s = readSettings(); if (typeof v === 'boolean') { s.autoUpdate = v; writeSettings(s); } return s.autoUpdate !== false; });
+// ---------- Chiffrement au repos : clé de données AES-256 protégée par le système (DPAPI sous Windows) ----------
+const { safeStorage } = require('electron');
+const ENC_MAGIC = Buffer.from('SKNE1');
+let DATA_KEY = null;
+function dataKey() {
+  if (DATA_KEY) return DATA_KEY;
+  const f = path.join(app.getPath('userData'), 'cle-donnees.bin'); const prot = safeStorage.isEncryptionAvailable();
+  try {
+    const raw = fs.readFileSync(f);
+    DATA_KEY = raw[0] === 0x50 ? Buffer.from(safeStorage.decryptString(raw.subarray(1)), 'base64') : raw.subarray(1); // P = protégée, R = brute
+  } catch {
+    DATA_KEY = crypto.randomBytes(32);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, prot ? Buffer.concat([Buffer.from('P'), safeStorage.encryptString(DATA_KEY.toString('base64'))]) : Buffer.concat([Buffer.from('R'), DATA_KEY]), { mode: 0o600 });
+  }
+  return DATA_KEY;
+}
+function encryptData(buf) {
+  const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', dataKey(), iv);
+  const ct = Buffer.concat([c.update(buf), c.final()]);
+  return Buffer.concat([ENC_MAGIC, iv, c.getAuthTag(), ct]);
+}
+function decryptData(buf) {
+  if (!buf.subarray(0, 5).equals(ENC_MAGIC)) return buf; // anciennes copies non chiffrées
+  const d = crypto.createDecipheriv('aes-256-gcm', dataKey(), buf.subarray(5, 17)); d.setAuthTag(buf.subarray(17, 33));
+  return Buffer.concat([d.update(buf.subarray(33)), d.final()]);
+}
 ipcMain.handle('recovery-save', (_e, { id, name, bytes }) => {
   const d = recoveryDir(); fs.mkdirSync(d, { recursive: true }); const k = recId(id); if (!k) return false;
-  const tmp = path.join(d, k + '.tmp'); fs.writeFileSync(tmp, Buffer.from(bytes)); fs.renameSync(tmp, path.join(d, k + '.pdf'));
+  const tmp = path.join(d, k + '.tmp'); fs.writeFileSync(tmp, encryptData(Buffer.from(bytes))); fs.renameSync(tmp, path.join(d, k + '.pdf'));
   fs.writeFileSync(path.join(d, k + '.json'), JSON.stringify({ name: path.basename(String(name || 'Document.pdf')), date: Date.now() }));
   return true;
 });
@@ -581,7 +638,7 @@ ipcMain.handle('recovery-list', () => {
 ipcMain.handle('recovery-load', async (_e, { id }) => {
   const p = path.join(recoveryDir(), recId(id) + '.pdf');
   const m = (() => { try { return JSON.parse(fs.readFileSync(path.join(recoveryDir(), recId(id) + '.json'), 'utf8')); } catch { return {}; } })();
-  return { name: m.name || 'Document récupéré.pdf', path: null, kind: 'pdf', bytes: fs.readFileSync(p), note: 'recovered' };
+  return { name: m.name || 'Document récupéré.pdf', path: null, kind: 'pdf', bytes: decryptData(fs.readFileSync(p)), note: 'recovered' };
 });
 ipcMain.handle('recovery-clear', (_e, { id }) => { recoveryClear(id); return true; });
 ipcMain.handle('cloud-list', () => ({ clouds: cloud.detect(readSettings().clouds || []), install: cloud.INSTALL }));

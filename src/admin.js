@@ -26,7 +26,7 @@ const FEATURES = {
   compare: 'Comparer des documents',
   ai: 'Assistant IA (envoie le texte du document au fournisseur choisi)'
 };
-const EVENTS = {
+const EVENTS = { rights_review: 'Revue des droits effectuée', rights_review_due: 'Revue des droits à effectuer',
   app_start: 'Ouverture d\'SknEDU-studio', file_open: 'Fichier ouvert', save: 'Fichier enregistré', export: 'Export / conversion',
   print: 'Impression', cloud: 'Enregistrement dans le cloud', unlock: 'PDF protégé déverrouillé', protect: 'Protection par mot de passe',
   sign: 'Signature', blocked: 'Action bloquée par les règles', user_blocked: 'Utilisateur bloqué : tentative d\'ouverture',
@@ -48,21 +48,23 @@ let tray = null; let consoleWin = null; let watchTimer = null; let lastTamper = 
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const writeJson = (f, o) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2)); };
-const scrypt = (pw, salt) => crypto.scryptSync(String(pw), Buffer.from(salt, 'base64'), 32, { N: 16384, r: 8, p: 1 });
+// scrypt N = 2^17 (recommandation OWASP) ; les empreintes plus anciennes (N = 2^14) restent vérifiables
+const SCRYPT_N = 131072;
+const scrypt = (pw, salt, N = 16384) => crypto.scryptSync(String(pw), Buffer.from(salt, 'base64'), 32, { N, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
 const newSalt = () => crypto.randomBytes(16).toString('base64');
-function hashPw(pw) { const salt = newSalt(); return { salt, hash: scrypt(pw, salt).toString('base64') }; }
-function checkPw(pw, h) { if (!h) return false; const a = scrypt(pw, h.salt); const b = Buffer.from(h.hash, 'base64'); return a.length === b.length && crypto.timingSafeEqual(a, b); }
+function hashPw(pw) { const salt = newSalt(); return { salt, N: SCRYPT_N, hash: scrypt(pw, salt, SCRYPT_N).toString('base64') }; }
+function checkPw(pw, h) { if (!h) return false; const a = scrypt(pw, h.salt, h.N || 16384); const b = Buffer.from(h.hash, 'base64'); return a.length === b.length && crypto.timingSafeEqual(a, b); }
 
 // ---------------------------------------------------------------- administrateur (ce PC)
 const adminCfg = () => readJson(P.admin);
 function encryptKey(pem, pw) {
   const salt = newSalt(); const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv('aes-256-gcm', scrypt(pw, salt), iv);
+  const c = crypto.createCipheriv('aes-256-gcm', scrypt(pw, salt, SCRYPT_N), iv);
   const data = Buffer.concat([c.update(pem, 'utf8'), c.final()]);
-  return { salt, iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') };
+  return { salt, N: SCRYPT_N, iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') };
 }
 function decryptKey(enc, pw) {
-  const d = crypto.createDecipheriv('aes-256-gcm', scrypt(pw, enc.salt), Buffer.from(enc.iv, 'base64'));
+  const d = crypto.createDecipheriv('aes-256-gcm', scrypt(pw, enc.salt, enc.N || 16384), Buffer.from(enc.iv, 'base64'));
   d.setAuthTag(Buffer.from(enc.tag, 'base64'));
   return crypto.createPrivateKey(Buffer.concat([d.update(Buffer.from(enc.data, 'base64')), d.final()]).toString('utf8'));
 }
@@ -111,8 +113,23 @@ function savePolicy(payload) {
   const clean = { v: 1, updated: new Date().toISOString(), pwHash: cfg.pwHash,
     defaults: Object.fromEntries(Object.keys(FEATURES).map((k) => [k, payload.defaults[k] !== false])),
     users: Object.fromEntries(Object.entries(payload.users || {}).map(([k, v]) => [k.trim().toLowerCase(), v]).filter(([k]) => k)), message: String(payload.message || '').slice(0, 500), logFileNames: payload.logFileNames !== false };
+  clean.reviewedAt = clean.updated; // enregistrer les règles = revue des droits effectuée
   writeJson(path.join(cfg.folder, 'policy.json'), signPolicy(clean, session));
-  return { ok: true, updated: clean.updated };
+  logEvent('rights_review', { by: user });
+  return { ok: true, updated: clean.updated, reviewedAt: clean.reviewedAt };
+}
+// ---------------------------------------------------------------- revue régulière des droits (Zero Trust)
+const REVIEW_DAYS = 90;
+function reviewStatus() {
+  const cfg = adminCfg(); if (!cfg) return { admin: false };
+  const raw = readPolicyRaw(cfg.folder); const pol = raw && verifyPolicy(raw, cfg.pub) ? raw.payload : null;
+  const last = pol ? Date.parse(pol.reviewedAt || pol.updated || 0) || 0 : 0;
+  return { admin: true, reviewedAt: last ? new Date(last).toISOString() : null, due: !last || Date.now() - last > REVIEW_DAYS * 86400000, days: REVIEW_DAYS };
+}
+function reviewReminder() {
+  const r = reviewStatus(); if (!r.admin || !r.due) return;
+  notify('SknEDU-studio — revue des droits', r.reviewedAt ? `Dernière revue des droits le ${new Date(r.reviewedAt).toLocaleDateString('fr-FR')} : ouvrez la console d'administration pour vérifier les droits des utilisateurs et des postes, puis enregistrez.` : 'Aucune revue des droits enregistrée : ouvrez la console d\'administration, vérifiez les droits puis enregistrez.');
+  logEvent('rights_review_due', { since: r.reviewedAt || 'jamais' });
 }
 function changePassword(oldPw, newPw) {
   const cfg = adminCfg(); if (!checkPw(oldPw, cfg.pwHash)) throw new Error('Ancien mot de passe incorrect.');
@@ -323,7 +340,8 @@ function init(deps) {
   h('admin-notify-test', () => { notify('SknEDU-studio — test', 'Les notifications fonctionnent.'); return true; });
   h('admin-change-password', ({ oldPw, newPw }) => changePassword(oldPw, newPw));
   h('admin-show-folder', () => { const c = adminCfg(); if (c) A.shell.openPath(c.folder); return true; });
-  if (adminCfg()) { startWatcher(); ensureTray(); }
+  h('admin-review-status', () => reviewStatus());
+  if (adminCfg()) { startWatcher(); ensureTray(); setTimeout(reviewReminder, 15000); setInterval(reviewReminder, 24 * 3600000).unref(); }
 }
 
 module.exports = { init, guard, can, logEvent, effective, openConsole, hasTrayOrConsole, FEATURES, EVENTS, _test: { setupAdmin, adminLogin, savePolicy, enroll, unenroll, refreshPolicy, effective, pollEvents, readAllEvents, verifyPolicy } };

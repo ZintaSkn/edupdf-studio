@@ -55,9 +55,23 @@ function files() {
   list.push(path.join(A.app.getPath('userData'), 'account.dat'));
   return list;
 }
-const seal = (obj) => { const data = Buffer.from(JSON.stringify(obj)).toString('base64url'); return data + '.' + crypto.createHmac('sha256', SALT + machineId()).update(data).digest('base64url'); };
+// Enregistrements chiffrés et authentifiés (AES-256-GCM), clé dérivée de l'identité du poste (HKDF-SHA256)
+const recKey = () => Buffer.from(crypto.hkdfSync('sha256', machineId(), SALT, 'enregistrement-compte', 32));
+const seal = (obj) => {
+  const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', recKey(), iv);
+  const ct = Buffer.concat([c.update(JSON.stringify(obj), 'utf8'), c.final()]);
+  return ['G1', iv.toString('base64url'), ct.toString('base64url'), c.getAuthTag().toString('base64url')].join('.');
+};
 function unseal(text) {
-  const m = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(String(text || '').trim()); if (!m) return null;
+  const g = /^G1\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(String(text || '').trim());
+  if (g) {
+    try {
+      const d = crypto.createDecipheriv('aes-256-gcm', recKey(), Buffer.from(g[1], 'base64url')); d.setAuthTag(Buffer.from(g[3], 'base64url'));
+      const r = JSON.parse(Buffer.concat([d.update(Buffer.from(g[2], 'base64url')), d.final()]).toString('utf8'));
+      return r && r.m === machineId() && Number.isFinite(r.start) ? r : null;
+    } catch { return null; } // enregistrement modifié ou d'un autre poste
+  }
+  const m = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(String(text || '').trim()); if (!m) return null; // ancien format (scellé HMAC), relu puis réécrit chiffré
   const sig = crypto.createHmac('sha256', SALT + machineId()).update(m[1]).digest('base64url');
   if (sig.length !== m[2].length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(m[2]))) return null;
   try { const r = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8')); return r && r.m === machineId() && Number.isFinite(r.start) ? r : null; } catch { return null; }

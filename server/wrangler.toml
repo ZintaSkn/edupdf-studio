@@ -15,6 +15,10 @@ class_name = "LicenceStore"
 tag = "v1"
 new_sqlite_classes = ["LicenceStore"]
 
+# Journaux et métriques du service (supervision continue) : tableau de bord Cloudflare › Workers › sknedu-licences › Observability
+[observability]
+enabled = true
+
 [vars]
 # Clé publique de l'éditeur (identique à PUBLIC_KEY dans src/license.js)
 LICENCE_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----

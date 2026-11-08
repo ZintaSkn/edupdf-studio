@@ -360,6 +360,31 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
           r.memoireJS = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo' : '?';
           return r;
         })()`, 180000);
+        await step('perf-fichier-lourd', `(async () => {
+          const T = window.__edupdf; const t = () => performance.now(); const r = {}; const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+          for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+          let t0 = t(); const d = await PDFLib.PDFDocument.create(); const f = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+          const c = document.createElement('canvas'); c.width = 1240; c.height = 1754; const x = c.getContext('2d'); x.fillStyle = '#f4f1e8'; x.fillRect(0, 0, 1240, 1754);
+          for (let i = 0; i < 4000; i++) { x.fillStyle = 'rgba(0,0,0,' + (Math.random() * 0.5) + ')'; x.fillRect(Math.random() * 1240, Math.random() * 1754, 30, 3); }
+          const scan = async () => { for (let i = 0; i < 1500; i++) { x.fillStyle = 'rgba(0,0,0,' + (Math.random() * 0.5) + ')'; x.fillRect(Math.random() * 1240, Math.random() * 1754, 30, 3); } return d.embedJpg(dataUrlToBytes(c.toDataURL('image/jpeg', 0.9))); };
+          for (let i = 1; i <= 1000; i++) {
+            const p = d.addPage([595, 842]);
+            if (i % 5 === 0) p.drawImage(await scan(), { x: 0, y: 0, width: 595, height: 842 }); // page « scannée » (image différente à chaque fois)
+            else for (let l = 0; l < 40; l++) p.drawText('Page ' + i + ' — ligne ' + l + ' : texte de cours pour mesurer les performances.', { x: 40, y: 800 - l * 19, size: 10, font: f });
+          }
+          const bytes = await d.save(); r.document = '1000 pages (200 scannées), ' + Math.round(bytes.length / 1048576) + ' Mo, créé en ' + Math.round(t() - t0) + ' ms';
+          t0 = t(); await T.insertPdf(bytes); T.S.cur = 0; await T.renderPage(); r.ouverturePremierePage = Math.round(t() - t0) + ' ms';
+          await wait(1500);
+          t0 = t(); const wrap = document.querySelector('#viewWrap'); const st = document.querySelector('#pageStack');
+          if (st) { wrap.scrollTop = st.children[900].offsetTop + 20; for (let i = 0; i < 100 && T.S.cur !== 900; i++) await wait(50); }
+          r.allerPage901 = Math.round(t() - t0) + ' ms (page ' + (T.S.cur + 1) + ')';
+          T.S.pages[5].items.push({ type: 'text', at: [60, 500], size: 14, color: '#001871', text: 'Modification' }); T.S.dirty = true;
+          t0 = t(); for (let i = 0; i < 5; i++) window.__edupdf.S.pages.length && (await (window.__teacher && window.__teacher.recoveryTick ? Promise.resolve() : 0)); r.verificationChangement = Math.round((t() - t0) / 5) + ' ms';
+          t0 = t(); JSON.stringify({ pages: T.S.pages }); r.instantaneEtat = Math.round(t() - t0) + ' ms';
+          t0 = t(); const out = await T.buildPdf(); r.enregistrement = Math.round(t() - t0) + ' ms / ' + Math.round(out.length / 1048576) + ' Mo';
+          r.memoireJS = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo (limite ' + Math.round(performance.memory.jsHeapSizeLimit / 1048576) + ' Mo)' : '?';
+          T.S.dirty = false; T.actions.close(); return r;
+        })()`, 600000);
         const m = process.getProcessMemoryInfo ? await process.getProcessMemoryInfo() : null;
         log('INFO memoire processus principal', m ? Math.round(m.private / 1024) + ' Mo' : '?');
       }
@@ -615,11 +640,11 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
           ACC.touch(); const repare = fs.existsSync(recFiles[2]);
           ACC.save({ email: 'autre.adresse@ecole.test', name: 'Autre' }); const irreversible = ACC.status().trial.start === start0;
           ACC.save({ email: 'enseignant@ecole.test', name: 'Mme Test', org: 'Lycée Test' });
-          const blob = fs.readFileSync(recFiles[0], 'utf8'); const j = JSON.parse(Buffer.from(blob.split('.')[0], 'base64url').toString());
-          j.start = Date.now() + 86400000 * 400; fs.writeFileSync(recFiles[0], Buffer.from(JSON.stringify(j)).toString('base64url') + '.' + blob.split('.')[1]);
+          const blob = fs.readFileSync(recFiles[0], 'utf8'); const chiffre = blob.startsWith('G1.') && !blob.includes('ecole') && !Buffer.from(blob.split('.')[2], 'base64url').toString('latin1').includes('ecole');
+          const parts = blob.split('.'); parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1); fs.writeFileSync(recFiles[0], parts.join('.'));
           const falsifieIgnore = ACC.status().trial.start === start0 && ACC.status().trial.daysLeft === 30;
           fs.writeFileSync(recFiles[0], blob);
-          log('OK   essai-persistance', JSON.stringify({ apresSuppression, repare, irreversible, falsifieIgnore, emplacements: recFiles.filter((f) => fs.existsSync(f)).length }));
+          log('OK   essai-persistance', JSON.stringify({ chiffreAES256GCM: chiffre, apresSuppression, repare, irreversible, falsifieIgnore, emplacements: recFiles.filter((f) => fs.existsSync(f)).length }));
         } catch (e) { log('FAIL essai-persistance', e.stack); results.essai = { error: e.message }; }
         process.env.EDUPDF_NOW_OFFSET_DAYS = '31';
         await step('essai-termine', `(async () => {
@@ -774,6 +799,61 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         out.lienWhatsApp = 'https://wa.me/' + sv.whatsapp + '?text=…';
         return out;
       })()`);
+
+      // ---------- Tests d'intrusion automatisés : tentatives de détournement du logiciel (doivent toutes échouer) ----------
+      {
+        const ud = path.join(outDir, 'userdata');
+        await step('intrusion-interface', `(async () => {
+          const out = {}; const refuse = async (p) => { try { const r = await p; return r === null || r === undefined || (Array.isArray(r) && !r.length) ? 'refusé' : 'ACCEPTÉ : ' + JSON.stringify(r).slice(0, 60); } catch (e) { return 'refusé'; } };
+          out.lectureFichiersSysteme = await refuse(window.api.loadPaths(['C:\\\\Windows\\\\win.ini', 'C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts', '..\\\\..\\\\secret.pdf', 'relatif.pdf', 'C:\\\\Windows\\\\System32\\\\config\\\\SAM']));
+          out.deverrouillageFichierArbitraire = await refuse(window.api.unlockOffice('C:\\\\Windows\\\\win.ini', 'x'));
+          out.certificatArbitraire = await refuse(window.api.signPdf({ bytes: new Uint8Array([37, 80, 68, 70]), certPath: 'C:\\\\Windows\\\\win.ini', passphrase: 'x' }));
+          out.liensDangereux = [await refuse(window.api.openExternal('file:///C:/Windows/win.ini')), await refuse(window.api.openExternal('javascript:alert(1)')), await refuse(window.api.openExternal('http://exemple.ci'))].join(' / ');
+          out.cloudArbitraire = await refuse(window.api.cloudAutosave('C:\\\\Windows', new Uint8Array([1]), 'x.pdf'));
+          out.nouvelleFenetre = window.open('file:///C:/Windows/') === null ? 'refusée' : 'OUVERTE';
+          out.camera = await navigator.mediaDevices.getUserMedia({ video: true }).then(() => 'ACCORDÉE', (e) => 'refusée (' + e.name + ')');
+          out.localisation = await new Promise((r) => navigator.geolocation.getCurrentPosition(() => r('ACCORDÉE'), (e) => r('refusée (' + e.code + ')'), { timeout: 3000 }));
+          out.notifications = await Notification.requestPermission();
+          const rid = await window.api.recoverySave('..\\\\..\\\\..\\\\evasion', 'x.pdf', new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55, 10]));
+          out.recuperation = rid ? 'écrite (dans son dossier : vérifié ci-dessous)' : 'refusée';
+          out.cheminForge = await refuse(window.api.loadPaths([window.api.pathForFile({ path: 'C:\\\\Windows\\\\win.ini' }) || 'C:\\\\Windows\\\\win.ini']));
+          const bad = Object.entries(out).filter(([, v]) => /ACCEPTÉ|OUVERTE|ACCORDÉE|^granted$/.test(String(v)));
+          if (bad.length) throw new Error('INTRUSION POSSIBLE : ' + JSON.stringify(bad).slice(0, 300));
+          return out;
+        })()`);
+        try { // vérifications sur le disque
+          const recDir = path.join(ud, 'recuperation'); const files = fs.existsSync(recDir) ? fs.readdirSync(recDir) : [];
+          const evasion = ['evasion.pdf', '../evasion.pdf', '../../evasion.pdf', '../../../evasion.pdf'].some((f) => fs.existsSync(path.join(recDir, f)) && f !== 'evasion.pdf');
+          const enc = files.filter((f) => f.endsWith('.pdf')).map((f) => fs.readFileSync(path.join(recDir, f)).subarray(0, 5).toString());
+          const admin = (() => { try { const a = JSON.parse(fs.readFileSync(path.join(ud, 'admin.json'), 'utf8')); return a.pwHash && (a.pwHash.N || 16384); } catch { return 'pas d\'administrateur sur ce poste de test'; } })();
+          const key = fs.existsSync(path.join(ud, 'cle-donnees.bin')) ? fs.readFileSync(path.join(ud, 'cle-donnees.bin')).subarray(0, 1).toString() : '?';
+          log((evasion ? 'FAIL ' : 'OK   ') + 'intrusion-disque', JSON.stringify({ copieConfinee: !evasion, copiesChiffreesAES256GCM: enc.every((h) => h === 'SKNE1') && enc.length > 0, cleDeDonnees: key === 'P' ? 'protégée par Windows (DPAPI)' : key, scryptAdministrateurN: admin }));
+          await js('window.api.recoveryClear(\'evasion\')');
+        } catch (e) { log('FAIL intrusion-disque', e.stack); }
+        try { // classe connectée : nom d'élève piégé, jeton deviné
+          const st = await js(`(async () => window.api.classroomStart({ bytes: await window.__edupdf.buildPdf(), title: 'Test', collect: true, fileName: 'fiche.pdf' }).then((s) => ({ url: s.url, dir: s.dir })))()`);
+          const http = require('http'); const u = new URL(st.url + 'rendre'); const boundary = '----x' + Date.now();
+          const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="eleve"\r\n\r\n../../../..\\evasion<script>\r\n--${boundary}\r\nContent-Disposition: form-data; name="copie"; filename="../../x.pdf"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.7 test\r\n--${boundary}--\r\n`)]);
+          const post = await new Promise((res, rej) => { const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, (rs) => { rs.resume(); rs.on('end', () => res(rs.statusCode)); }); r.on('error', rej); r.end(body); });
+          const guess = await new Promise((res) => http.get(st.url.replace(/\/c\/[^/]+\//, '/c/AAAAAAAAAAAA/') + 'document.pdf', (r) => { r.resume(); res(r.statusCode); }).on('error', () => res('erreur')));
+          const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
+          const saved = (status.received || []).map((r) => r.file);
+          const confine = saved.every((f) => path.dirname(f) === st.dir && !/[\\/]\.\.|<|>/.test(path.basename(f)));
+          log((confine && guess === 404 ? 'OK   ' : 'FAIL ') + 'intrusion-classe', JSON.stringify({ envoi: post, fichiers: saved.map((f) => path.basename(f)), confineDansLeDossierDeLaClasse: confine, jetonDevine: guess }));
+        } catch (e) { log('FAIL intrusion-classe', e.stack); }
+        try { // contre-épreuve : un fichier réellement choisi par l'utilisateur (hors des dossiers du logiciel) s'ouvre toujours
+          const dropFile = path.join(require('os').tmpdir(), 'sknedu-depot-' + Date.now() + '.pdf');
+          const { PDFDocument } = require('pdf-lib'); const d0 = await PDFDocument.create(); d0.addPage(); fs.writeFileSync(dropFile, await d0.save());
+          await js("(() => { const i = document.createElement('input'); i.type = 'file'; i.id = '__depot'; i.hidden = true; document.body.appendChild(i); })()");
+          const dbg = win.webContents.debugger; dbg.attach('1.3');
+          const { root } = await dbg.sendCommand('DOM.getDocument');
+          const { nodeId } = await dbg.sendCommand('DOM.querySelector', { nodeId: root.nodeId, selector: '#__depot' });
+          await dbg.sendCommand('DOM.setFileInputFiles', { nodeId, files: [dropFile] }); dbg.detach();
+          const r = await js("(async () => { const i = document.getElementById('__depot'); const p = window.api.pathForFile(i.files[0]); const f = await window.api.loadPaths([p]); i.remove(); return { cheminObtenu: !!p, ouvert: f.length === 1 && !f[0].error ? f[0].kind : 'NON' }; })()");
+          log((r.ouvert === 'pdf' ? 'OK   ' : 'FAIL ') + 'depot-utilisateur', JSON.stringify(r));
+          fs.rmSync(dropFile, { force: true });
+        } catch (e) { log('FAIL depot-utilisateur', e.stack); }
+      }
 
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {

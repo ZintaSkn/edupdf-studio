@@ -25,7 +25,8 @@ async function load() {
   const P = D.policy;
   $('#defaults').innerHTML = Object.entries(D.features).map(([k, l]) => `<label class="ck"><input type="checkbox" data-f="${k}" ${P.defaults[k] !== false ? 'checked' : ''}> ${esc(l)}</label>`).join('');
   $('#message').value = P.message || ''; $('#logNames').checked = P.logFileNames !== false;
-  $('#updated').textContent = P.updated ? `Dernière diffusion : ${fmt(P.updated)}` : '';
+  { const last = P.reviewedAt || P.updated; const due = !last || Date.now() - Date.parse(last) > 90 * 86400000;
+    $('#updated').textContent = (P.updated ? `Dernière diffusion : ${fmt(P.updated)}` : '') + (due ? ' — ⚠️ revue des droits à faire (plus de 90 jours) : vérifiez les droits puis enregistrez' : ` — revue des droits à jour (prochaine avant le ${new Date(Date.parse(last) + 90 * 86400000).toLocaleDateString('fr-FR')})`); }
   if (D.tampered) toast('⚠️ Le fichier de règles a été modifié hors de la console : vérifiez les réglages puis cliquez « Enregistrer et diffuser » pour le re-signer.');
   $('#folder').textContent = D.folder;
   $('#notifTypes').innerHTML = Object.entries(D.events).map(([k, l]) => `<label class="ck"><input type="checkbox" data-n="${k}" ${D.notify.types.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('');
