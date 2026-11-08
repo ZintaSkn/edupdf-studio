@@ -29,83 +29,83 @@
     <div id="policyBar" hidden></div>
     <div id="ribbon">
       <div class="panel on" data-panel="accueil">
-        <button data-act="new"><i>📄</i>Nouveau</button>
-        <button data-act="open"><i>📂</i>Ouvrir</button>
-        <button data-act="save"><i>💾</i>Enregistrer</button>
-        <button data-act="print"><i>🖨</i>Imprimer</button>
+        <button data-act="new" title="Nouveau&#10;Crée une page A4 vierge, dans un nouvel onglet si un document est déjà ouvert. Ctrl+N"><i>📄</i>Nouveau</button>
+        <button data-act="open" title="Ouvrir&#10;Ouvre un PDF, un document Word, Excel ou PowerPoint, une image, un EPUB… Chaque fichier a son onglet. Ctrl+O"><i>📂</i>Ouvrir</button>
+        <button data-act="save" title="Enregistrer&#10;Enregistre le document en conservant sa structure d'origine (signets, liens, formulaires). Ctrl+S"><i>💾</i>Enregistrer</button>
+        <button data-act="print" title="Imprimer&#10;Imprime tout, la page courante ou un intervalle, avec 1, 2 ou 4 pages par feuille. Ctrl+P"><i>🖨</i>Imprimer</button>
         <span class="sep"></span>
-        <button data-tool="edit" class="tool"><i>✏️</i>Modifier<br>le texte</button>
-        <button data-tool="editpara" class="tool"><i>📝</i>Modifier un<br>paragraphe</button>
-        <button data-tool="text" class="tool"><i>🔤</i>Ajouter<br>du texte</button>
-        <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
-        <button data-act="ocrPage"><i>🔍</i>OCR</button>
-        <button data-act="aiPanel"><i>✨</i>Assistant IA</button>
+        <button data-tool="edit" class="tool" title="Modifier le texte&#10;Cliquez sur un mot ou une ligne du PDF pour le corriger dans la police d'origine."><i>✏️</i>Modifier<br>le texte</button>
+        <button data-tool="editpara" class="tool" title="Modifier un paragraphe&#10;Réécrit un paragraphe entier, recomposé dans sa largeur, sa police et son interligne d'origine."><i>📝</i>Modifier un<br>paragraphe</button>
+        <button data-tool="text" class="tool" title="Ajouter du texte&#10;Ajoute une zone de texte ; elle reprend la police, la taille et la couleur du texte voisin."><i>🔤</i>Ajouter<br>du texte</button>
+        <button data-tool="highlight" class="tool" title="Surligner&#10;Surligne une zone (couleur dans le panneau Propriétés)."><i>🖍</i>Surligner</button>
+        <button data-act="ocrPage" title="OCR&#10;Reconnaît le texte d'une page scannée pour le rechercher, le copier et le corriger."><i>🔍</i>OCR</button>
+        <button data-act="aiPanel" title="Assistant IA&#10;Ouvre le panneau de l'assistant IA à droite."><i>✨</i>Assistant IA</button>
         <span class="sep"></span>
-        <button data-act="slideshow"><i>🖥</i>Diaporama<br>(F5)</button>
-        <button data-act="slideshowHere"><i>▶️</i>Depuis cette<br>page (Maj+F5)</button>
-        <button data-act="homeSide"><i>🏠</i>Panneau<br>Accueil</button>
+        <button data-act="slideshow" title="Diaporama (F5)&#10;Projette le document en plein écran. F5"><i>🖥</i>Diaporama<br>(F5)</button>
+        <button data-act="slideshowHere" title="Depuis cette page (Maj+F5)&#10;Projette à partir de la page affichée. Maj+F5"><i>▶️</i>Depuis cette<br>page (Maj+F5)</button>
+        <button data-act="homeSide" title="Panneau Accueil&#10;Affiche le panneau Accueil : démarrer, modèles, outils, fichiers récents."><i>🏠</i>Panneau<br>Accueil</button>
       </div>
       <div class="panel" data-panel="fichier">
-        <button data-act="new"><i>📄</i>Nouveau</button>
-        <button data-act="open"><i>📂</i>Ouvrir</button>
-        <button data-act="save"><i>💾</i>Enregistrer</button>
-        <button data-act="saveAs"><i>📝</i>Enregistrer sous</button>
-        <button data-act="cloudSave"><i>☁️</i>Enregistrer<br>dans le cloud</button>
-        <button data-act="cloudOpen"><i>🌐</i>Ouvrir depuis<br>le cloud</button>
+        <button data-act="new" title="Nouveau&#10;Crée une page A4 vierge, dans un nouvel onglet si un document est déjà ouvert. Ctrl+N"><i>📄</i>Nouveau</button>
+        <button data-act="open" title="Ouvrir&#10;Ouvre un PDF, un document Word, Excel ou PowerPoint, une image, un EPUB… Chaque fichier a son onglet. Ctrl+O"><i>📂</i>Ouvrir</button>
+        <button data-act="save" title="Enregistrer&#10;Enregistre le document en conservant sa structure d'origine (signets, liens, formulaires). Ctrl+S"><i>💾</i>Enregistrer</button>
+        <button data-act="saveAs" title="Enregistrer sous&#10;Enregistre une copie sous un autre nom ou ailleurs. Ctrl+Maj+S"><i>📝</i>Enregistrer sous</button>
+        <button data-act="cloudSave" title="Enregistrer dans le cloud&#10;Enregistre dans OneDrive, Google Drive, Dropbox, iCloud… via le dossier synchronisé du PC."><i>☁️</i>Enregistrer<br>dans le cloud</button>
+        <button data-act="cloudOpen" title="Ouvrir depuis le cloud&#10;Ouvre un fichier depuis un dossier cloud synchronisé."><i>🌐</i>Ouvrir depuis<br>le cloud</button>
         <button data-act="cloudAuto" title="Sauvegarde automatique&#10;Connectez votre compte OneDrive, Google Drive ou Dropbox : vos documents y sont enregistrés automatiquement pendant le travail."><i>🔄</i>Sauvegarde<br>auto. cloud</button>
         <button data-act="exportOrigin" title="Format d'origine&#10;Réenregistre le document dans le format du fichier ouvert (Word, Excel, PowerPoint, OpenDocument, texte, image)."><i>↩️</i>Format<br>d'origine</button>
-        <button data-act="print"><i>🖨</i>Imprimer</button>
-        <button data-act="compress"><i>🗜</i>Réduire la taille</button>
-        <button data-act="close"><i>✖</i>Fermer</button>
+        <button data-act="print" title="Imprimer&#10;Imprime tout, la page courante ou un intervalle, avec 1, 2 ou 4 pages par feuille. Ctrl+P"><i>🖨</i>Imprimer</button>
+        <button data-act="compress" title="Réduire la taille&#10;Réduit la taille du PDF (images recompressées) pour l'envoi par e-mail ou WhatsApp."><i>🗜</i>Réduire la taille</button>
+        <button data-act="close" title="Fermer&#10;Ferme le document affiché. Ctrl+W"><i>✖</i>Fermer</button>
       </div>
       <div class="panel" data-panel="creer">
-        <button data-act="blank"><i>⬜</i>Page vierge</button>
-        <button data-act="fromImages"><i>🖼</i>Depuis des images</button>
-        <button data-act="scan"><i>🖨</i>Scanner</button>
-        <button data-act="insertFiles"><i>➕</i>Insérer / Fusionner<br>(PDF, Word, PPT, Excel)</button>
+        <button data-act="blank" title="Page vierge&#10;Insère une page identique à la page courante : même format, même orientation, même modèle (lignes, carreaux)."><i>⬜</i>Page vierge</button>
+        <button data-act="fromImages" title="Depuis des images&#10;Assemble des photos (tableau, cahier, polycopié) en PDF, une photo par page."><i>🖼</i>Depuis des images</button>
+        <button data-act="scan" title="Scanner&#10;Numérise une ou plusieurs pages avec un scanner Windows, puis propose l'OCR."><i>🖨</i>Scanner</button>
+        <button data-act="insertFiles" title="Insérer / Fusionner (PDF, Word, PPT, Excel)&#10;Insère d'autres fichiers à la suite (fusion) : PDF, Word, PowerPoint, Excel, images."><i>➕</i>Insérer / Fusionner<br>(PDF, Word, PPT, Excel)</button>
       </div>
       <div class="panel" data-panel="modifier">
-        <button data-tool="select" class="tool on"><i>🖱</i>Sélection</button>
-        <button data-tool="edit" class="tool"><i>✏️</i>Modifier le texte</button>
-        <button data-tool="editpara" class="tool"><i>📝</i>Modifier un<br>paragraphe</button>
-        <button data-tool="text" class="tool"><i>🔤</i>Ajouter du texte</button>
-        <button data-tool="image" class="tool"><i>🖼</i>Image</button>
-        <button data-tool="highlight" class="tool"><i>🖍</i>Surligner</button>
-        <button data-tool="whiteout" class="tool"><i>▭</i>Masquer (blanc)</button>
-        <button data-tool="box" class="tool"><i>⬚</i>Cadre</button>
+        <button data-tool="select" class="tool on" title="Sélection&#10;Outil par défaut : sélectionner, déplacer, redimensionner les éléments ajoutés. Échap y revient."><i>🖱</i>Sélection</button>
+        <button data-tool="edit" class="tool" title="Modifier le texte&#10;Cliquez sur un mot ou une ligne du PDF pour le corriger dans la police d'origine."><i>✏️</i>Modifier le texte</button>
+        <button data-tool="editpara" class="tool" title="Modifier un paragraphe&#10;Réécrit un paragraphe entier, recomposé dans sa largeur, sa police et son interligne d'origine."><i>📝</i>Modifier un<br>paragraphe</button>
+        <button data-tool="text" class="tool" title="Ajouter du texte&#10;Ajoute une zone de texte ; elle reprend la police, la taille et la couleur du texte voisin."><i>🔤</i>Ajouter du texte</button>
+        <button data-tool="image" class="tool" title="Image&#10;Tracez un cadre puis choisissez une image à placer."><i>🖼</i>Image</button>
+        <button data-tool="highlight" class="tool" title="Surligner&#10;Surligne une zone (couleur dans le panneau Propriétés)."><i>🖍</i>Surligner</button>
+        <button data-tool="whiteout" class="tool" title="Masquer (blanc)&#10;Masque une zone sous un rectangle blanc (cache une réponse, un nom)."><i>▭</i>Masquer (blanc)</button>
+        <button data-tool="box" class="tool" title="Cadre&#10;Trace un cadre rectangulaire."><i>⬚</i>Cadre</button>
         <button data-tool="ellipse" class="tool" title="Ellipse&#10;Entourer une réponse ou une zone."><i>⬭</i>Ellipse</button>
         <button data-tool="line" class="tool" title="Trait&#10;Souligner, barrer, relier (Maj : trait droit)."><i>╱</i>Trait</button>
         <button data-tool="arrow" class="tool" title="Flèche&#10;Montrer une erreur ou une partie du document (Maj : flèche droite)."><i>➝</i>Flèche</button>
         <button data-act="stamps" title="Tampons de correction&#10;✔ ✘ Vu, Très bien, À revoir, Absent… ou votre propre tampon, à poser d'un clic."><i>🔖</i>Tampons</button>
         <button data-tool="mark" class="tool" title="Noter&#10;Inscrire une note (ex. 15/20) et une appréciation sur la copie."><i>💯</i>Noter</button>
-        <button data-tool="ink" class="tool"><i>✒️</i>Stylo</button>
-        <button data-tool="sign" class="tool"><i>✍️</i>Signature</button>
-        <button data-tool="ftext" class="tool"><i>▤</i>Champ texte</button>
-        <button data-tool="fcheck" class="tool"><i>☑</i>Case à cocher</button>
-        <button data-tool="note" class="tool"><i>💬</i>Commentaire</button>
+        <button data-tool="ink" class="tool" title="Stylo&#10;Écrit ou dessine à main levée (souris, stylet)."><i>✒️</i>Stylo</button>
+        <button data-tool="sign" class="tool" title="Signature&#10;Place votre signature manuscrite enregistrée."><i>✍️</i>Signature</button>
+        <button data-tool="ftext" class="tool" title="Champ texte&#10;Ajoute un champ de saisie : la fiche devient remplissable sur ordinateur."><i>▤</i>Champ texte</button>
+        <button data-tool="fcheck" class="tool" title="Case à cocher&#10;Ajoute une case à cocher remplissable."><i>☑</i>Case à cocher</button>
+        <button data-tool="note" class="tool" title="Commentaire&#10;Ajoute un commentaire (bulle) signé de votre nom."><i>💬</i>Commentaire</button>
         <button data-act="commentLocked" title="Lecture seule&#10;Enregistre une copie avec ses commentaires verrouillés : lisible dans SknEDU-studio et dans tous les lecteurs PDF, sans modification possible."><i>🔒</i>Commentés en<br>lecture seule</button>
-        <button data-act="find"><i>🔎</i>Rechercher /<br>remplacer</button>
-        <button data-act="equation"><i>∑</i>Équation</button>
+        <button data-act="find" title="Rechercher / remplacer&#10;Recherche un mot dans le document et le remplace partout si besoin. Ctrl+F"><i>🔎</i>Rechercher /<br>remplacer</button>
+        <button data-act="equation" title="Équation&#10;Écrit une formule (LaTeX ou boutons) et l'insère comme image nette."><i>∑</i>Équation</button>
         <span class="sep"></span>
-        <button data-act="undo"><i>↶</i>Annuler</button>
-        <button data-act="redo"><i>↷</i>Rétablir</button>
-        <button data-act="delItem"><i>🗑</i>Supprimer l'élément</button>
+        <button data-act="undo" title="Annuler&#10;Annule la dernière action. Ctrl+Z"><i>↶</i>Annuler</button>
+        <button data-act="redo" title="Rétablir&#10;Rétablit l'action annulée. Ctrl+Y"><i>↷</i>Rétablir</button>
+        <button data-act="delItem" title="Supprimer l'élément&#10;Supprime l'élément sélectionné. Suppr"><i>🗑</i>Supprimer l'élément</button>
       </div>
       <div class="panel" data-panel="pages">
-        <button data-act="rotL"><i>⟲</i>Pivoter gauche</button>
-        <button data-act="rotR"><i>⟳</i>Pivoter droite</button>
-        <button data-act="delPages"><i>🗑</i>Supprimer</button>
-        <button data-act="dupPages"><i>⧉</i>Dupliquer</button>
-        <button data-act="blank"><i>⬜</i>Insérer vierge</button>
-        <button data-act="moveUp"><i>▲</i>Monter</button>
-        <button data-act="moveDown"><i>▼</i>Descendre</button>
-        <button data-act="extract"><i>📤</i>Extraire la sélection</button>
-        <button data-act="split"><i>✂️</i>Diviser (1 PDF / page)</button>
-        <button data-act="numbers"><i>#</i>Numéroter les pages</button>
+        <button data-act="rotL" title="Pivoter gauche&#10;Pivote les pages sélectionnées vers la gauche."><i>⟲</i>Pivoter gauche</button>
+        <button data-act="rotR" title="Pivoter droite&#10;Pivote les pages sélectionnées vers la droite."><i>⟳</i>Pivoter droite</button>
+        <button data-act="delPages" title="Supprimer&#10;Supprime les pages sélectionnées."><i>🗑</i>Supprimer</button>
+        <button data-act="dupPages" title="Dupliquer&#10;Duplique les pages sélectionnées."><i>⧉</i>Dupliquer</button>
+        <button data-act="blank" title="Insérer vierge&#10;Insère une page identique à la page courante : même format, même orientation, même modèle (lignes, carreaux)."><i>⬜</i>Insérer vierge</button>
+        <button data-act="moveUp" title="Monter&#10;Remonte les pages sélectionnées."><i>▲</i>Monter</button>
+        <button data-act="moveDown" title="Descendre&#10;Descend les pages sélectionnées."><i>▼</i>Descendre</button>
+        <button data-act="extract" title="Extraire la sélection&#10;Enregistre les pages sélectionnées dans un nouveau PDF."><i>📤</i>Extraire la sélection</button>
+        <button data-act="split" title="Diviser (1 PDF / page)&#10;Crée un PDF par page."><i>✂️</i>Diviser (1 PDF / page)</button>
+        <button data-act="numbers" title="Numéroter les pages&#10;Numérote les pages (position et format au choix)."><i>#</i>Numéroter les pages</button>
         <button data-act="headerFooter" title="En-tête et pied de page&#10;Établissement, enseignant, classe, date et numéro de page sur toutes les pages."><i>🔖</i>En-tête et<br>pied de page</button>
-        <button data-tool="crop" class="tool"><i>⛶</i>Rogner</button>
-        <button data-act="uncrop"><i>↺</i>Annuler le<br>rognage</button>
-        <button data-act="watermark"><i>💧</i>Filigrane</button>
+        <button data-tool="crop" class="tool" title="Rogner&#10;Tracez la zone à garder : la page est rognée."><i>⛶</i>Rogner</button>
+        <button data-act="uncrop" title="Annuler le rognage&#10;Rend à la page sa taille d'origine."><i>↺</i>Annuler le<br>rognage</button>
+        <button data-act="watermark" title="Filigrane&#10;Ajoute un filigrane (« Corrigé », « Brouillon », nom de l'établissement…)."><i>💧</i>Filigrane</button>
       </div>
       <div class="panel" data-panel="ocr">
         <label class="field">Langue
@@ -122,66 +122,66 @@
             <option value="fra+eng+spa+deu">Français + Anglais + Espagnol + Allemand</option>
           </select>
         </label>
-        <button data-act="ocrPage"><i>🔍</i>OCR page courante</button>
-        <button data-act="ocrAll"><i>📚</i>OCR tout le document</button>
-        <button data-act="editAfterOcr"><i>✏️</i>Modifier le texte reconnu</button>
-        <button data-act="scanCopy"><i>🗂</i>Copie numérisée<br>éditable (sélection)</button>
+        <button data-act="ocrPage" title="OCR page courante&#10;Reconnaît le texte d'une page scannée pour le rechercher, le copier et le corriger."><i>🔍</i>OCR page courante</button>
+        <button data-act="ocrAll" title="OCR tout le document&#10;Reconnaît le texte de toutes les pages scannées."><i>📚</i>OCR tout le document</button>
+        <button data-act="editAfterOcr" title="Modifier le texte reconnu&#10;Passe directement à la correction du texte reconnu."><i>✏️</i>Modifier le texte reconnu</button>
+        <button data-act="scanCopy" title="Copie numérisée éditable (sélection)&#10;Pour un fichier illisible ou verrouillé : les pages deviennent des images, puis l'OCR rend le texte modifiable."><i>🗂</i>Copie numérisée<br>éditable (sélection)</button>
       </div>
       <div class="panel" data-panel="outils">
-        <button data-act="protect"><i>🔒</i>Protéger par<br>mot de passe</button>
-        <button data-act="unprotect"><i>🔓</i>Retirer le<br>mot de passe</button>
-        <button data-act="signPad"><i>✍️</i>Ma signature</button>
-        <button data-act="certSign"><i>🏅</i>Signer avec<br>un certificat</button>
-        <button data-act="compare"><i>⚖️</i>Comparer avec<br>un autre fichier</button>
-        <button data-act="clearCompare"><i>🧽</i>Effacer les marques<br>de comparaison</button>
+        <button data-act="protect" title="Protéger par mot de passe&#10;Mot de passe d'ouverture et/ou de modification (AES 256), autorisations d'impression et de copie."><i>🔒</i>Protéger par<br>mot de passe</button>
+        <button data-act="unprotect" title="Retirer le mot de passe&#10;Retire le mot de passe d'un document que vous avez ouvert."><i>🔓</i>Retirer le<br>mot de passe</button>
+        <button data-act="signPad" title="Ma signature&#10;Crée votre signature (souris, stylet ou image) et la mémorise sur le PC."><i>✍️</i>Ma signature</button>
+        <button data-act="certSign" title="Signer avec un certificat&#10;Signature numérique avec un certificat .p12 / .pfx (signature électronique avancée)."><i>🏅</i>Signer avec<br>un certificat</button>
+        <button data-act="compare" title="Comparer avec un autre fichier&#10;Compare mot à mot avec un autre fichier : ajouts, modifications, suppressions surlignés."><i>⚖️</i>Comparer avec<br>un autre fichier</button>
+        <button data-act="clearCompare" title="Effacer les marques de comparaison&#10;Retire les marques de comparaison."><i>🧽</i>Effacer les marques<br>de comparaison</button>
       </div>
       <div class="panel" data-panel="convertir">
-        <button data-act="toWord"><i>📘</i>PDF → Word (.docx)</button>
-        <button data-act="toExcel"><i>📗</i>PDF → Excel</button>
-        <button data-act="toPpt"><i>📙</i>PDF → PowerPoint</button>
-        <button data-act="exportAs"><i>🔁</i>PDF → autres formats<br>(ODT, RTF, ODS, CSV…)</button>
-        <button data-act="convertOffice"><i>🔄</i>Convertir un<br>fichier Office</button>
-        <button data-act="toImages"><i>🖼</i>PDF → Images (.png)</button>
-        <button data-act="toText"><i>📃</i>PDF → Texte (.txt)</button>
+        <button data-act="toWord" title="PDF → Word (.docx)&#10;Convertit en document Word modifiable."><i>📘</i>PDF → Word (.docx)</button>
+        <button data-act="toExcel" title="PDF → Excel&#10;Reconstitue les tableaux en vraies cellules Excel."><i>📗</i>PDF → Excel</button>
+        <button data-act="toPpt" title="PDF → PowerPoint&#10;Convertit en présentation PowerPoint."><i>📙</i>PDF → PowerPoint</button>
+        <button data-act="exportAs" title="PDF → autres formats (ODT, RTF, ODS, CSV…)&#10;Autres formats : DOC, ODT, RTF, HTML, XLS, ODS, CSV, PPT, ODP (avec LibreOffice)."><i>🔁</i>PDF → autres formats<br>(ODT, RTF, ODS, CSV…)</button>
+        <button data-act="convertOffice" title="Convertir un fichier Office&#10;Convertit un fichier Office vers un autre format Office ou en PDF, sans l'ouvrir."><i>🔄</i>Convertir un<br>fichier Office</button>
+        <button data-act="toImages" title="PDF → Images (.png)&#10;Enregistre chaque page en image PNG."><i>🖼</i>PDF → Images (.png)</button>
+        <button data-act="toText" title="PDF → Texte (.txt)&#10;Enregistre le texte du document en .txt."><i>📃</i>PDF → Texte (.txt)</button>
       </div>
       <div class="panel" data-panel="classe">
-        <button data-act="grading"><i>🧑‍🏫</i>Corriger<br>des copies</button>
+        <button data-act="grading" title="Corriger des copies&#10;Paquet de copies scannées : barème, note et commentaires par copie (à la main ou proposés par l'IA), export Excel."><i>🧑‍🏫</i>Corriger<br>des copies</button>
         <button data-act="stamps" title="Tampons de correction&#10;✔ ✘ Vu, Très bien, À revoir, Absent… à poser d'un clic sur les copies."><i>🔖</i>Tampons de<br>correction</button>
         <button data-tool="mark" class="tool" title="Noter&#10;Cliquez sur la copie : la note (ex. 15/20) et une appréciation s'inscrivent, entourées, en vert ou en rouge. Recliquez sur l'outil pour l'arrêter."><i>💯</i>Noter</button>
         <button data-act="marks" title="Relevé des notes&#10;Toutes les notes inscrites dans le document, avec la moyenne, à copier dans un tableur."><i>📋</i>Relevé des<br>notes</button>
-        <button data-act="diffEval"><i>🎯</i>Évaluations<br>différenciées</button>
-        <button data-act="mailMerge"><i>✉️</i>Publipostage</button>
-        <button data-act="classroom"><i>📡</i>Classe<br>connectée</button>
+        <button data-act="diffEval" title="Évaluations différenciées&#10;À partir du document : 3 niveaux, sujets A/B mélangés et corrigé ; export Moodle (GIFT) et tableur."><i>🎯</i>Évaluations<br>différenciées</button>
+        <button data-act="mailMerge" title="Publipostage&#10;Un PDF par élève depuis un fichier Excel/CSV : bulletins, attestations, convocations ({{Nom}}, {{Classe}}…)."><i>✉️</i>Publipostage</button>
+        <button data-act="classroom" title="Classe connectée&#10;Partage le document par le Wi-Fi de la classe (QR code), sans Internet, et récupère les copies des élèves."><i>📡</i>Classe<br>connectée</button>
         <span class="sep"></span>
-        <button data-act="dys"><i>🔠</i>Version adaptée<br>(DYS)</button>
-        <button data-act="speak"><i>🔊</i>Lire à<br>voix haute</button>
-        <button data-act="bilingual"><i>🌍</i>Version<br>bilingue</button>
+        <button data-act="dys" title="Version adaptée (DYS)&#10;Recrée le document avec la police OpenDyslexic, de larges interlignes et une règle de lecture."><i>🔠</i>Version adaptée<br>(DYS)</button>
+        <button data-act="speak" title="Lire à voix haute&#10;Lit la page à voix haute avec les voix de Windows, sans connexion."><i>🔊</i>Lire à<br>voix haute</button>
+        <button data-act="bilingual" title="Version bilingue&#10;Crée une version bilingue (texte d'origine et traduction côte à côte) avec l'IA."><i>🌍</i>Version<br>bilingue</button>
         <span class="sep"></span>
-        <button data-act="slideshow"><i>🖥</i>Diaporama<br>(F5)</button>
+        <button data-act="slideshow" title="Diaporama (F5)&#10;Projette le document en plein écran. F5"><i>🖥</i>Diaporama<br>(F5)</button>
       </div>
-      <div class="panel" data-panel="ia">        <button data-act="aiPanel"><i>✨</i>Ouvrir<br>l'assistant</button>
-        <button data-ai="resume"><i>📝</i>Résumer</button>
-        <button data-ai="qcm"><i>✅</i>Créer un QCM</button>
-        <button data-ai="exos"><i>✏️</i>Fiche<br>d'exercices</button>
-        <button data-ai="simplifier"><i>🪜</i>Simplifier<br>(différenciation)</button>
-        <button data-ai="corriger"><i>🔤</i>Corriger les<br>fautes</button>
-        <button data-ai="traduire"><i>🌍</i>Traduire</button>
-        <button data-ai="grille"><i>📊</i>Grille<br>d'évaluation</button>
-        <button data-ai="cours"><i>🗓</i>Plan de<br>séance</button>
+      <div class="panel" data-panel="ia">        <button data-act="aiPanel" title="Ouvrir l'assistant&#10;Ouvre le panneau de l'assistant IA à droite."><i>✨</i>Ouvrir<br>l'assistant</button>
+        <button data-ai="resume" title="Résumer&#10;Résume le document ou la page."><i>📝</i>Résumer</button>
+        <button data-ai="qcm" title="Créer un QCM&#10;Crée un QCM corrigé."><i>✅</i>Créer un QCM</button>
+        <button data-ai="exos" title="Fiche d'exercices&#10;Crée une fiche d'exercices avec corrigé."><i>✏️</i>Fiche<br>d'exercices</button>
+        <button data-ai="simplifier" title="Simplifier (différenciation)&#10;Simplifie le texte pour différencier (niveaux de lecture)."><i>🪜</i>Simplifier<br>(différenciation)</button>
+        <button data-ai="corriger" title="Corriger les fautes&#10;Corrige l'orthographe et la grammaire."><i>🔤</i>Corriger les<br>fautes</button>
+        <button data-ai="traduire" title="Traduire&#10;Traduit dans la langue choisie."><i>🌍</i>Traduire</button>
+        <button data-ai="grille" title="Grille d'évaluation&#10;Crée une grille d'évaluation (critères, niveaux)."><i>📊</i>Grille<br>d'évaluation</button>
+        <button data-ai="cours" title="Plan de séance&#10;Propose un plan de séance."><i>🗓</i>Plan de<br>séance</button>
         <span class="sep"></span>
-        <button data-act="aiSubscription"><i>🔗</i>Mon abonnement<br>(ChatGPT, Claude…)</button>
-        <button data-act="aiSettings"><i>⚙️</i>Réglages IA</button>
-        <button data-act="aiLocal"><i>💻</i>IA locale<br>(hors ligne)</button>
+        <button data-act="aiSubscription" title="Mon abonnement (ChatGPT, Claude…)&#10;Utilise votre abonnement ChatGPT, Claude, Gemini ou Copilot dans le navigateur (sans clé API)."><i>🔗</i>Mon abonnement<br>(ChatGPT, Claude…)</button>
+        <button data-act="aiSettings" title="Réglages IA&#10;Choix du fournisseur (Claude, ChatGPT, Gemini, Mistral, IA locale), du modèle et de la clé API."><i>⚙️</i>Réglages IA</button>
+        <button data-act="aiLocal" title="IA locale (hors ligne)&#10;Installe une IA locale gratuite (Ollama) qui fonctionne sans Internet."><i>💻</i>IA locale<br>(hors ligne)</button>
       </div>
       <div class="panel" data-panel="aide">
-        <button data-act="admin"><i>🛡️</i>Administration</button>
+        <button data-act="admin" title="Administration&#10;Console d'administration de l'établissement : fonctions autorisées par poste et par utilisateur, journal, revue des droits."><i>🛡️</i>Administration</button>
         <button data-act="prefs" title="Préférences&#10;Votre nom (signature des commentaires), l'établissement, la classe, la police par défaut et la copie de récupération."><i>⚙️</i>Préférences</button>
-        <button data-act="language"><i>🌐</i>Langue<br>(Language)</button>
-        <button data-act="license"><i>🔑</i>Licence et<br>édition</button>
+        <button data-act="language" title="Langue (Language)&#10;Interface en français ou en anglais, changement immédiat."><i>🌐</i>Langue<br>(Language)</button>
+        <button data-act="license" title="Licence et édition&#10;Édition en cours, jours d'essai restants, activation et désactivation d'une licence."><i>🔑</i>Licence et<br>édition</button>
         <button data-act="buyLicence" title="Obtenir une licence&#10;Commande par WhatsApp, Mobile Money, e-mail ou page de paiement : la demande est préparée avec votre compte et le code de ce poste."><i>🛒</i>Obtenir une<br>licence</button>
-        <button data-act="checkUpdate"><i>🔄</i>Rechercher les mises à jour</button>
-        <button data-act="office"><i>🧩</i>Statut conversion Office</button>
-        <button data-act="about"><i>ℹ️</i>À propos</button>
+        <button data-act="checkUpdate" title="Rechercher les mises à jour&#10;Recherche tout de suite une nouvelle version."><i>🔄</i>Rechercher les mises à jour</button>
+        <button data-act="office" title="Statut conversion Office&#10;Indique si LibreOffice est installé (conversions Office hors ligne) et propose de l'installer."><i>🧩</i>Statut conversion Office</button>
+        <button data-act="about" title="À propos&#10;Version, licences des composants, liens."><i>ℹ️</i>À propos</button>
       </div>
     </div>
     <div id="docTabs"></div>

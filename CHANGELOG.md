@@ -4,6 +4,11 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.4] — Info-bulles sur tous les boutons et guide d'utilisation
+- Chaque bouton du ruban affiche au survol son nom, son rôle et son raccourci (100 info-bulles ajoutées, en français et en anglais)
+- Tampons ✔ et ✘ : ils prennent la couleur choisie (ils s'affichaient en emoji violet sous Windows)
+- Guide d'utilisation illustré (captures réelles) et outil de captures automatiques pour le tenir à jour
+
 ## [1.13.3] — Mises à jour sans installateur aussi pour une installation « pour tous les utilisateurs »
 - Logiciel installé pour tous les utilisateurs (C:\Program Files) avec le contrôle intelligent de Windows actif : la mise
   à jour du contenu signée fonctionne aussi, après une seule autorisation administrateur de Windows (fenêtre « Windows

@@ -39,11 +39,11 @@ module.exports = async function captures(win, js, outDir) {
   // Copie corrigée : surlignage, tampons, note
   await js(`(async () => {
     const T = window.__edupdf; const TE = window.__teacher; const q = (s) => document.querySelector(s); const w = (ms) => new Promise((r) => setTimeout(r, ms));
-    const ov = q('#overlayLayer'); const r = ov.getBoundingClientRect(); const ev = (type, x, y) => ov.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientX: r.left + x, clientY: r.top + y }));
-    TE.setStamp('Très bien', '#1e8e3e'); T.setTool('stamp'); ev('pointerdown', r.width * 0.72, r.height * 0.40); await w(400);
-    TE.setStamp('✔', '#1e8e3e'); ev('pointerdown', r.width * 0.86, r.height * 0.32); await w(400);
-    T.setTool('ellipse'); ev('pointerdown', r.width * 0.12, r.height * 0.555); ev('pointermove', r.width * 0.55, r.height * 0.6); ev('pointerup', r.width * 0.55, r.height * 0.6); await w(300);
-    T.setTool('mark'); ev('pointerdown', r.width * 0.86, r.height * 0.05); await w(500);
+    const ov = q('#overlayLayer'); const r = ov.getBoundingClientRect(); const H = r.width * 842 / 595; /* hauteur de la 1re page (A4) : positions sur cette page */ const ev = (type, x, y) => ov.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientX: r.left + x, clientY: r.top + y }));
+    TE.setStamp('Très bien', '#1e8e3e'); T.setTool('stamp'); ev('pointerdown', r.width * 0.62, H * 0.262); await w(400);
+    TE.setStamp('✔', '#1e8e3e'); ev('pointerdown', r.width * 0.68, H * 0.207); await w(400);
+    T.setTool('ellipse'); ev('pointerdown', r.width * 0.085, H * 0.088); ev('pointermove', r.width * 0.33, H * 0.118); ev('pointerup', r.width * 0.33, H * 0.118); await w(300);
+    T.setTool('mark'); ev('pointerdown', r.width * 0.86, H * 0.05); await w(500);
     q('#mkNote').value = '16,5'; q('#mkSur').value = '20'; q('#mkAppr').value = 'Très bien'; q('#mBtns button.primary').click(); await w(500);
     T.setTool('select'); return true;
   })()`);

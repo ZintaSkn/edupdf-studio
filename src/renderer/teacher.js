@@ -84,7 +84,10 @@ const STAMPS = [
 let STAMP = { text: '✔', color: '#1e8e3e' };
 const SYMBOL = (t) => /^[✀-➿⭐\u{1F300}-\u{1FAFF}?]+$/u.test(t);
 async function stampImage(text, color) {
-  const sym = SYMBOL(text); const H = 160; const font = `bold ${sym ? 128 : 76}px "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol", Arial, sans-serif`;
+  // symboles (✔ ✘…) : glyphe monochrome (« Segoe UI Symbol » + sélecteur de présentation texte) pour prendre la couleur choisie,
+  // sinon Windows les dessine en emoji colorés (✔ violet)
+  const sym = SYMBOL(text); const H = 160; if (sym) text = text.replace(/️/g, '') + '︎';
+  const font = sym ? 'bold 128px "Segoe UI Symbol", "Segoe UI", Arial, sans-serif' : 'bold 76px "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol", Arial, sans-serif';
   const m = document.createElement('canvas').getContext('2d'); m.font = font; const tw = m.measureText(text).width;
   const W = Math.ceil(sym ? Math.max(H, tw + 20) : tw + 64);
   const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
