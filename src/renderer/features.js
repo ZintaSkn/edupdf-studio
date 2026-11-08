@@ -588,26 +588,81 @@ const EN = {
   'Édition Communauté': 'Community edition', 'Licences des composants': 'Component licenses', 'Code source': 'Source code', 'Politique de marque': 'Trademark policy'
 };
 let LANG = 'fr';
-function tr(s) { const k = s.replace(/\s+/g, ' ').trim(); return EN[k] || null; }
+const EN_X = () => window.EN_EXTRA || {};
+window.__trLine = (s) => tr(s);
+/** Traduction d'une ligne : dictionnaire, messages composés, puis « Début connu : détail ». */
+function tr(s) {
+  const k = String(s).replace(/\s+/g, ' ').trim(); if (!k) return null;
+  const X = EN_X(); if (EN[k]) return EN[k]; if (X[k]) return X[k];
+  for (const [re, rep] of window.EN_PATTERNS || []) if (re.test(k)) return k.replace(re, rep);
+  const i = k.indexOf(' : ');
+  if (i > 3) {
+    const rest = k.slice(i + 3); const head = k.slice(0, i + 2); const t = EN[head] || X[head]; if (t) return t + ' ' + (tr(rest) || rest);
+    const h2 = k.slice(0, i); const t2 = EN[h2] || X[h2]; if (t2) return t2 + ': ' + (tr(rest) || rest);
+  }
+  return null;
+}
+/** Texte sur plusieurs lignes (info-bulles, alertes) : chaque ligne est traduite. */
+function trText(s) {
+  if (LANG !== 'en' || s == null) return s;
+  const lines = String(s).split('\n'); let changed = false;
+  const out = lines.map((l) => { const t = tr(l); if (t) { changed = true; return l.replace(l.trim(), t); } return l; });
+  return changed ? out.join('\n') : s;
+}
+const ORIG = []; // [référence faible, attribut ou null, texte français, texte anglais] : retour au français sans recharger
+const ATTRS = ['title', 'placeholder', 'aria-label'];
+const SKIP = '#pageBox,#thumbs,#aiOut,#textLayer,#pageStack';
 function translateNode(root) {
-  if (LANG !== 'en') return;
+  if (LANG !== 'en' || !root) return;
   const walk = (el) => {
-    if (el.nodeType === 3) { const t = tr(el.nodeValue); if (t) el.nodeValue = el.nodeValue.replace(el.nodeValue.trim(), t); return; }
-    if (el.nodeType !== 1 || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.closest('#pageBox,#thumbs,#aiOut,#textLayer')) return;
+    if (el.nodeType === 3) {
+      const p = el.parentElement; if (!p || p.tagName === 'TEXTAREA' || p.closest(SKIP) || p.isContentEditable) return;
+      const t = trText(el.nodeValue); if (t !== el.nodeValue) { ORIG.push([new WeakRef(el), null, el.nodeValue, t]); el.nodeValue = t; } return;
+    }
+    if (el.nodeType !== 1 || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.closest(SKIP) || el.isContentEditable) return;
     if (el.tagName === 'BUTTON' && el.querySelector('br')) { // libellé sur deux lignes : traduit d'un bloc
       const i = el.querySelector('i'); const label = [...el.childNodes].filter((n) => n !== i).map((n) => (n.nodeName === 'BR' ? ' ' : n.textContent)).join('');
-      const t = tr(label); if (t) { el.innerHTML = ''; if (i) el.appendChild(i); el.appendChild(document.createTextNode(t)); return; }
+      const t = tr(label); if (t) { ORIG.push([new WeakRef(el), '#html', el.innerHTML, null]); el.innerHTML = ''; if (i) el.appendChild(i); el.appendChild(document.createTextNode(t)); ORIG[ORIG.length - 1][3] = el.innerHTML; }
     }
-    for (const a of ['title', 'placeholder', 'aria-label']) { const v = el.getAttribute(a); if (v) { const [first, ...rest] = v.split('\n'); const t = tr(first); if (t) el.setAttribute(a, [t, ...rest].join('\n')); } }
+    for (const at of ATTRS) { const v = el.getAttribute(at); if (!v) continue; const t = trText(v); if (t !== v) { ORIG.push([new WeakRef(el), at, v, t]); el.setAttribute(at, t); } }
     el.childNodes.forEach(walk);
   };
   walk(root);
 }
-function setLanguage(l) { store.set('edupdf.lang', l); location.reload(); }
+function restoreFrench() {
+  for (const [ref, at, fr, en] of ORIG.splice(0)) {
+    const n = ref.deref(); if (!n || !n.isConnected) continue;
+    if (at === null) { if (n.nodeValue === en) n.nodeValue = fr; } else if (at === '#html') { if (n.innerHTML === en) n.innerHTML = fr; } else if (n.getAttribute(at) === en) n.setAttribute(at, fr);
+  }
+}
+const I18N_OBS = new MutationObserver((ms) => {
+  if (LANG !== 'en') return;
+  for (const m of ms) {
+    if (m.type === 'childList') m.addedNodes.forEach((n) => translateNode(n));
+    else if (m.type === 'characterData') translateNode(m.target);
+    else if (m.type === 'attributes') { const v = m.target.getAttribute(m.attributeName); const t = v && trText(v); if (t && t !== v && !m.target.closest(SKIP)) { ORIG.push([new WeakRef(m.target), m.attributeName, v, t]); m.target.setAttribute(m.attributeName, t); } }
+  }
+});
+// Alertes et confirmations de Windows : traduites elles aussi
+const _alert = window.alert.bind(window); const _confirm = window.confirm.bind(window);
+window.alert = (m) => _alert(trText(m));
+window.confirm = (m) => _confirm(trText(m));
+function applyLanguage() {
+  I18N_OBS.disconnect();
+  if (LANG === 'en') { translateNode(document.body); I18N_OBS.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS }); }
+  else restoreFrench();
+  const b = document.querySelector('#langBtn'); if (b) { b.textContent = LANG === 'en' ? '🌐 EN' : '🌐 FR'; b.title = LANG === 'en' ? 'Interface language: English\nClick for French' : 'Langue de l\'interface : français\nCliquer pour l\'anglais'; }
+}
+/** Changement de langue immédiat : aucun rechargement, les documents ouverts sont conservés. */
+function setLanguage(l) {
+  if (l !== 'en' && l !== 'fr') return; store.set('edupdf.lang', l);
+  if (l === LANG) return; LANG = l; applyLanguage();
+  msg(l === 'en' ? 'Interface in English.' : 'Interface en français.');
+}
 async function languageDialog() {
-  const r = await modal('Langue de l\'interface / Interface language', '<p>Choisissez la langue des menus et boutons. / Choose the language of menus and buttons.</p><p class="muted">Les messages détaillés restent pour l\'instant en français. / Detailed messages are still in French for now.</p>',
+  const r = await modal('Langue de l\'interface / Interface language', '<p>Choisissez la langue de toute l\'interface : menus, boutons, info-bulles, fenêtres et messages. / Choose the language of the whole interface: menus, buttons, tooltips, dialogs and messages.</p><p class="muted">Le changement est immédiat, vos documents ouverts sont conservés. Raccourci : bouton 🌐 en bas de la fenêtre. / The change is immediate and your open documents are kept. Shortcut: 🌐 button at the bottom of the window.</p>',
     [['Annuler', null], ['English', 'en'], ['Français', 'fr', true]]);
-  if (r && r !== LANG) setLanguage(r);
+  if (r) setLanguage(r);
 }
 
 // ================================================================ Branchement dans l'interface
@@ -620,6 +675,7 @@ Object.assign(FEATURE_OF.act, { grading: 'edit', diffEval: 'ai', mailMerge: 'sav
   LANG = store.get('edupdf.lang') || ((navigator.language || 'fr').startsWith('fr') ? 'fr' : 'en');
   document.documentElement.lang = LANG;
   a11y(); applyPolicy(); renderQat();
-  if (LANG === 'en') { translateNode(document.body); new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => translateNode(n)))).observe(document.body, { childList: true, subtree: true }); }
-  window.__features = { gradingParseScale, GR, gradingApply, gradingTotals, diffEvalBuild, toGift, mergeRows, dysPdf, texToPng, bilingualPdf, INK, tr, aiAsk, parseJson };
+  applyLanguage();
+  const lb = document.querySelector('#langBtn'); if (lb) lb.onclick = () => setLanguage(LANG === 'en' ? 'fr' : 'en');
+  window.__features = { setLanguage, trText, getLang: () => LANG, gradingParseScale, GR, gradingApply, gradingTotals, diffEvalBuild, toGift, mergeRows, dysPdf, texToPng, bilingualPdf, INK, tr, aiAsk, parseJson };
 })();

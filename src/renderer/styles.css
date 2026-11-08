@@ -416,3 +416,7 @@ footer > #msg { flex: 1 1 auto; }
 /* ---------- Assistant IA : solutions proposées après une erreur ---------- */
 #aiFix { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 #aiFix:empty { display: none; }
+
+/* ---------- Langue ---------- */
+#langBtn { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); margin-left: 8px; }
+#langBtn:hover { background: rgba(255,255,255,.26); }

@@ -561,6 +561,40 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         T.actions.prev(); await wait(600); out.precedente = q('#pageInput').value;
         return out;
       })()`);
+      await step('langue', `(async () => {
+        const F = window.__features; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        const T = window.__edupdf; T.S.dirty = false;
+        F.setLanguage('en'); await wait(400);
+        out.onglets = [...document.querySelectorAll('#tabs [data-tab]')].map((b) => b.textContent.trim()).join(', ');
+        out.infobulle = q('#sbMode').title.split('\\n').join(' / ');
+        out.accueil = (q('#homeSide .hi') || {}).title;
+        out.boutonDeuxLignes = (q('[data-act=headerFooter]') || {}).textContent;
+        // textes encore en français dans l'interface visible (hors document)
+        const FR = /\\b(le|la|les|des|du|une|pour|avec|dans|sur|cliquez|enregistrer|ouvrir|fichier|page suivante|modifier)\\b|[éèêàùç]/i;
+        const left = new Set();
+        const walk = (el) => {
+          if (el.nodeType === 3) { const v = el.nodeValue.trim(); if (v && FR.test(v) && el.parentElement && !el.parentElement.closest('#pageBox,#thumbs,#aiOut,#pageStack,#ocrText,#aiPrompt,#modal[hidden],#docTabs,script,style')) left.add(v.slice(0, 60)); return; }
+          if (el.nodeType !== 1 || el.closest('#pageBox,#thumbs,#pageStack,#docTabs')) return;
+          for (const at of ['title', 'placeholder', 'aria-label']) { const v = el.getAttribute(at); if (v && FR.test(v)) left.add('[' + at + '] ' + v.split('\\n')[0].slice(0, 60)); }
+          el.childNodes.forEach(walk);
+        };
+        walk(document.body); out.resteFrancais = left.size;
+        window.__left = [...left];
+        T.actions.prefs(); await wait(400); out.dialogue = q('#mTitle').textContent + ' | ' + [...document.querySelectorAll('#mBody label')].slice(0, 3).map((l) => l.textContent.trim().slice(0, 30)).join(' | ');
+        q('#mBtns button').click(); await wait(200);
+        window.api.version && 0; document.querySelector('#msg').textContent = 'Conversion impossible : délai dépassé'; await wait(100); out.messageCompose = q('#msg').textContent;
+        F.setLanguage('fr'); await wait(400);
+        out.retourFrancais = [...document.querySelectorAll('#tabs [data-tab]')].slice(0, 3).map((b) => b.textContent.trim()).join(', ') + ' | ' + q('#sbMode').title.split('\\n')[0];
+        return out;
+      })()`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-0', `(window.__left || []).slice(0, 9).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-1', `(window.__left || []).slice(9, 18).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-2', `(window.__left || []).slice(18, 27).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-3', `(window.__left || []).slice(27, 36).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-4', `(window.__left || []).slice(36, 45).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-5', `(window.__left || []).slice(45, 54).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-6', `(window.__left || []).slice(54, 63).join(" || ")`);
+      if (process.env.EDUPDF_I18N_DEBUG) await step('reste-7', `(window.__left || []).slice(63, 72).join(" || ")`);
       // ---------- Licence (open core) : clé invalide refusée ; clé réelle testée si la clé de l'éditeur est sur ce PC ----------
       {
         let realKey = null;

@@ -4,6 +4,11 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.12.0] — Interface entièrement en français ou en anglais
+- Traduction anglaise complète : menus, ruban, boutons, info-bulles (toutes les lignes), panneau Accueil, barre d'état, fenêtres de dialogue, messages, alertes et confirmations
+- Bouton 🌐 FR / EN dans la barre d'état (et Aide › Langue) : changement immédiat, sans rechargement, documents ouverts conservés
+- Les messages contenant une partie variable (nom de fichier, numéro de page…) sont traduits eux aussi
+
 ## [1.11.5] — Mises à jour et contrôle intelligent des applications
 - Quand le contrôle intelligent des applications de Windows 11 est appliqué, une mise à jour dont l'installateur n'est pas signé n'est plus lancée : l'application ne se ferme plus pour un installateur que Windows bloquerait, la version actuelle continue de fonctionner
 - Message « installation bloquée par Windows » avec l'explication et les solutions
