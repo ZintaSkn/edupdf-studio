@@ -11,7 +11,8 @@
     "dist": "electron-builder --win",
     "publish": "electron-builder --win --publish always",
     "notices": "node tools/notices.js",
-    "licence": "node tools/licence.js"
+    "licence": "node tools/licence.js",
+    "site": "node tools/site.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
@@ -198,14 +199,14 @@
     "minimatch@>=7.0.0 <11.0.1": "^11.0.5"
   },
   "commercial": {
-    "buyUrl": "https://github.com/ZintaSkn/edupdf-studio/blob/main/docs/EDITIONS.md",
+    "buyUrl": "https://zintaservices.pages.dev/sknedu-studio/tarifs/",
     "contact": "",
     "licenceServer": "https://sknedu-licences.ksehibi.workers.dev",
     "serverPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAAbc5P6OZlIqz/GIdztyqkficXQ3ASAQ6DbdQYnRL4x4=\n-----END PUBLIC KEY-----\n",
     "vendeur": "ZintaServices",
     "whatsapp": "+2250506848164",
     "email": "sknzinta@gmail.com",
-    "page": "",
+    "page": "https://zintaservices.pages.dev/sknedu-studio/commander/",
     "mobileMoney": [
       {
         "operateur": "Wave",
