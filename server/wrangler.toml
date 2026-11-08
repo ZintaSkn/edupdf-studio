@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Espace de stockage : créer avec « npx wrangler kv namespace create LICENCES » puis coller l'identifiant ci-dessous.
 [[kv_namespaces]]
 binding = "LICENCES"
-id = "A_REMPLACER_PAR_L_IDENTIFIANT_DU_KV"
+id = "003f5a9416c64274a51eaa8c76b5b136"
 
 [vars]
 # Clé publique de l'éditeur (identique à PUBLIC_KEY dans src/license.js)

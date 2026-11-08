@@ -200,8 +200,8 @@
   "commercial": {
     "buyUrl": "https://github.com/ZintaSkn/edupdf-studio/blob/main/docs/EDITIONS.md",
     "contact": "",
-    "licenceServer": "",
-    "serverPublicKey": "",
+    "licenceServer": "https://sknedu-licences.ksehibi.workers.dev",
+    "serverPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAAbc5P6OZlIqz/GIdztyqkficXQ3ASAQ6DbdQYnRL4x4=\n-----END PUBLIC KEY-----\n",
     "vendeur": "ZintaServices",
     "whatsapp": "+2250506848164",
     "email": "sknzinta@gmail.com",
