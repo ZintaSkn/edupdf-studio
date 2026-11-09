@@ -21,6 +21,7 @@
   if (btn && nav) {
     btn.addEventListener('click', function () { var open = nav.classList.toggle('open'); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && nav.classList.contains('open')) { nav.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); btn.focus(); } });
+    document.addEventListener('click', function (e) { if (nav.classList.contains('open') && !nav.contains(e.target) && !btn.contains(e.target)) { nav.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); } });
   }
 
   // Copier un numéro
@@ -33,8 +34,43 @@
   var oses = $$('.os[data-os]');
   if (oses.length) {
     var ua = navigator.userAgent || ''; var pf = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-    var mine = /Android|iPhone|iPad|iPod/i.test(ua) ? '' : /Win/i.test(pf + ua) ? 'win' : /Mac/i.test(pf + ua) ? 'mac' : /Linux|X11/i.test(pf + ua) ? 'linux' : '';
+    var ipad = /Mac/i.test(pf + ua) && navigator.maxTouchPoints > 1; // iPad qui se présente comme un Mac
+    var mine = ipad || /Android|iPhone|iPad|iPod/i.test(ua) ? '' : /Win/i.test(pf + ua) ? 'win' : /Mac/i.test(pf + ua) ? 'mac' : /Linux|X11/i.test(pf + ua) ? 'linux' : '';
     oses.forEach(function (o) { if (o.getAttribute('data-os') === mine) o.classList.add('mine'); });
+    releaseLinks();
+  }
+
+  /** Liens directs vers les fichiers de la dernière version (API GitHub) ; sinon les boutons restent sur la page des versions. */
+  function releaseLinks() {
+    var API = 'https://api.github.com/repos/ZintaSkn/edupdf-studio/releases/latest', KEY = 'zinta.release';
+    var RULES = { 'win-setup': /setup[^/]*\.exe$/i, 'win-zip': /-win\.zip$/i, 'mac-arm': /-arm64\.dmg$/i, 'mac-x64': /^(?!.*arm64).*\.dmg$/i, linux: /\.appimage$/i };
+    function apply(r) {
+      if (!r || !r.assets) return;
+      var mo = function (n) { return Math.round(n / 1048576) + (EN ? ' MB' : ' Mo'); };
+      $$('a[data-asset]').forEach(function (a) {
+        var re = RULES[a.getAttribute('data-asset')]; if (!re) return;
+        var f = r.assets.filter(function (x) { return re.test(x.name) && !/\.blockmap$/i.test(x.name); })[0]; if (!f) return;
+        a.href = f.browser_download_url; a.removeAttribute('rel');
+        var m = $('.dl-meta', a); if (m) m.textContent = f.name + ' — ' + mo(f.size);
+      });
+      var rel = $('#release');
+      if (rel && r.tag_name) {
+        var d = r.published_at ? new Date(r.published_at).toLocaleDateString(EN ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+        rel.textContent = t('Dernière version : ', 'Latest version: ');
+        var b = document.createElement('b'); b.textContent = r.tag_name.replace(/^v/, ''); rel.appendChild(b);
+        if (d) rel.appendChild(document.createTextNode(t(' — publiée le ', ' — released on ') + d));
+      }
+    }
+    var cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) { cached = null; }
+    if (cached && Date.now() - cached.at < 3600000) return apply(cached.r);
+    if (!window.fetch) return;
+    fetch(API, { headers: { Accept: 'application/vnd.github+json' } }).then(function (res) { return res.ok ? res.json() : null; }).then(function (j) {
+      if (!j || !j.assets) return;
+      var r = { tag_name: j.tag_name, published_at: j.published_at, assets: j.assets.map(function (x) { return { name: x.name, size: x.size, browser_download_url: x.browser_download_url }; }) };
+      try { sessionStorage.setItem(KEY, JSON.stringify({ at: Date.now(), r: r })); } catch (e) { /* */ }
+      apply(r);
+    }).catch(function () { /* hors ligne ou limite atteinte : les boutons mènent à la page des versions */ });
   }
 
   // ---------------------------------------------------------------- Demande de produits (fournitures, bio, électronique)
@@ -57,14 +93,14 @@
       err.hidden = false; f.elements[bad].focus(); return false;
     }
     f.addEventListener('input', function () { if (!err.hidden && val('items') && val('nom')) { err.hidden = true; f.elements.items.classList.remove('invalid'); f.elements.nom.classList.remove('invalid'); } });
-    $$('[data-req]', f).forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (!ok()) return; var m = msg(); var how = b.getAttribute('data-req');
-        if (how === 'wa') window.location.href = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(m);
-        else if (how === 'mail') window.location.href = 'mailto:' + MAIL + '?subject=' + encodeURIComponent(t('Demande — ', 'Request — ') + cat) + '&body=' + encodeURIComponent(m);
-        else copy(m, t('Demande copiée', 'Request copied'));
-      });
-    });
+    function send(how) {
+      if (!ok()) return; var m = msg();
+      if (how === 'wa') window.location.href = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(m);
+      else if (how === 'mail') window.location.href = 'mailto:' + MAIL + '?subject=' + encodeURIComponent(t('Demande — ', 'Request — ') + cat) + '&body=' + encodeURIComponent(m);
+      else copy(m, t('Demande copiée', 'Request copied'));
+    }
+    f.addEventListener('submit', function (e) { e.preventDefault(); send('wa'); }); // bouton « Envoyer par WhatsApp » ou touche Entrée
+    $$('[data-req]', f).forEach(function (b) { if (b.type !== 'submit') b.addEventListener('click', function () { send(b.getAttribute('data-req')); }); });
     f.__msg = msg;
   });
 
@@ -136,15 +172,14 @@
     if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (txt) { el.paste.value = txt; update(); el.paste.focus(); }, function () { el.paste.focus(); toast(t('Collez avec Ctrl+V ou un appui long', 'Paste with Ctrl+V or a long press')); });
     else { el.paste.focus(); toast(t('Collez avec Ctrl+V ou un appui long', 'Paste with Ctrl+V or a long press')); }
   });
-  $$('[data-send]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      if (!validate()) return;
-      var msg = message(); var p = parsePaste(); var ref = p && p.valid ? ' ' + p.ref : '';
-      var how = b.getAttribute('data-send');
-      if (how === 'wa') window.location.href = 'https://wa.me/' + D.wa + '?text=' + encodeURIComponent(msg);
-      else if (how === 'mail') window.location.href = 'mailto:' + D.email + '?subject=' + encodeURIComponent(t('Commande SknEDU-studio', 'SknEDU-studio order') + ref) + '&body=' + encodeURIComponent(msg);
-      else copy(msg, t('Message copié', 'Message copied'));
-    });
-  });
+  function send(how) {
+    if (!validate()) return;
+    var msg = message(); var p = parsePaste(); var ref = p && p.valid ? ' ' + p.ref : '';
+    if (how === 'wa') window.location.href = 'https://wa.me/' + D.wa + '?text=' + encodeURIComponent(msg);
+    else if (how === 'mail') window.location.href = 'mailto:' + D.email + '?subject=' + encodeURIComponent(t('Commande SknEDU-studio', 'SknEDU-studio order') + ref) + '&body=' + encodeURIComponent(msg);
+    else copy(msg, t('Message copié', 'Message copied'));
+  }
+  form.addEventListener('submit', function (e) { e.preventDefault(); send('wa'); }); // bouton « Envoyer par WhatsApp » ou touche Entrée
+  $$('[data-send]').forEach(function (b) { if (b.type !== 'submit') b.addEventListener('click', function () { send(b.getAttribute('data-send')); }); });
   update();
 })();

@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -23,10 +23,11 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="fr_FR">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="/assets/site.css?v=a3c7998018">
+<link rel="stylesheet" href="/assets/site.css?v=ed3587efa7">
 <script>document.documentElement.classList.add('js')</script>
-<script src="/assets/site.js?v=a3c7998018" defer></script>
+<script src="/assets/site.js?v=ed3587efa7" defer></script>
 </head>
 <body>
 <a class="skip" href="#contenu">Skip to content</a>
@@ -47,6 +48,7 @@
       <li><b>No cookies</b>, no audience measurement, no advertising trackers.</li>
       <li>The request and order forms work <b>in your browser</b>: they send nothing to our server. The message is only sent if you send it yourself, by WhatsApp or e-mail.</li>
       <li>The site is hosted by Cloudflare (Cloudflare Pages), which may process technical connection data (IP address, browser) to deliver pages and protect the service.</li>
+      <li>The Download page asks GitHub (api.github.com) for the number and files of the latest version, and downloads come from GitHub: GitHub then receives the same technical connection data.</li>
     </ul>
     <h2>Your requests and orders</h2>
     <p>The information you send us (name, phone, e-mail address, town or delivery address, items requested, proof of payment and, for a licence, the account e-mail address and computer code) is used only to reply to you, process and deliver your order and issue your licence. It is never sold or passed on. You can ask to see or delete it by writing to us.</p>
@@ -71,8 +73,9 @@
     </table></div>
   </div>
   <div class="wrap prose">
-    <p>The account (e-mail address required, name and school optional) and the trial start date are stored on the computer, in sealed form. This information is used only for the trial and to check the licence; it is passed on to no one. It is kept after uninstalling so that the trial cannot be restarted on the same computer.</p>
-    <p>AI assistant API keys are encrypted on the computer and are never sent anywhere other than the chosen provider. Opened documents stay on the computer.</p>
+    <p>The account (e-mail address required, name and school optional) and the trial start date are stored on the computer, encrypted (AES-256-GCM). This information is used only for the trial and to check the licence; it is passed on to no one. It is kept after uninstalling so that the trial cannot be restarted on the same computer.</p>
+    <p>AI assistant API keys are encrypted on the computer and are never sent anywhere other than the chosen provider. Opened documents stay on the computer; their recovery copies (unsaved documents) are encrypted (AES-256-GCM).</p>
+    <p>Marks given with the “Grade” tool: the mark, the scale and the comment for each page are saved in the PDF properties (as well as being shown on the paper), so that the grade summary still works after reopening. They therefore travel with the file if it is shared; a PDF containing a single paper only contains that paper's mark.</p>
     <p>Third-party components: the services above apply their own privacy policy when the user chooses to use them.</p>
     <h2>Contact</h2>
     <p>For any question about your data: <a href="mailto:sknzinta@gmail.com">sknzinta@gmail.com</a> or WhatsApp +225 05 06 84 81 64. For a software issue: <a href="https://github.com/ZintaSkn/edupdf-studio/issues" rel="noopener">GitHub › Issues</a>.</p>

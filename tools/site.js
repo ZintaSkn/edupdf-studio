@@ -19,6 +19,7 @@ const EMAIL = C.email;
 const VENDEUR = C.vendeur || 'ZintaServices';
 const TITULAIRE = 'SEHI BI Kouahi Nestor';
 const YEAR = 2026;
+const INLINE_JS = "document.documentElement.classList.add('js')"; // seul script en ligne (empreinte dans la CSP)
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const num = (n, lang) => Number(n).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US');
@@ -96,7 +97,7 @@ function layout({ lang, key, title, desc, body, head = '', og }) {
   const prodLinks = UNIVERS.map((u) => `<li><a href="${PAGES[u.key][lang]}">${u[lang][0]}</a></li>`).join('');
   const siteLinks = [['download', 'Télécharger SknEDU-studio', 'Download SknEDU-studio'], ['pricing', 'Tarifs du logiciel', 'Software pricing'], ['order', 'Commander une licence', 'Order a licence'], ['privacy', 'Confidentialité', 'Privacy'], ['legal', 'Mentions légales', 'Legal notice'], ['contact', 'Contact', 'Contact']]
     .map(([k, fr, en]) => `<li><a href="${PAGES[k][lang]}">${tr(fr, en)}</a></li>`).join('');
-  return `<!doctype html>
+  return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8">
@@ -121,9 +122,10 @@ function layout({ lang, key, title, desc, body, head = '', og }) {
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="${tr('fr_FR', 'en_US')}">
+<meta property="og:locale:alternate" content="${tr('en_US', 'fr_FR')}">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/assets/site.css?v=${ASSET_V}">
-<script>document.documentElement.classList.add('js')</script>
+<script>${INLINE_JS}</script>
 <script src="/assets/site.js?v=${ASSET_V}" defer></script>
 ${head}</head>
 <body>
@@ -249,7 +251,7 @@ ${cards}
       <h2>${tr('SknEDU-studio, l\'éditeur PDF hors ligne des enseignants', 'SknEDU-studio, the offline PDF editor for teachers')}</h2>
       <ul class="checks">
         <li>${tr('Modifier un PDF dans sa police d\'origine, OCR des scans', 'Edit a PDF in its original font, OCR for scans')}</li>
-        <li>${tr('Correction de copies avec tampons, évaluations différenciées', 'Grading with stamps, differentiated tests')}</li>
+        <li>${tr('Tampons, notes et relevé des notes, évaluations différenciées', 'Stamps, marks and grade summary, differentiated tests')}</li>
         <li>${tr('Conversions Word / Excel / PowerPoint, assistant IA', 'Word / Excel / PowerPoint conversions, AI assistant')}</li>
         <li>${tr('Fonctionne sans Internet, en français et en anglais', 'Works without Internet, in French and English')}</li>
       </ul>
@@ -371,14 +373,14 @@ ${fams}
           <label class="full"><span>${tr('Articles et quantités', 'Items and quantities')} <span class="req">*</span></span><textarea name="items" rows="5" placeholder="${esc(L.placeholder)}"></textarea></label>
           <fieldset>
             <legend>${tr('Vos coordonnées', 'Your details')}</legend>
-            <label><span>${tr('Nom et prénom', 'Full name')} <span class="req">*</span></span><input name="nom" autocomplete="name"></label>
+            <label><span>${tr('Nom et prénom', 'Full name')} <span class="req">*</span></span><input type="text" name="nom" autocomplete="name"></label>
             <label>${tr('Téléphone (facultatif)', 'Phone (optional)')}<input name="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+225 …"></label>
-            <label>${tr('Ville / commune (facultatif)', 'Town / district (optional)')}<input name="ville" autocomplete="address-level2"></label>
+            <label>${tr('Ville / commune (facultatif)', 'Town / district (optional)')}<input type="text" name="ville" autocomplete="address-level2"></label>
             <label>${tr('Réception', 'Receiving')}<select name="reception"><option>${tr('À convenir', 'To be agreed')}</option><option>${tr('Livraison', 'Delivery')}</option><option>${tr('Retrait', 'Pick-up')}</option></select></label>
           </fieldset>
           <p class="error" role="alert" hidden></p>
           <div class="send">
-            <button class="btn btn-wa" type="button" data-req="wa">${ICON.wa} ${tr('Envoyer par WhatsApp', 'Send by WhatsApp')}</button>
+            <button class="btn btn-wa" type="submit" data-req="wa">${ICON.wa} ${tr('Envoyer par WhatsApp', 'Send by WhatsApp')}</button>
             <button class="btn btn-navy" type="button" data-req="mail">${ICON.mail} ${tr('Envoyer par e-mail', 'Send by e-mail')}</button>
             <button class="btn btn-line" type="button" data-req="copy">${ICON.copy} ${tr('Copier', 'Copy')}</button>
           </div>
@@ -409,14 +411,14 @@ const FEATURES = [
   ['🔍', 'OCR des scans', 'OCR for scans', 'Rendez les scans et les copies numérisées cherchables et modifiables : français, anglais, espagnol, allemand, italien, portugais, arabe.', 'Make scans and scanned papers searchable and editable: French, English, Spanish, German, Italian, Portuguese, Arabic.', 1],
   ['🔄', 'Word, Excel, PowerPoint', 'Word, Excel, PowerPoint', 'Conversions PDF ↔ Word, Excel et PowerPoint sans rien installer, tableaux reconstitués en vraies cellules, réenregistrement dans le format d\'origine.', 'PDF ↔ Word, Excel and PowerPoint conversions with nothing to install, tables rebuilt as real cells, save back to the original format.', 1],
   ['✨', 'Assistant IA', 'AI assistant', 'Résumé, QCM, fiche d\'exercices, simplification, grille d\'évaluation, plan de séance… avec Claude, ChatGPT, Gemini, Mistral (votre clé) ou une IA locale gratuite, hors ligne.', 'Summary, quiz, worksheet, simplified version, rubric, lesson plan… with Claude, ChatGPT, Gemini, Mistral (your own key) or a free local AI that works offline.', 1],
-  ['✅', 'Correction de copies', 'Grading papers', 'Tampons ✔ ✘ « Très bien », « À revoir »… posés d\'un clic, barème, notes et commentaires sur les copies, export Excel. L\'IA peut lire l\'écriture manuscrite : vous validez chaque note.', 'One-click stamps ✔ ✘ “Very good”, “Revise”…, marking scheme, marks and comments on papers, Excel export. AI can read handwriting: you approve every mark.', 1],
+  ['📝', 'Correction de copies assistée', 'Assisted grading', 'Barème, lecture de l\'écriture manuscrite par l\'IA, notes et commentaires posés sur les copies, export Excel : l\'IA propose, vous validez chaque note.', 'Marking scheme, handwriting read by AI, marks and comments placed on the papers, Excel export: the AI suggests, you approve every mark.', 1],
+  ['✅', 'Tampons et notes', 'Stamps and marks', 'Tampons ✔ ✘ « Très bien », « À revoir »… posés d\'un clic ; outil « Noter » : la note (ex. 14/20) et une appréciation s\'inscrivent sur la copie ; relevé des notes avec la moyenne, à copier dans un tableur.', 'One-click stamps ✔ ✘ “Very good”, “Revise”…; “Grade” tool: the mark (e.g. 14/20) and a comment are written on the paper; grade summary with the average, ready to paste into a spreadsheet.', 0],
   ['🎯', 'Évaluations différenciées', 'Differentiated tests', 'Trois niveaux de difficulté, sujets A / B mélangés, corrigé, export Moodle (GIFT) et tableur.', 'Three difficulty levels, shuffled A / B versions, answer key, Moodle (GIFT) and spreadsheet export.', 1],
   ['✉️', 'Publipostage', 'Mail merge', 'Un PDF par élève à partir d\'Excel ou CSV ({{Nom}}, {{Classe}}…) : bulletins, attestations, convocations.', 'One PDF per student from Excel or CSV ({{Name}}, {{Class}}…): report cards, certificates, notices.', 1],
   ['📶', 'Classe connectée sans Internet', 'Connected classroom, no Internet', 'Partagez une fiche par QR code sur le réseau local de la salle : les élèves la téléchargent et rendent leur copie, sans connexion Internet.', 'Share a worksheet by QR code on the room\'s local network: students download it and hand in their work, no Internet needed.', 1],
   ['🔤', 'Version DYS', 'Dyslexia-friendly version', 'Police OpenDyslexic, interligne et espacement adaptés, règle de lecture et lecture à voix haute.', 'OpenDyslexic font, adapted line and letter spacing, reading ruler and read-aloud.', 0],
   ['▶️', 'Diaporama interactif', 'Interactive slideshow', 'Plein écran avec stylo, tableau blanc, minuteur, pointeur laser et mode présentateur sur deux écrans.', 'Full screen with pen, whiteboard, timer, laser pointer and presenter mode on two screens.', 0],
-  ['📴', 'Fonctionne hors ligne', 'Works offline', 'Aucune connexion nécessaire pour travailler. Copie de récupération automatique en cas de coupure de courant.', 'No connection needed to work. Automatic recovery copy if the power goes out.', 0],
-  ['🌐', 'Français / English', 'Français / English', 'Interface entièrement en français ou en anglais, changement immédiat sans fermer vos documents.', 'Interface fully in French or English, switch instantly without closing your documents.', 0],
+  ['📴', 'Hors ligne, en français ou en anglais', 'Offline, in French or English', 'Aucune connexion nécessaire pour travailler, copie de récupération automatique en cas de coupure de courant. Interface entièrement en français ou en anglais, changement immédiat.', 'No connection needed to work, automatic recovery copy if the power goes out. Interface fully in French or English, switch instantly.', 0],
 ];
 
 // Comparatif (docs/EDITIONS.md)
@@ -424,7 +426,7 @@ const COMPARE = [
   ['Ouvrir et lire tous les formats (PDF, Word, PowerPoint, Excel, images, EPUB…)', 'Open and read every format (PDF, Word, PowerPoint, Excel, images, EPUB…)', 1, 1, 1],
   ['Imprimer (2 ou 4 pages par feuille), enregistrer en PDF, cloud (enregistrer / ouvrir)', 'Print (2 or 4 pages per sheet), save as PDF, cloud (save / open)', 1, 1, 1],
   ['Organiser les pages : pivoter, déplacer, supprimer, fusionner, extraire, numéroter', 'Organise pages: rotate, move, delete, merge, extract, number', 1, 1, 1],
-  ['Annoter : texte ajouté, surligneur, cadres, formes, flèches, stylo, commentaires, tampons', 'Annotate: added text, highlighter, boxes, shapes, arrows, pen, comments, stamps', 1, 1, 1],
+  ['Annoter : texte ajouté, surligneur, cadres, formes, flèches, stylo, commentaires, tampons ; noter les copies et relevé des notes', 'Annotate: added text, highlighter, boxes, shapes, arrows, pen, comments, stamps; mark papers and grade summary', 1, 1, 1],
   ['Remplir les formulaires, signature manuscrite, scanner, modèles (Seyès, évaluation…)', 'Fill in forms, handwritten signature, scanner, templates (ruled paper, tests…)', 1, 1, 1],
   ['Diaporama interactif, version DYS et lecture à voix haute, français / anglais', 'Interactive slideshow, dyslexia-friendly version and read-aloud, French / English', 1, 1, 1],
   ['✏️ Modifier le texte et les paragraphes d\'origine, rechercher et remplacer', '✏️ Edit the original text and paragraphs, find and replace', 0, 1, 1],
@@ -462,7 +464,7 @@ function pricingCards(lang, { compact = false } = {}) {
     <p class="sub">${tr('Après les 30 jours d\'essai, sans limite de durée', 'After the 30-day trial, with no time limit')}</p>
     <ul class="checks">
       <li>${tr('Lire tous les formats, imprimer', 'Read every format, print')}</li>
-      <li>${tr('Annoter, tampons, commentaires', 'Annotate, stamps, comments')}</li>
+      <li>${tr('Annoter, tampons, noter les copies', 'Annotate, stamps, mark papers')}</li>
       <li>${tr('Organiser les pages, remplir, signer', 'Organise pages, fill in, sign')}</li>
       <li>${tr('Diaporama interactif, version DYS', 'Interactive slideshow, dyslexia-friendly version')}</li>
     </ul>
@@ -507,6 +509,7 @@ function logiciel(lang) {
     [tr('Comment payer ?', 'How do I pay?'), tr(`Par Wave ou MTN MoMo au ${PHONE} (${VENDEUR}), puis envoyez la demande et la preuve de paiement par WhatsApp ou par e-mail. Vous recevez votre clé de licence en retour.`, `By Wave or MTN MoMo to ${PHONE} (${VENDEUR}), then send the request and proof of payment by WhatsApp or e-mail. You receive your licence key in return.`)],
     [tr('Puis-je changer d\'ordinateur ?', 'Can I move to another computer?'), tr('Oui. Désactivez la licence sur l\'ancien PC (Aide › Licence et édition), puis activez la même clé sur le nouveau : elle garde ses jours restants.', 'Yes. Deactivate the licence on the old PC (Help › Licence and edition), then activate the same key on the new one: it keeps its remaining days.')],
     [tr('Mes documents sont-ils envoyés quelque part ?', 'Are my documents sent anywhere?'), tr('Non. Les documents restent sur votre ordinateur. Rien n\'est envoyé sans action de votre part (voir la page Confidentialité).', 'No. Your documents stay on your computer. Nothing is sent without you asking (see the Privacy page).')],
+    [tr('Windows refuse d\'installer le logiciel ?', 'Windows refuses to install the software?'), tr(`Sur certains PC Windows 11, le contrôle intelligent des applications bloque l'installateur, pas encore signé. Téléchargez la <a href="${PAGES.download.fr}#windows">version sans installation</a> (.zip), extrayez-la puis lancez SknEDU-studio.exe : elle fonctionne et se met à jour normalement.`, `On some Windows 11 PCs, Smart App Control blocks the installer, which is not signed yet. Download the <a href="${PAGES.download.en}#windows">no-install version</a> (.zip), extract it and run SknEDU-studio.exe: it works and updates normally.`)],
   ].map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('\n');
   const ld = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'SknEDU-studio', applicationCategory: 'EducationalApplication', operatingSystem: 'Windows 10, Windows 11, macOS, Linux',
     description: tr('Éditeur PDF hors ligne pour les enseignants.', 'Offline PDF editor for teachers.'), url: BASE + PAGES.logiciel[lang], image: `${BASE}/img/og-${lang}.jpg`, downloadUrl: RELEASES, inLanguage: ['fr', 'en'],
@@ -529,7 +532,7 @@ function logiciel(lang) {
         <li>${tr('Paiement Wave ou MTN MoMo', 'Pay with Wave or MTN MoMo')}</li>
       </ul>
     </div>
-    <div class="hero-img">${shot('correction', tr('SknEDU-studio : copie d\'élève corrigée avec des tampons, un entourage et un commentaire', 'SknEDU-studio: a student\'s paper graded with stamps, a circled error and a comment'), lang, { eager: true })}</div>
+    <div class="hero-img">${shot('correction', tr('SknEDU-studio : copie d\'élève corrigée avec des tampons, une note de 14/20, un entourage et un commentaire', 'SknEDU-studio: a student\'s paper graded with stamps, a 14/20 mark, a circled error and a comment'), lang, { eager: true })}</div>
   </div>
   ${WAVES}
 </section>
@@ -555,7 +558,7 @@ ${feats}
   <div class="wrap">
     <h2 class="h2c">${tr('Aperçu du logiciel', 'A look at the software')}</h2>
     <div class="gallery">
-      <figure>${shot('correction', tr('Correction d\'une copie dans l\'onglet Classe', 'Grading a paper in the Classroom tab'), lang)}<figcaption>${tr('<b>Correction de copies</b> — tampons, entourage, commentaire, outils de l\'onglet Classe.', '<b>Grading papers</b> — stamps, circling, comments, Classroom tab tools.')}</figcaption></figure>
+      <figure>${shot('correction', tr('Correction d\'une copie dans l\'onglet Classe', 'Grading a paper in the Classroom tab'), lang)}<figcaption>${tr('<b>Correction de copies</b> — tampons, note et appréciation (outil « Noter »), entourage, commentaire : les outils de l\'onglet Classe.', '<b>Grading papers</b> — stamps, mark and comment (“Grade” tool), circling, notes: the Classroom tab tools.')}</figcaption></figure>
       <figure>${shot('ia', tr('Le panneau de l\'assistant IA ouvert à côté d\'un document', 'The AI assistant panel open next to a document'), lang)}<figcaption>${tr('<b>Assistant IA</b> — QCM, résumé, fiche d\'exercices, différenciation, grille d\'évaluation…', '<b>AI assistant</b> — quiz, summary, worksheet, differentiation, rubric…')}</figcaption></figure>
       <figure>${shot('accueil', tr('L\'écran d\'accueil de SknEDU-studio', 'The SknEDU-studio home screen'), lang)}<figcaption>${tr('<b>Accueil</b> — ouvrir un fichier, partir d\'un document vierge ou d\'un modèle.', '<b>Home</b> — open a file, start from a blank document or a template.')}</figcaption></figure>
     </div>
@@ -570,6 +573,16 @@ ${feats}
       <div><span class="ic" aria-hidden="true">📱</span><h3>${tr('Payé en FCFA, par Mobile Money', 'Priced in FCFA, paid by Mobile Money')}</h3><p>${tr('Wave ou MTN MoMo, sans carte bancaire. La licence arrive par WhatsApp ou par e-mail.', 'Wave or MTN MoMo, no bank card needed. Your licence arrives by WhatsApp or e-mail.')}</p></div>
       <div><span class="ic" aria-hidden="true">💬</span><h3>${tr('Une aide sur WhatsApp', 'Help on WhatsApp')}</h3><p>${tr(`Une question avant d'acheter ou pendant l'installation ? Écrivez-nous au ${PHONE}.`, `A question before buying or during installation? Message us at ${PHONE}.`)}</p></div>
       <div><span class="ic" aria-hidden="true">🛡️</span><h3>${tr('Vos documents restent chez vous', 'Your documents stay with you')}</h3><p>${tr('Pas de statistiques d\'utilisation, pas de compte en ligne obligatoire : votre adresse e-mail reste sur l\'ordinateur.', 'No usage statistics, no mandatory online account: your e-mail address stays on the computer.')}</p></div>
+    </div>
+    <div class="card secu">
+      <h3>🔐 ${tr('Sécurité', 'Security')}</h3>
+      <ul class="checks">
+        <li>${tr('Copies de récupération et compte chiffrés sur l\'ordinateur (AES-256-GCM).', 'Recovery copies and account encrypted on the computer (AES-256-GCM).')}</li>
+        <li>${tr('Connexions chiffrées en TLS 1.3 au minimum (mises à jour, activation, IA en ligne).', 'Connections encrypted with TLS 1.3 at least (updates, activation, online AI).')}</li>
+        <li>${tr('Mises à jour signées par l\'éditeur (Ed25519) et vérifiées (SHA-512) avant d\'être installées.', 'Updates signed by the publisher (Ed25519) and verified (SHA-512) before they are installed.')}</li>
+        <li>${tr('Audit des dépendances, tests d\'intrusion automatisés et auto-test complet à chaque version ; code source public.', 'Dependency audit, automated penetration tests and a full self-test for every version; public source code.')}</li>
+      </ul>
+      <p><a class="link-arrow" href="${REPO}/blob/main/docs/SECURITE.md" rel="noopener">${tr('Configuration de sécurité de référence', 'Reference security configuration (in French)')} →</a></p>
     </div>
   </div>
 </section>
@@ -619,18 +632,24 @@ ${faq}
 // ------------------------------------------------------------------ Télécharger
 function download(lang) {
   const tr = (fr, en) => (lang === 'fr' ? fr : en);
+  // Chaque bouton mène à la page de la dernière version ; site.js le remplace par le lien direct du fichier (API GitHub).
+  const dl = (asset, label, file, primary) => `<a class="btn ${primary ? 'btn-gold' : 'btn-line'} dl" href="${RELEASES}" rel="noopener" data-asset="${asset}">${ICON.down} <span>${label}</span><small class="dl-meta">${file}</small></a>`;
   const os = [
-    ['win', 'Windows', tr('Windows 10 et 11, 64 bits', 'Windows 10 and 11, 64-bit'), tr('Installateur <code>.exe</code> (« SknEDU-studio Setup … .exe »)', '<code>.exe</code> installer (“SknEDU-studio Setup … .exe”)'), ICON.win],
-    ['mac', 'macOS', tr('Mac Intel et Apple Silicon', 'Intel and Apple Silicon Macs'), tr('Image disque <code>.dmg</code> (x64 ou arm64)', '<code>.dmg</code> disk image (x64 or arm64)'), ICON.mac],
-    ['linux', 'Linux', tr('Distributions 64 bits', '64-bit distributions'), tr('Fichier <code>.AppImage</code>, sans installation', '<code>.AppImage</code> file, nothing to install'), ICON.linux],
-  ].map(([id, name, req, file, ic]) => `<article class="os" data-os="${id}"><span class="os-ic">${ic}</span><h2>${name}</h2><p class="req">${req}</p><p>${file}</p><a class="btn btn-gold" href="${RELEASES}" rel="noopener">${ICON.down} ${tr('Télécharger pour', 'Download for')} ${name}</a><p class="mine-note">${tr('Votre système', 'Your system')}</p></article>`).join('\n');
+    ['win', 'Windows', tr('Windows 10 et 11, 64 bits', 'Windows 10 and 11, 64-bit'),
+      dl('win-setup', tr('Installateur', 'Installer'), '.exe', true) + dl('win-zip', tr('Version sans installation', 'No-install version'), '.zip')
+      + `<p class="os-note">${tr('Version sans installation : si Windows bloque l\'installateur (voir ci-dessous).', 'No-install version: if Windows blocks the installer (see below).')}</p>`, ICON.win],
+    ['mac', 'macOS', tr('Mac Apple Silicon et Intel', 'Apple Silicon and Intel Macs'),
+      dl('mac-arm', tr('Apple Silicon (M1 et suivants)', 'Apple Silicon (M1 and later)'), '.dmg', true) + dl('mac-x64', tr('Mac Intel', 'Intel Mac'), '.dmg'), ICON.mac],
+    ['linux', 'Linux', tr('Distributions 64 bits', '64-bit distributions'), dl('linux', 'AppImage', '.AppImage', true), ICON.linux],
+  ].map(([id, name, req, links, ic]) => `<article class="os" data-os="${id}"><span class="os-ic">${ic}</span><h2>${name}</h2><p class="req">${req}</p><div class="dls">${links}</div><p class="mine-note">${tr('Votre système', 'Your system')}</p></article>`).join('\n');
   const body = `${pageHead(tr('Télécharger SknEDU-studio', 'Download SknEDU-studio'), tr('Gratuit à télécharger. À l\'installation, créez votre compte (adresse e-mail) : <b>30 jours d\'essai de toutes les fonctions</b>, puis la version gratuite ou une licence.', 'Free to download. When you install, create your account (e-mail address): <b>a 30-day trial of every feature</b>, then the free version or a licence.'))}
 <section class="sec">
   <div class="wrap">
+    <p class="release" id="release" data-lang="${lang}">${tr('Dernière version publiée sur GitHub', 'Latest release published on GitHub')}</p>
     <div class="oses">
 ${os}
     </div>
-    <p class="center muted">${tr('Les boutons ouvrent la page de la <b>dernière version</b> sur GitHub : dans la rubrique « Assets », choisissez le fichier de votre système.', 'The buttons open the <b>latest release</b> page on GitHub: under “Assets”, pick the file for your system.')}</p>
+    <p class="center muted">${tr('Fichiers d\'environ 130 à 175 Mo : préférez une connexion Wi-Fi. Si un bouton ouvre la page GitHub, choisissez le fichier de votre système dans « Assets ».', 'Files are about 130 to 175 MB: a Wi-Fi connection is best. If a button opens the GitHub page, pick the file for your system under “Assets”.')}</p>
 
     <div class="notice" id="windows">
       <h2>⚠️ ${tr('Windows : avertissement au premier lancement', 'Windows: warning on first launch')}</h2>
@@ -639,7 +658,8 @@ ${os}
         <li>${tr('Cliquez sur <b>Informations complémentaires</b>.', 'Click <b>More info</b>.')}</li>
         <li>${tr('Puis sur <b>Exécuter quand même</b>.', 'Then <b>Run anyway</b>.')}</li>
       </ol>
-      <p>${tr('L\'installateur a été analysé sans aucune détection par Kaspersky et Microsoft Defender, et son code source est public. Sur certains PC Windows 11, le <b>Contrôle intelligent des applications</b> peut bloquer un installateur non signé : écrivez-nous sur WhatsApp si c\'est votre cas.', 'The installer was scanned with no detection by Kaspersky and Microsoft Defender, and its source code is public. On some Windows 11 PCs, <b>Smart App Control</b> may block an unsigned installer: message us on WhatsApp if that happens to you.')}</p>
+      <p>${tr('Sur certains PC Windows 11, le <b>Contrôle intelligent des applications</b> bloque l\'installateur. Prenez alors la <b>version sans installation</b> (<code>.zip</code>) : extrayez-la, par exemple dans Documents, puis lancez <code>SknEDU-studio.exe</code>. Le logiciel propose les raccourcis Bureau et menu Démarrer, et se met à jour tout seul.', 'On some Windows 11 PCs, <b>Smart App Control</b> blocks the installer. In that case, take the <b>no-install version</b> (<code>.zip</code>): extract it, for example into Documents, then run <code>SknEDU-studio.exe</code>. The software offers Desktop and Start menu shortcuts and updates itself.')}</p>
+      <p>${tr('L\'installateur a été analysé sans aucune détection par Kaspersky et Microsoft Defender, et le code source du logiciel est public.', 'The installer was scanned with no detection by Kaspersky and Microsoft Defender, and the software\'s source code is public.')}</p>
     </div>
 
     <div class="cols2">
@@ -647,7 +667,7 @@ ${os}
         <h2>${tr('Installer en 4 étapes', 'Install in 4 steps')}</h2>
         <ol class="list">
           <li>${tr('Téléchargez le fichier de votre système.', 'Download the file for your system.')}</li>
-          <li>${tr('Lancez-le (Windows : installateur ; macOS : faites glisser l\'application dans « Applications » ; Linux : rendez l\'AppImage exécutable).', 'Run it (Windows: installer; macOS: drag the app to “Applications”; Linux: make the AppImage executable).')}</li>
+          <li>${tr('Lancez-le (Windows : installateur, ou extrayez la version sans installation ; macOS : faites glisser l\'application dans « Applications » ; Linux : rendez l\'AppImage exécutable).', 'Run it (Windows: installer, or extract the no-install version; macOS: drag the app to “Applications”; Linux: make the AppImage executable).')}</li>
           <li>${tr('Au premier démarrage, créez votre compte avec votre adresse e-mail.', 'On first start, create your account with your e-mail address.')}</li>
           <li>${tr('Profitez de 30 jours d\'essai de toutes les fonctions.', 'Enjoy a 30-day trial of every feature.')}</li>
         </ol>
@@ -655,8 +675,8 @@ ${os}
       <div class="card">
         <h2>${tr('Bon à savoir', 'Good to know')}</h2>
         <ul class="list">
-          <li>${tr('<b>Mises à jour automatiques</b> sous Windows : vérification au démarrage puis toutes les 4 heures, installation à la fermeture.', '<b>Automatic updates</b> on Windows: checked at startup and every 4 hours, installed when you close the app.')}</li>
-          <li>${tr('<b>macOS</b> : l\'application n\'est pas encore signée par Apple ; à la première ouverture, faites un clic droit sur l\'application › <b>Ouvrir</b>.', '<b>macOS</b>: the app is not yet signed by Apple; the first time, right-click the app › <b>Open</b>.')}</li>
+          <li>${tr('<b>Mises à jour automatiques</b> sous Windows : vérification au démarrage puis toutes les 4 heures. Elles s\'installent à la fermeture, même quand Windows bloque les installateurs : le contenu, signé par l\'éditeur, est vérifié avant d\'être remplacé.', '<b>Automatic updates</b> on Windows: checked at startup and every 4 hours. They install when you close the app, even when Windows blocks installers: the content, signed by the publisher, is verified before it is replaced.')}</li>
+          <li>${tr('<b>macOS</b> : l\'application n\'est pas encore signée par Apple ; à la première ouverture, faites un clic droit sur l\'application › <b>Ouvrir</b>. Les nouvelles versions s\'y signalent par un lien de téléchargement.', '<b>macOS</b>: the app is not yet signed by Apple; the first time, right-click the app › <b>Open</b>. New versions are announced there with a download link.')}</li>
           <li>${tr('<b>Linux</b> : <code>chmod +x SknEDU-studio-*.AppImage</code> puis lancez le fichier.', '<b>Linux</b>: <code>chmod +x SknEDU-studio-*.AppImage</code> then run the file.')}</li>
           <li>${tr('Non pris en charge : Windows 7 / 8 et les systèmes 32 bits. Les PC Windows 11 ARM fonctionnent en émulation.', 'Not supported: Windows 7 / 8 and 32-bit systems. Windows 11 ARM PCs work through emulation.')}</li>
           <li>${tr(`Code source (AGPL-3.0) et historique des versions : <a href="${REPO}" rel="noopener">GitHub</a>.`, `Source code (AGPL-3.0) and release history: <a href="${REPO}" rel="noopener">GitHub</a>.`)}</li>
@@ -667,7 +687,7 @@ ${os}
 </section>`;
   return layout({ lang, key: 'download', body,
     title: tr('Télécharger SknEDU-studio — Windows, macOS, Linux | ZintaServices', 'Download SknEDU-studio — Windows, macOS, Linux | ZintaServices'),
-    desc: tr('Téléchargez gratuitement SknEDU-studio pour Windows (.exe), macOS (.dmg) ou Linux (AppImage). 30 jours d\'essai de toutes les fonctions.', 'Download SknEDU-studio for free for Windows (.exe), macOS (.dmg) or Linux (AppImage). 30-day trial of every feature.') });
+    desc: tr('Téléchargez gratuitement SknEDU-studio pour Windows (installateur .exe ou version sans installation .zip), macOS (.dmg) ou Linux (AppImage). 30 jours d\'essai de toutes les fonctions.', 'Download SknEDU-studio for free for Windows (.exe installer or no-install .zip), macOS (.dmg) or Linux (AppImage). 30-day trial of every feature.') });
 }
 
 // ------------------------------------------------------------------ Tarifs
@@ -678,6 +698,7 @@ function pricing(lang) {
   const body = `${pageHead(tr('Éditions et tarifs', 'Editions and pricing'), tr('Chaque installation commence par <b>30 jours d\'essai gratuit de toutes les fonctions</b> (compte e-mail obligatoire, une fois par ordinateur). Ensuite, la version gratuite reste utilisable sans limite de durée ; les fonctions Premium demandent une licence.', 'Every installation starts with <b>a 30-day free trial of every feature</b> (e-mail account required, once per computer). After that, the free version remains available with no time limit; Premium features require a licence.'))}
 <section class="sec">
   <div class="wrap">
+    <h2 class="sr">${tr('Offres et prix', 'Offers and prices')}</h2>
     ${pricingCards(lang)}
     <p class="center muted">${tr(`Prix en francs CFA. Paiement par Wave ou MTN MoMo au ${PHONE} (${VENDEUR}).`, `Prices in CFA francs. Payment by Wave or MTN MoMo to ${PHONE} (${VENDEUR}).`)}</p>
   </div>
@@ -741,8 +762,8 @@ function order(lang) {
             <label class="full">${tr('Offre', 'Offer')}<select id="o-offre">${opts}</select></label>
             <label id="o-qte-row" hidden>${tr('Nombre de postes', 'Number of seats')}<input id="o-qte" type="number" inputmode="numeric" min="1" max="500" value="1"></label>
             <label><span>${tr('Adresse e-mail du compte SknEDU-studio', 'SknEDU-studio account e-mail address')} <span class="req">*</span></span><input id="o-email" type="email" autocomplete="email" inputmode="email" placeholder="prenom.nom@exemple.com"></label>
-            <label>${tr('Nom et prénom', 'Full name')}<input id="o-nom" autocomplete="name"></label>
-            <label>${tr('Établissement', 'School')}<input id="o-org" autocomplete="organization"></label>
+            <label>${tr('Nom et prénom', 'Full name')}<input type="text" id="o-nom" autocomplete="name"></label>
+            <label>${tr('Établissement', 'School')}<input type="text" id="o-org" autocomplete="organization"></label>
           </fieldset>
           <p class="total">${tr('Montant', 'Amount')} : <b id="o-total">—</b></p>
           <p class="muted small">${tr('La licence sera émise pour l\'adresse e-mail du compte créé dans le logiciel : utilisez la même adresse.', 'The licence is issued for the e-mail address of the account created in the software: use the same address.')}</p>
@@ -759,7 +780,7 @@ ${mm}
         <label class="inline">${tr('Moyen de paiement utilisé', 'Payment method used')}
           <select id="o-moyen" form="order">${(C.mobileMoney || []).map((m) => `<option>${esc(m.operateur)}</option>`).join('')}<option value="">${tr('Pas encore payé', 'Not paid yet')}</option></select>
         </label>
-        <label class="inline">${tr('Référence de la transaction (facultatif)', 'Transaction reference (optional)')}<input id="o-trx" form="order" autocomplete="off"></label>
+        <label class="inline">${tr('Référence de la transaction (facultatif)', 'Transaction reference (optional)')}<input type="text" id="o-trx" form="order" autocomplete="off"></label>
       </div>
 
       <div class="card">
@@ -767,7 +788,7 @@ ${mm}
         <p>${tr('Le message s\'ouvre dans votre WhatsApp ou votre messagerie : vérifiez-le, ajoutez la capture du paiement, puis envoyez-le.', 'The message opens in your WhatsApp or e-mail app: check it, attach the payment screenshot, then send it.')}</p>
         <p id="o-error" class="error" role="alert" hidden></p>
         <div class="send">
-          <button class="btn btn-wa" type="button" data-send="wa">${ICON.wa} ${tr('Envoyer par WhatsApp', 'Send by WhatsApp')}</button>
+          <button class="btn btn-wa" type="submit" form="order" data-send="wa">${ICON.wa} ${tr('Envoyer par WhatsApp', 'Send by WhatsApp')}</button>
           <button class="btn btn-navy" type="button" data-send="mail">${ICON.mail} ${tr('Envoyer par e-mail', 'Send by e-mail')}</button>
           <button class="btn btn-line" type="button" data-send="copy">${ICON.copy} ${tr('Copier le message', 'Copy the message')}</button>
         </div>
@@ -827,6 +848,7 @@ function privacy(lang) {
       <li>${tr('<b>Aucun cookie</b>, aucune mesure d\'audience, aucun traceur publicitaire.', '<b>No cookies</b>, no audience measurement, no advertising trackers.')}</li>
       <li>${tr('Les formulaires de demande et de commande fonctionnent <b>dans votre navigateur</b> : ils ne transmettent rien à notre serveur. Le message n\'est envoyé que si vous l\'envoyez vous-même, par WhatsApp ou par e-mail.', 'The request and order forms work <b>in your browser</b>: they send nothing to our server. The message is only sent if you send it yourself, by WhatsApp or e-mail.')}</li>
       <li>${tr('Le site est hébergé par Cloudflare (Cloudflare Pages), qui peut traiter des données techniques de connexion (adresse IP, navigateur) pour acheminer les pages et protéger le service.', 'The site is hosted by Cloudflare (Cloudflare Pages), which may process technical connection data (IP address, browser) to deliver pages and protect the service.')}</li>
+      <li>${tr('La page Télécharger demande à GitHub (api.github.com) le numéro et les fichiers de la dernière version, et les téléchargements se font depuis GitHub : GitHub reçoit alors les mêmes données techniques de connexion.', 'The Download page asks GitHub (api.github.com) for the number and files of the latest version, and downloads come from GitHub: GitHub then receives the same technical connection data.')}</li>
     </ul>
     <h2>${tr('Vos demandes et commandes', 'Your requests and orders')}</h2>
     <p>${tr('Les informations que vous nous envoyez (nom, téléphone, adresse e-mail, ville ou adresse de livraison, articles demandés, preuve de paiement et, pour une licence, l\'adresse e-mail du compte et le code du poste) servent uniquement à vous répondre, à traiter et livrer votre commande et à émettre votre licence. Elles ne sont ni vendues ni cédées. Vous pouvez demander à les consulter ou à les supprimer en nous écrivant.', 'The information you send us (name, phone, e-mail address, town or delivery address, items requested, proof of payment and, for a licence, the account e-mail address and computer code) is used only to reply to you, process and deliver your order and issue your licence. It is never sold or passed on. You can ask to see or delete it by writing to us.')}</p>
@@ -843,8 +865,9 @@ ${rows}
     </table></div>
   </div>
   <div class="wrap prose">
-    <p>${tr('Le compte (adresse e-mail obligatoire, nom et établissement facultatifs) et la date de début de l\'essai sont enregistrés sur l\'ordinateur, sous forme scellée. Ces informations servent uniquement à l\'essai et à la vérification de la licence ; elles ne sont transmises à personne. Elles sont conservées après la désinstallation pour que l\'essai ne puisse pas être recommencé sur le même poste.', 'The account (e-mail address required, name and school optional) and the trial start date are stored on the computer, in sealed form. This information is used only for the trial and to check the licence; it is passed on to no one. It is kept after uninstalling so that the trial cannot be restarted on the same computer.')}</p>
-    <p>${tr('Les clés d\'API de l\'assistant IA sont chiffrées sur l\'ordinateur et ne sont jamais envoyées ailleurs qu\'au fournisseur choisi. Les documents ouverts restent sur l\'ordinateur.', 'AI assistant API keys are encrypted on the computer and are never sent anywhere other than the chosen provider. Opened documents stay on the computer.')}</p>
+    <p>${tr('Le compte (adresse e-mail obligatoire, nom et établissement facultatifs) et la date de début de l\'essai sont enregistrés sur l\'ordinateur, chiffrés (AES-256-GCM). Ces informations servent uniquement à l\'essai et à la vérification de la licence ; elles ne sont transmises à personne. Elles sont conservées après la désinstallation pour que l\'essai ne puisse pas être recommencé sur le même poste.', 'The account (e-mail address required, name and school optional) and the trial start date are stored on the computer, encrypted (AES-256-GCM). This information is used only for the trial and to check the licence; it is passed on to no one. It is kept after uninstalling so that the trial cannot be restarted on the same computer.')}</p>
+    <p>${tr('Les clés d\'API de l\'assistant IA sont chiffrées sur l\'ordinateur et ne sont jamais envoyées ailleurs qu\'au fournisseur choisi. Les documents ouverts restent sur l\'ordinateur ; leurs copies de récupération (documents non enregistrés) sont chiffrées (AES-256-GCM).', 'AI assistant API keys are encrypted on the computer and are never sent anywhere other than the chosen provider. Opened documents stay on the computer; their recovery copies (unsaved documents) are encrypted (AES-256-GCM).')}</p>
+    <p>${tr('Notes attribuées avec l\'outil « Noter » : la note, le barème et l\'appréciation de chaque page sont enregistrés dans les propriétés du PDF (en plus de leur affichage sur la copie), pour que le relevé des notes fonctionne après réouverture. Ils accompagnent donc le fichier s\'il est partagé ; un PDF ne contenant qu\'une copie ne contient que la note de cette copie.', 'Marks given with the “Grade” tool: the mark, the scale and the comment for each page are saved in the PDF properties (as well as being shown on the paper), so that the grade summary still works after reopening. They therefore travel with the file if it is shared; a PDF containing a single paper only contains that paper\'s mark.')}</p>
     <p>${tr('Composants tiers : les services ci-dessus appliquent leur propre politique de confidentialité lorsque l\'utilisateur choisit de les utiliser.', 'Third-party components: the services above apply their own privacy policy when the user chooses to use them.')}</p>
     <h2>${tr('Contact', 'Contact')}</h2>
     <p>${tr(`Pour toute question sur vos données : <a href="mailto:${EMAIL}">${EMAIL}</a> ou WhatsApp ${PHONE}. Pour un problème du logiciel : <a href="${REPO}/issues" rel="noopener">GitHub › Issues</a>.`, `For any question about your data: <a href="mailto:${EMAIL}">${EMAIL}</a> or WhatsApp ${PHONE}. For a software issue: <a href="${REPO}/issues" rel="noopener">GitHub › Issues</a>.`)}</p>
@@ -861,7 +884,7 @@ function contact(lang) {
   const body = `${pageHead(tr('Contact', 'Contact'), tr('Une question, une liste de produits, un devis pour votre école ou votre entreprise, une licence SknEDU-studio ? Écrivez-nous.', 'A question, a list of products, a quote for your school or business, a SknEDU-studio licence? Get in touch.'))}
 <section class="sec">
   <div class="wrap contact-grid">
-    <article class="card contact-card"><span class="big-ic ic-wa">${ICON.wa}</span><h2>WhatsApp</h2><p>${tr('Le moyen le plus rapide : questions, demandes de produits, commandes, aide à l\'installation du logiciel.', 'The quickest way: questions, product requests, orders, help installing the software.')}</p><p class="big">${PHONE}</p><a class="btn btn-wa" href="https://wa.me/${WA}" rel="noopener">${tr('Écrire sur WhatsApp', 'Message on WhatsApp')}</a></article>
+    <article class="card contact-card"><span class="big-ic ic-wa">${ICON.wa}</span><h2>WhatsApp</h2><p>${tr('Le moyen le plus rapide : questions, demandes de produits, commandes, aide à l\'installation du logiciel.', 'The quickest way: questions, product requests, orders, help installing the software.')}</p><p class="big"><a href="tel:+${WA}">${PHONE.replace(/ /g, ' ')}</a></p><a class="btn btn-wa" href="https://wa.me/${WA}" rel="noopener">${tr('Écrire sur WhatsApp', 'Message on WhatsApp')}</a></article>
     <article class="card contact-card"><span class="big-ic ic-mail">${ICON.mail}</span><h2>E-mail</h2><p>${tr('Pour les commandes, les devis et les factures.', 'For orders, quotes and invoices.')}</p><p class="big">${EMAIL}</p><a class="btn btn-navy" href="mailto:${EMAIL}">${tr('Envoyer un e-mail', 'Send an e-mail')}</a></article>
     <article class="card contact-card"><span class="big-ic ic-mm">📱</span><h2>Mobile Money</h2><p>${tr(`Wave ou MTN MoMo, au nom de ${VENDEUR}, après confirmation de votre commande.`, `Wave or MTN MoMo, in the name of ${VENDEUR}, once your order is confirmed.`)}</p><p class="big">${PHONE}</p><button class="btn btn-line" type="button" data-copy="${esc(C.whatsapp)}">${ICON.copy} ${tr('Copier le numéro', 'Copy the number')}</button></article>
     <article class="card contact-card"><span class="big-ic ic-gh">${ICON.gh}</span><h2>${tr('Logiciel : signaler un problème', 'Software: report a problem')}</h2><p>${tr('Un bogue ou une idée pour SknEDU-studio ? Le code source est public.', 'A bug or an idea for SknEDU-studio? The source code is public.')}</p><p class="big">GitHub</p><a class="btn btn-line" href="${REPO}/issues" rel="noopener">${tr('Ouvrir une demande', 'Open an issue')}</a></article>
@@ -925,7 +948,7 @@ function legal(lang) {
 
 // ------------------------------------------------------------------ 404
 function notFound() {
-  return `<!doctype html>
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Page introuvable — ZintaServices</title><meta name="robots" content="noindex">
 <link rel="icon" href="/img/zinta.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/site.css?v=${ASSET_V}"></head>
@@ -970,11 +993,21 @@ function build() {
 /logiciel /sknedu-studio/ 301
 /sknedu /sknedu-studio/ 301
 `);
+  // favicon.ico (icône PNG 32 px dans un conteneur ICO) : évite une erreur 404 à chaque visite
+  const png = fs.readFileSync(path.join(OUT, 'img', 'zinta-32.png'));
+  const ico = Buffer.alloc(22); ico.writeUInt16LE(0, 0); ico.writeUInt16LE(1, 2); ico.writeUInt16LE(1, 4);
+  ico.writeUInt8(32, 6); ico.writeUInt8(32, 7); ico.writeUInt16LE(1, 10); ico.writeUInt16LE(32, 12); ico.writeUInt32LE(png.length, 14); ico.writeUInt32LE(22, 18);
+  fs.writeFileSync(path.join(OUT, 'favicon.ico'), Buffer.concat([ico, png]));
+  // Politique de sécurité du contenu : seul le petit script en ligne (classe « js ») est autorisé, par son empreinte
+  const inlineHash = crypto.createHash('sha256').update(INLINE_JS).digest('base64');
+  const csp = `default-src 'self'; script-src 'self' 'sha256-${inlineHash}'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`;
   write('/_headers', `/*
+  Content-Security-Policy: ${csp}
+  Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -23,10 +23,11 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="fr_FR">
+<meta property="og:locale:alternate" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="/assets/site.css?v=a3c7998018">
+<link rel="stylesheet" href="/assets/site.css?v=ed3587efa7">
 <script>document.documentElement.classList.add('js')</script>
-<script src="/assets/site.js?v=a3c7998018" defer></script>
+<script src="/assets/site.js?v=ed3587efa7" defer></script>
 </head>
 <body>
 <a class="skip" href="#contenu">Aller au contenu</a>
@@ -47,6 +48,7 @@
       <li><b>Aucun cookie</b>, aucune mesure d'audience, aucun traceur publicitaire.</li>
       <li>Les formulaires de demande et de commande fonctionnent <b>dans votre navigateur</b> : ils ne transmettent rien à notre serveur. Le message n'est envoyé que si vous l'envoyez vous-même, par WhatsApp ou par e-mail.</li>
       <li>Le site est hébergé par Cloudflare (Cloudflare Pages), qui peut traiter des données techniques de connexion (adresse IP, navigateur) pour acheminer les pages et protéger le service.</li>
+      <li>La page Télécharger demande à GitHub (api.github.com) le numéro et les fichiers de la dernière version, et les téléchargements se font depuis GitHub : GitHub reçoit alors les mêmes données techniques de connexion.</li>
     </ul>
     <h2>Vos demandes et commandes</h2>
     <p>Les informations que vous nous envoyez (nom, téléphone, adresse e-mail, ville ou adresse de livraison, articles demandés, preuve de paiement et, pour une licence, l'adresse e-mail du compte et le code du poste) servent uniquement à vous répondre, à traiter et livrer votre commande et à émettre votre licence. Elles ne sont ni vendues ni cédées. Vous pouvez demander à les consulter ou à les supprimer en nous écrivant.</p>
@@ -71,8 +73,9 @@
     </table></div>
   </div>
   <div class="wrap prose">
-    <p>Le compte (adresse e-mail obligatoire, nom et établissement facultatifs) et la date de début de l'essai sont enregistrés sur l'ordinateur, sous forme scellée. Ces informations servent uniquement à l'essai et à la vérification de la licence ; elles ne sont transmises à personne. Elles sont conservées après la désinstallation pour que l'essai ne puisse pas être recommencé sur le même poste.</p>
-    <p>Les clés d'API de l'assistant IA sont chiffrées sur l'ordinateur et ne sont jamais envoyées ailleurs qu'au fournisseur choisi. Les documents ouverts restent sur l'ordinateur.</p>
+    <p>Le compte (adresse e-mail obligatoire, nom et établissement facultatifs) et la date de début de l'essai sont enregistrés sur l'ordinateur, chiffrés (AES-256-GCM). Ces informations servent uniquement à l'essai et à la vérification de la licence ; elles ne sont transmises à personne. Elles sont conservées après la désinstallation pour que l'essai ne puisse pas être recommencé sur le même poste.</p>
+    <p>Les clés d'API de l'assistant IA sont chiffrées sur l'ordinateur et ne sont jamais envoyées ailleurs qu'au fournisseur choisi. Les documents ouverts restent sur l'ordinateur ; leurs copies de récupération (documents non enregistrés) sont chiffrées (AES-256-GCM).</p>
+    <p>Notes attribuées avec l'outil « Noter » : la note, le barème et l'appréciation de chaque page sont enregistrés dans les propriétés du PDF (en plus de leur affichage sur la copie), pour que le relevé des notes fonctionne après réouverture. Ils accompagnent donc le fichier s'il est partagé ; un PDF ne contenant qu'une copie ne contient que la note de cette copie.</p>
     <p>Composants tiers : les services ci-dessus appliquent leur propre politique de confidentialité lorsque l'utilisateur choisit de les utiliser.</p>
     <h2>Contact</h2>
     <p>Pour toute question sur vos données : <a href="mailto:sknzinta@gmail.com">sknzinta@gmail.com</a> ou WhatsApp +225 05 06 84 81 64. Pour un problème du logiciel : <a href="https://github.com/ZintaSkn/edupdf-studio/issues" rel="noopener">GitHub › Issues</a>.</p>
