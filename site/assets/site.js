@@ -24,10 +24,10 @@
     document.addEventListener('click', function (e) { if (nav.classList.contains('open') && !nav.contains(e.target) && !btn.contains(e.target)) { nav.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); } });
   }
 
-  // Copier un numéro
+  // Copier un numéro ou un lien
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-copy]'); if (!b) return;
-    copy(b.getAttribute('data-copy'), t('Numéro copié : ', 'Number copied: ') + b.getAttribute('data-copy'));
+    copy(b.getAttribute('data-copy'), b.getAttribute('data-copy-msg') || t('Numéro copié : ', 'Number copied: ') + b.getAttribute('data-copy'));
   });
 
   // Téléchargement : mettre en avant le système du visiteur
@@ -35,8 +35,19 @@
   if (oses.length) {
     var ua = navigator.userAgent || ''; var pf = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
     var ipad = /Mac/i.test(pf + ua) && navigator.maxTouchPoints > 1; // iPad qui se présente comme un Mac
-    var mine = ipad || /Android|iPhone|iPad|iPod/i.test(ua) ? '' : /Win/i.test(pf + ua) ? 'win' : /Mac/i.test(pf + ua) ? 'mac' : /Linux|X11/i.test(pf + ua) ? 'linux' : '';
+    var mobile = ipad || /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.userAgentData && navigator.userAgentData.mobile);
+    var mine = mobile ? '' : /Win/i.test(pf + ua) ? 'win' : /Mac/i.test(pf + ua) ? 'mac' : /Linux|X11/i.test(pf + ua) ? 'linux' : '';
     oses.forEach(function (o) { if (o.getAttribute('data-os') === mine) o.classList.add('mine'); });
+    // Téléphone ou tablette : le logiciel s'installe sur ordinateur ; proposer de s'envoyer le lien
+    var note = $('#mobile-note');
+    if (note && mobile) {
+      note.hidden = false;
+      var sh = $('[data-share]', note);
+      if (sh && navigator.share) {
+        sh.hidden = false;
+        sh.addEventListener('click', function () { navigator.share({ title: document.title, url: sh.getAttribute('data-share') }).catch(function () { /* partage annulé */ }); });
+      }
+    }
     releaseLinks();
   }
 

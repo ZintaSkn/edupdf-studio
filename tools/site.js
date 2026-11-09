@@ -645,6 +645,16 @@ function download(lang) {
   const body = `${pageHead(tr('Télécharger SknEDU-studio', 'Download SknEDU-studio'), tr('Gratuit à télécharger. À l\'installation, créez votre compte (adresse e-mail) : <b>30 jours d\'essai de toutes les fonctions</b>, puis la version gratuite ou une licence.', 'Free to download. When you install, create your account (e-mail address): <b>a 30-day trial of every feature</b>, then the free version or a licence.'))}
 <section class="sec">
   <div class="wrap">
+    <div class="notice mobile-note" id="mobile-note" hidden>
+      <h2>📱 ${tr('Vous êtes sur un téléphone ou une tablette', 'You are on a phone or tablet')}</h2>
+      <p>${tr('SknEDU-studio s\'installe sur un <b>ordinateur</b> (Windows, macOS ou Linux), pas sur un téléphone ni sur une tablette. Envoyez-vous le lien de cette page pour le télécharger depuis votre ordinateur :', 'SknEDU-studio installs on a <b>computer</b> (Windows, macOS or Linux), not on a phone or tablet. Send yourself the link to this page to download it from your computer:')}</p>
+      <div class="send">
+        <a class="btn btn-wa" href="https://wa.me/?text=${encodeURIComponent(tr('Télécharger SknEDU-studio sur mon ordinateur : ', 'Download SknEDU-studio on my computer: ') + BASE + PAGES.download[lang])}" rel="noopener">${ICON.wa} ${tr('M\'envoyer le lien par WhatsApp', 'Send me the link by WhatsApp')}</a>
+        <a class="btn btn-navy" href="mailto:?subject=${encodeURIComponent(tr('Télécharger SknEDU-studio', 'Download SknEDU-studio'))}&amp;body=${encodeURIComponent(BASE + PAGES.download[lang])}">${ICON.mail} ${tr('Par e-mail', 'By e-mail')}</a>
+        <button class="btn btn-line" type="button" data-copy="${BASE + PAGES.download[lang]}" data-copy-msg="${tr('Lien copié', 'Link copied')}">${ICON.copy} ${tr('Copier le lien', 'Copy the link')}</button>
+        <button class="btn btn-line" type="button" data-share="${BASE + PAGES.download[lang]}" hidden>${tr('Partager…', 'Share…')}</button>
+      </div>
+    </div>
     <p class="release" id="release" data-lang="${lang}">${tr('Dernière version publiée sur GitHub', 'Latest release published on GitHub')}</p>
     <div class="oses">
 ${os}

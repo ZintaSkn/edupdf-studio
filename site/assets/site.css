@@ -30,6 +30,7 @@ p { margin: 0 0 1em; }
 code { font: .9em/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; background: rgba(0, 24, 113, .07); padding: .1em .35em; border-radius: 5px; overflow-wrap: anywhere; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; } /* l'attribut hidden l'emporte sur display: grid / flex des étiquettes et boutons */
 .skip { position: absolute; left: 8px; top: -60px; z-index: 100; background: var(--gold); color: var(--navy); padding: 8px 14px; border-radius: 8px; font-weight: 700; }
 .skip:focus { top: 8px; }
 .wrap { width: 100%; max-width: 1160px; margin: 0 auto; padding: 0 16px; }
@@ -265,6 +266,8 @@ table { border-collapse: collapse; width: 100%; }
 .os.mine .mine-note { display: block; }
 .notice { margin: 36px 0; background: #fff8e6; border: 1px solid #f3d27e; border-left: 6px solid var(--gold); border-radius: 14px; padding: 20px 22px; }
 .notice h2 { font-size: 1.25rem; }
+.mobile-note { margin: 0 0 28px; border-left-color: var(--navy-2); background: #eef3ff; border-color: #c9d6f5; }
+.mobile-note .send { margin: 0; }
 .notice ol { margin: 0 0 1em; padding-left: 1.3em; font-weight: 600; }
 .notice p:last-child { margin: 0; }
 
