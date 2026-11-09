@@ -649,6 +649,7 @@ window.alert = (m) => _alert(trText(m));
 window.confirm = (m) => _confirm(trText(m));
 function applyLanguage() {
   I18N_OBS.disconnect();
+  document.documentElement.lang = LANG; // lecteurs d'écran et textes CSS (::before) suivent la langue choisie
   if (LANG === 'en') { translateNode(document.body); I18N_OBS.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS }); }
   else restoreFrench();
   const b = document.querySelector('#langBtn'); if (b) { b.textContent = LANG === 'en' ? '🌐 EN' : '🌐 FR'; b.title = LANG === 'en' ? 'Interface language: English\nClick for French' : 'Langue de l\'interface : français\nCliquer pour l\'anglais'; }

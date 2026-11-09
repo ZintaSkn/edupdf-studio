@@ -172,6 +172,9 @@ footer button { background: #12a150; color: #fff; border: 0; border-radius: 4px;
 #aiOut { flex: 1; overflow: auto; white-space: pre-wrap; font-size: 13.5px; line-height: 1.5; background: #f7f9fc; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 #aiOut.busy:empty::before { content: 'L\'IA réfléchit…'; color: #6b7486; }
 #aiOut:empty::before { content: 'Choisissez une action dans l\'onglet « Assistant IA » ou écrivez une demande. La réponse s\'affiche ici.'; color: #6b7486; }
+/* textes CSS hors de portée de la traduction de l'interface : version anglaise selon la langue de la page */
+html[lang="en"] #aiOut:empty::before { content: 'Choose an action in the “AI assistant” tab or type a request. The answer appears here.'; }
+html[lang="en"] #aiOut.busy:empty::before { content: 'The AI is thinking…'; }
 
 /* ---- Mise en page adaptative (petits écrans, mise à l'échelle Windows 125–200 %) ---- */
 #ribbon { overflow: hidden; }
