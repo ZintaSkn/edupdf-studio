@@ -433,6 +433,7 @@ footer > #msg { flex: 1 1 auto; }
 .premlist { margin: 4px 0 8px 18px; padding: 0; }
 .premlist li { margin: 2px 0; }
 .licrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
+.auditbox { max-height: 46vh; overflow: auto; border: 1px solid #dde1ec; border-radius: 8px; } .auditbox table { font-size: 12.5px; } p.ok { color: #1e7a3c; font-weight: 600; }
 .grtable { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; }
 .grtable th, .grtable td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .grtable th { background: #f2f4fa; }

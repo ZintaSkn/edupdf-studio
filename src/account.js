@@ -139,7 +139,7 @@ function init(deps) {
   A = deps;
   touch(); setInterval(touch, 3600000).unref();
   A.ipcMain.handle('account-status', () => status());
-  A.ipcMain.handle('account-save', (_e, data) => save(data || {}));
+  A.ipcMain.handle('account-save', (_e, data) => { const r = save(data || {}); require('./zerotrust').audit('compte_enregistre', {}); return r; });
 }
 
 module.exports = { init, status, save, touch, machineId, machineCode, now, TRIAL_DAYS, EMAIL_RE };

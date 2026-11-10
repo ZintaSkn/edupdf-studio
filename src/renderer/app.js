@@ -1273,7 +1273,7 @@ async function signaturePad() {
   }, true]]);
   const c = $('#sigPad'); const ctx = c.getContext('2d');
   ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#001871';
-  const old = store.get('edupdf.signature');
+  const old = await savedSignature();
   if (old) loadImg(old).then((im) => { const k = Math.min(1, c.width / im.width, c.height / im.height); ctx.drawImage(im, (c.width - im.width * k) / 2, (c.height - im.height * k) / 2, im.width * k, im.height * k); });
   let last = null;
   const pt = (e) => { const b = c.getBoundingClientRect(); return [(e.clientX - b.left) * c.width / b.width, (e.clientY - b.top) * c.height / b.height]; };
@@ -1293,11 +1293,17 @@ async function signaturePad() {
     const k = Math.min(c.width / t.width, c.height / t.height); ctx.drawImage(t, (c.width - t.width * k) / 2, (c.height - t.height * k) / 2, t.width * k, t.height * k);
   };
   const res = await p;
-  if (res) { store.set('edupdf.signature', res); msg('Signature enregistrée sur ce PC.'); }
+  if (res) { await window.api.vaultSet('signature', res); msg('Signature enregistrée sur ce PC (chiffrée).'); }
   return res;
 }
+/** Signature enregistrée (coffre chiffré). Une signature d'une ancienne version, en clair, y est déplacée. */
+async function savedSignature() {
+  const legacy = store.get('edupdf.signature');
+  if (legacy) { if (await window.api.vaultSet('signature', legacy)) { try { localStorage.removeItem('edupdf.signature'); } catch { /* */ } } return legacy; }
+  return window.api.vaultGet('signature');
+}
 async function placeSignature(pos) {
-  let sig = store.get('edupdf.signature');
+  let sig = await savedSignature();
   if (!sig) sig = await signaturePad();
   if (!sig) return;
   const im = await loadImg(sig); const p = curPage();
@@ -2654,6 +2660,20 @@ async function licenseDialog() {
   catch (e) { alert(errMsg(e)); }
 }
 document.addEventListener('click', async (e) => { if (e.target.id !== 'licFile') return; const t = await window.api.licensePick(); if (t) $('#licKey').value = t.trim(); });
+/** Journal de sécurité : qui a fait quoi et quand sur ce poste, avec contrôle d'intégrité (chaîne scellée). */
+const AUDIT_LABELS = { demarrage: 'Ouverture du logiciel', compte_enregistre: 'Compte enregistré', licence_activation: 'Activation d\'une licence', licence_desactivation: 'Désactivation d\'une licence',
+  licence_retrait: 'Retrait d\'une licence', admin_connexion: 'Connexion administrateur', admin_echec: 'Mot de passe administrateur incorrect', admin_session_expiree: 'Session administrateur expirée',
+  admin_mot_de_passe_change: 'Mot de passe administrateur changé', verrouillage: 'Verrouillage après essais incorrects', appel_refuse: 'Appel interne refusé', ouverture_refusee: 'Ouverture de fichier refusée',
+  mise_a_jour_prete: 'Mise à jour prête', mise_a_jour_installation: 'Installation d\'une mise à jour', signature_certificat: 'Signature par certificat', interface_plantee: 'Interface relancée après un plantage',
+  interface_figee: 'Interface figée', erreur_interne: 'Erreur interne' };
+async function securityLogDialog() {
+  const j = await window.api.auditList(200);
+  const state = j.integrity.ok ? `<p class="ok">✔ Journal intact : ${j.integrity.count} évènement(s), chaîne vérifiée.</p>` : `<p class="err">⚠ Journal altéré à partir de la ligne ${j.integrity.brokenAt} : une ligne a été modifiée, supprimée ou ajoutée hors du logiciel.</p>`;
+  const rows = j.entries.map((e) => `<tr><td>${esc(e.ts ? new Date(e.ts).toLocaleString('fr-FR') : '')}</td><td>${esc(AUDIT_LABELS[e.type] || e.type)}</td><td>${esc(Object.entries(e.detail || {}).map(([k, v]) => k + ' : ' + v).join(' · '))}</td><td>${esc(e.user || '')}</td></tr>`).join('');
+  const r = await modal('🛡️ Journal de sécurité', `${state}<p class="muted">Ce journal reste sur l'ordinateur. Il consigne les évènements de sécurité (connexions, licences, mises à jour, refus), jamais le contenu des documents.</p>
+    <div class="auditbox"><table class="grtable"><tr><th>Date</th><th>Évènement</th><th>Détail</th><th>Utilisateur</th></tr>${rows}</table></div>`, [['Copier', 'copy'], ['Fermer', null, true]]);
+  if (r === 'copy') { await navigator.clipboard.writeText(j.entries.map((e) => [e.ts, AUDIT_LABELS[e.type] || e.type, JSON.stringify(e.detail || {}), e.user || ''].join('\t')).join('\n')); msg('Journal copié.'); }
+}
 async function aboutDialog() {
   await applyLicense();
   const v = await window.api.version();
@@ -2662,7 +2682,8 @@ async function aboutDialog() {
     <p>Logiciel libre sous licence <b>GNU AGPL-3.0</b> : vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer selon cette licence.
     Le code source complet est publié. Le nom et le logo « SknEDU-studio » sont des marques réservées (voir la politique de marque).</p>
     <p class="muted">Rendu PDF.js · Édition pdf-lib · Protection et formats MuPDF · OCR Tesseract · IA : Claude, ChatGPT, Gemini, Mistral, Ollama.</p>`,
-  [['Licences des composants', 'notices'], ['Code source', 'source'], ['Politique de marque', 'tm'], ['Fermer', null, true]]);
+  [['Journal de sécurité', 'journal'], ['Licences des composants', 'notices'], ['Code source', 'source'], ['Politique de marque', 'tm'], ['Fermer', null, true]]);
+  if (r === 'journal') return securityLogDialog();
   if (r === 'source') window.api.openExternal('https://github.com/ZintaSkn/edupdf-studio');
   if (r === 'tm') window.api.openExternal('https://github.com/ZintaSkn/edupdf-studio/blob/main/TRADEMARK.md');
   if (r === 'notices') { const n = await window.api.notices(); await modal('Composants tiers et licences', `<pre class="notices">${esc(n)}</pre>`, [['Fermer', null, true]]); }

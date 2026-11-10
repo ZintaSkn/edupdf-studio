@@ -18,6 +18,7 @@ Merci de **ne pas ouvrir de ticket public**. Utilisez l'onglet **Security › Re
 | Communications | TLS 1.3 minimum pour toutes les connexions Internet ; service d'activation en HTTPS avec HSTS |
 | Données locales | Copies de récupération et compte chiffrés en AES-256-GCM (clé protégée par Windows) |
 | Accès (Zero Trust) | L'interface n'ouvre que les fichiers désignés par l'utilisateur ; permissions du navigateur refusées ; revue des droits tous les 90 jours |
+| Modèles CIA et AAA | Appelant vérifié à chaque appel interne, essais de mot de passe limités, session administrateur limitée à 15 minutes, journal de sécurité scellé, signature manuscrite chiffrée, reprise après plantage |
 | Tests et supervision | Tests d'intrusion automatisés à chaque version ; supervision quotidienne du service (`.github/workflows/supervision.yml`) |
 
 Détail point par point (OWASP ASVS niveau 2, chiffrement, gestion des clés, Zero Trust, disponibilité, énergie) :

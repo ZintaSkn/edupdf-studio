@@ -42,7 +42,7 @@ const MACHINE_DIR = process.env.EDUPDF_MACHINE_DIR || (process.platform === 'win
 
 let A = null; // { app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath, getMainWindow, openMain, preloadAdmin }
 const P = {};  // chemins
-let session = null;     // clé privée déverrouillée (console admin ouverte)
+let session = null; let sessionAt = 0;     // clé privée déverrouillée (console admin ouverte)
 let policyCache = null; // { payload } vérifiée
 let tray = null; let consoleWin = null; let watchTimer = null; let lastTamper = null;
 
@@ -89,17 +89,29 @@ function setupAdmin({ password, folder }) {
   writeJson(path.join(folder, 'admin-key.json'), { pub, created: cfg.created, admin: `${host}\\${user}` });
   writeJson(path.join(folder, 'policy.json'), signPolicy(defaultPolicy(pwHash), privateKey));
   writeJson(P.admin, cfg);
-  session = privateKey;
+  session = privateKey; sessionAt = Date.now();
   startWatcher(); applyStartup(); ensureTray();
   return { ok: true };
 }
+const ZT = require('./zerotrust');
+const SESSION_MS = 15 * 60000; // session administrateur fermée après 15 minutes sans action
+/** Vérifie un mot de passe administrateur avec essais limités (verrouillage progressif après 5 échecs). */
+function checkPwLimited(password, hash, where) {
+  ZT.attempts.check('administrateur');
+  if (!checkPw(password, hash)) { const n = ZT.attempts.fail('administrateur'); logEvent('admin_fail', { where }); ZT.audit('admin_echec', { ou: where, essais: n }); return false; }
+  ZT.attempts.ok('administrateur'); return true;
+}
 function adminLogin(password) {
   const cfg = adminCfg(); if (!cfg) throw new Error('Administration non configurée.');
-  if (!checkPw(password, cfg.pwHash)) { logEvent('admin_fail', { where: 'console' }); throw new Error('Mot de passe administrateur incorrect.'); }
-  session = decryptKey(cfg.priv, password);
+  if (!checkPwLimited(password, cfg.pwHash, 'console')) throw new Error('Mot de passe administrateur incorrect.');
+  session = decryptKey(cfg.priv, password); sessionAt = Date.now(); ZT.audit('admin_connexion', {});
   return { ok: true };
 }
-function requireSession() { if (!session) throw new Error('Session administrateur expirée : reconnectez-vous.'); }
+function requireSession() {
+  if (session && Date.now() - sessionAt > SESSION_MS) { session = null; ZT.audit('admin_session_expiree', {}); }
+  if (!session) throw new Error('Session administrateur expirée : reconnectez-vous.');
+  sessionAt = Date.now();
+}
 function readPolicyRaw(folder) { return readJson(path.join(folder, 'policy.json')); }
 function getPolicyForAdmin() {
   requireSession(); const cfg = adminCfg(); const raw = readPolicyRaw(cfg.folder);
@@ -132,11 +144,12 @@ function reviewReminder() {
   logEvent('rights_review_due', { since: r.reviewedAt || 'jamais' });
 }
 function changePassword(oldPw, newPw) {
-  const cfg = adminCfg(); if (!checkPw(oldPw, cfg.pwHash)) throw new Error('Ancien mot de passe incorrect.');
+  const cfg = adminCfg(); if (!checkPwLimited(oldPw, cfg.pwHash, 'changement de mot de passe')) throw new Error('Ancien mot de passe incorrect.');
+  ZT.audit('admin_mot_de_passe_change', {});
   if (!newPw || newPw.length < 6) throw new Error('Nouveau mot de passe trop court (6 caractères minimum).');
   const priv = decryptKey(cfg.priv, oldPw);
   cfg.priv = encryptKey(priv.export({ type: 'pkcs8', format: 'pem' }), newPw); cfg.pwHash = hashPw(newPw);
-  writeJson(P.admin, cfg); session = priv;
+  writeJson(P.admin, cfg); session = priv; sessionAt = Date.now();
   const raw = readPolicyRaw(cfg.folder); const pol = raw && verifyPolicy(raw, cfg.pub) ? raw.payload : defaultPolicy(cfg.pwHash);
   pol.pwHash = cfg.pwHash; pol.updated = new Date().toISOString();
   writeJson(path.join(cfg.folder, 'policy.json'), signPolicy(pol, priv));
@@ -166,7 +179,7 @@ function enroll({ folder, password, scope }) {
 function unenroll(password) {
   const e = enrollment(); if (!e) return { ok: true };
   const pol = refreshPolicy();
-  if (!checkPw(password, pol && pol.pwHash)) { logEvent('admin_fail', { where: 'retrait du poste' }); throw new Error('Mot de passe administrateur incorrect.'); }
+  if (!checkPwLimited(password, pol && pol.pwHash, 'retrait du poste')) { throw new Error('Mot de passe administrateur incorrect.'); }
   logEvent('unenroll', {});
   for (const f of [path.join(MACHINE_DIR, 'managed.json'), P.userEnroll]) { try { fs.rmSync(f, { force: true }); } catch { /* droits */ } }
   policyCache = null;
@@ -321,7 +334,11 @@ function init(deps) {
   refreshPolicy();
   setInterval(refreshPolicy, 60000);
   const ip = A.ipcMain;
-  const h = (name, fn) => ip.handle(name, async (_e, arg) => fn(arg || {}));
+  const CONSOLE_ONLY = new Set(['admin-login', 'admin-get', 'admin-save', 'admin-events', 'admin-notify-save', 'admin-notify-test', 'admin-change-password', 'admin-review-status']);
+  const h = (name, fn) => ip.handle(name, async (e, arg) => {
+    if (CONSOLE_ONLY.has(name) && !(consoleWin && !consoleWin.isDestroyed() && e.sender === consoleWin.webContents)) { ZT.audit('appel_refuse', { canal: name, origine: 'hors de la console d\'administration' }); throw new Error('Fonction réservée à la console d\'administration.'); }
+    return fn(arg || {});
+  });
   // côté application
   h('policy', () => effective());
   h('log-event', ({ type, detail }) => { if (['blocked', 'export', 'print', 'cloud', 'sign', 'protect', 'save'].includes(type)) logEvent(type, detail); });

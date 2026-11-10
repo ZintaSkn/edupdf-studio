@@ -101,6 +101,24 @@ Principe : **ne jamais faire confiance à l'interface**, même si un document pi
 
 Preuve : l'étape `intrusion-interface` de l'auto-test tente chacun de ces détournements et échoue la version s'il réussit.
 
+### Modèles CIA et AAA
+
+Architecture Zero Trust : « ne jamais faire confiance, toujours vérifier ». Chaque mesure est rattachée à un objectif
+des deux modèles ; la colonne « Preuve » indique l'étape de l'auto-test qui la vérifie à chaque version.
+
+| Modèle | Objectif | Mesures en place | Preuve |
+|---|---|---|---|
+| **CIA** | **Confidentialité** | TLS 1.3 minimum ; AES-256-GCM pour le compte, les copies de récupération et la signature manuscrite (coffre) ; clés d'IA protégées par Windows ; aucune télémétrie ; lecture limitée aux fichiers désignés par l'utilisateur | `zero-trust`, `intrusion-disque`, `essai-persistance` |
+| **CIA** | **Intégrité** | Licences, jetons, règles d'établissement et mises à jour signés (Ed25519) ; empreintes SHA-512 ; contenu revérifié dans le dossier protégé ; journal de sécurité chaîné (HMAC-SHA-256) ; enregistrements du compte authentifiés | `maj-sans-installateur`, `licence-jeton-falsifie`, `zero-trust` |
+| **CIA** | **Disponibilité** | Fonctionnement hors ligne ; licence valable 14 jours sans connexion ; copie de récupération automatique ; interface relancée après un plantage ou un blocage ; retour à la version précédente si une mise à jour ne démarre pas ; supervision quotidienne du service | `maj-sans-installateur`, `v111`, supervision |
+| **AAA** | **Authentification** | Compte par adresse e-mail ; licence liée à l'e-mail et au poste ; mot de passe administrateur dérivé par scrypt (2¹⁷), **5 essais puis verrouillage progressif** (1 à 15 minutes, conservé après redémarrage) ; session administrateur fermée après 15 minutes sans action | `zero-trust`, `admin-setup` |
+| **AAA** | **Autorisation** | **Chaque appel interne vérifie son appelant** (page du logiciel, cadre principal) ; fonctions de la console acceptées uniquement depuis la console ; règles d'établissement par poste et par utilisateur ; fonctions Premium contrôlées côté système ; moindre privilège (sandbox, permissions refusées) | `zero-trust`, `intrusion-interface`, `admin-enforce` |
+| **AAA** | **Traçabilité** | **Journal de sécurité local** (Aide › À propos › Journal de sécurité) : ouvertures, compte, licences, connexions et échecs administrateur, verrouillages, appels et ouvertures refusés, mises à jour, plantages ; journal d'établissement dans la console d'administration | `zero-trust` |
+
+Limites connues : l'adresse e-mail du compte n'est pas vérifiée par un message de confirmation (compte local, sans
+serveur) ; le journal de sécurité est scellé avec une clé du poste : il détecte toute retouche faite hors du logiciel,
+mais un administrateur du PC peut le supprimer en entier.
+
 ## 5. Revue des droits
 
 | Quoi | Fréquence | Comment |

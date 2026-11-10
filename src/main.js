@@ -1,5 +1,7 @@
 // SknEDU-studio — processus principal (Electron)
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+// Zero Trust : tout appel interne enregistré après cette ligne vérifie son appelant (voir src/zerotrust.js)
+const zt = require('./zerotrust'); zt.guardIpc(ipcMain);
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -281,7 +283,19 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   // Taille adaptée à l'écran (portables 1366×768, écrans 4K…) : plein écran utile si l'écran est petit
   fitWindowToScreen(win);
-  win.once('ready-to-show', () => { win.show(); codeupdate.confirmStart(); }); // démarrage réussi après une mise à jour du contenu
+  win.once('ready-to-show', () => { win.show(); codeupdate.confirmStart(); });
+  let crashes = [];
+  win.webContents.on('render-process-gone', (_e, d) => {
+    if (d.reason === 'clean-exit') return;
+    zt.audit('interface_plantee', { raison: d.reason }); crashes = crashes.filter((t) => Date.now() - t < 300000); crashes.push(Date.now());
+    if (process.env.EDUPDF_SELFTEST || crashes.length > 3 || !win || win.isDestroyed()) return; // pas de boucle de relance
+    dirty = false; win.reload(); // la copie de récupération propose les documents au rechargement
+  });
+  win.on('unresponsive', async () => {
+    zt.audit('interface_figee', {}); if (process.env.EDUPDF_SELFTEST) return;
+    const r = await dialog.showMessageBox(win, { type: 'warning', buttons: ['Attendre', 'Relancer l\'affichage'], defaultId: 0, cancelId: 0, title: 'SknEDU-studio', message: 'SknEDU-studio ne répond plus.', detail: 'Un traitement long est peut-être en cours. Si vous relancez l\'affichage, les documents non enregistrés seront proposés à la récupération.' });
+    if (r.response === 1 && win && !win.isDestroyed()) { dirty = false; win.webContents.forcefullyCrashRenderer(); win.reload(); }
+  }); // démarrage réussi après une mise à jour du contenu
   // mémorise la taille et la position pour la prochaine ouverture (si l'écran est toujours le même)
   const remember = () => { try { const s = readSettings(); s.window = { bounds: win.getNormalBounds(), maximized: win.isMaximized() }; writeSettings(s); } catch { /* */ } };
   win.on('close', remember);
@@ -333,6 +347,8 @@ function openMain() {
   createWindow();
 }
 
+// Une erreur imprévue du processus principal est consignée, sans fermer le logiciel
+process.on('uncaughtException', (e) => { try { zt.audit('erreur_interne', { message: String(e && e.message).slice(0, 200) }); } catch { /* */ } console.error(e); });
 function filesFromArgv(argv) {
   return argv.slice(1).filter((a) => !a.startsWith('-') && fs.existsSync(a) && fs.statSync(a).isFile());
 }
@@ -350,6 +366,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.whenReady().then(() => {
+    zt.init({ app, key: () => dataKey() }); zt.audit('demarrage', { systeme: process.platform, installe: app.isPackaged });
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
     codeupdate.init({ app, net: require('electron').net });
@@ -405,7 +422,11 @@ function safeDocPath(p) {
   if (typeof p !== 'string' || !path.isAbsolute(p) || p.includes('\0') || !grantedPath(p)) return false;
   try { const st = fs.statSync(p); return st.isFile() && st.size <= 2 * 1024 ** 3 && DOC_EXT_RE().test(p); } catch { return false; }
 }
-ipcMain.handle('load-paths', (_e, paths) => loadMany((Array.isArray(paths) ? paths : []).filter(safeDocPath).slice(0, 200)));
+ipcMain.handle('load-paths', (_e, paths) => {
+  const asked = Array.isArray(paths) ? paths : []; const ok = asked.filter(safeDocPath);
+  if (ok.length < asked.length) zt.audit('ouverture_refusee', { nombre: asked.length - ok.length, exemple: path.basename(String(asked.find((p) => !ok.includes(p)) || '')).slice(0, 60) });
+  return loadMany(ok.slice(0, 200));
+});
 
 async function loadMany(paths) {
   const out = [];
@@ -632,6 +653,18 @@ ipcMain.handle('recovery-save', (_e, { id, name, bytes }) => {
   fs.writeFileSync(path.join(d, k + '.json'), JSON.stringify({ name: path.basename(String(name || 'Document.pdf')), date: Date.now() }));
   return true;
 });
+// Coffre : petites données personnelles chiffrées (AES-256-GCM, clé protégée par Windows) — liste fermée de noms
+const VAULT = new Set(['signature']);
+const vaultFile = (name) => path.join(app.getPath('userData'), 'coffre', name + '.bin');
+ipcMain.handle('vault-get', (_e, name) => { if (!VAULT.has(name)) return null; try { return decryptData(fs.readFileSync(vaultFile(name))).toString('utf8'); } catch { return null; } });
+ipcMain.handle('vault-set', (_e, { name, value }) => {
+  if (!VAULT.has(name)) return false; const f = vaultFile(name);
+  if (value == null || value === '') { fs.rmSync(f, { force: true }); return true; }
+  if (typeof value !== 'string' || value.length > 4 * 1024 * 1024) return false;
+  fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, encryptData(Buffer.from(value, 'utf8'))); return true;
+});
+// Journal de sécurité (traçabilité) : consultation et contrôle d'intégrité
+ipcMain.handle('audit-list', (_e, limit) => zt.list(Number(limit) || 200));
 ipcMain.handle('recovery-list', () => {
   const d = recoveryDir(); const out = [];
   for (const f of (() => { try { return fs.readdirSync(d); } catch { return []; } })()) {
@@ -744,7 +777,7 @@ ipcMain.handle('sign-pdf', async (_e, { bytes, certPath, passphrase, reason, loc
   license.requirePremium('Signature numérique par certificat');
   if (typeof certPath !== 'string' || !pickedCerts.has(path.resolve(certPath))) throw new Error('Choisissez le certificat dans la fenêtre de sélection.');
   admin.guard('sign', 'Signature numérique');
-  admin.logEvent('sign', { how: 'certificat' });
+  admin.logEvent('sign', { how: 'certificat' }); zt.audit('signature_certificat', {});
   const { PDFDocument } = require('pdf-lib');
   const { pdflibAddPlaceholder } = require('@signpdf/placeholder-pdf-lib');
   const { P12Signer } = require('@signpdf/signer-p12');
@@ -1001,7 +1034,7 @@ function setupAutoUpdate() {
     if (staged && staged.version === i.version) return send(staged.elevate ? 'ready-admin' : 'ready', i.version); // déjà prête
     try {
       const r = await codeupdate.prepare(i.version, (p) => send('progress', p));
-      if (r.ready) { staged = r; write('INFO')(`Contenu ${i.version} téléchargé et vérifié (signature et empreintes)${r.elevate ? ' : installation pour tous les utilisateurs, autorisation administrateur à la mise en place' : ' : mise en place à la fermeture'}`); return send(r.elevate ? 'ready-admin' : 'ready', i.version); }
+      if (r.ready) { staged = r; zt.audit('mise_a_jour_prete', { version: i.version, administrateur: !!r.elevate }); write('INFO')(`Contenu ${i.version} téléchargé et vérifié (signature et empreintes)${r.elevate ? ' : installation pour tous les utilisateurs, autorisation administrateur à la mise en place' : ' : mise en place à la fermeture'}`); return send(r.elevate ? 'ready-admin' : 'ready', i.version); }
       write('INFO')(`Mise à jour du contenu impossible (${r.reason})`);
     } catch (e) { write('ERREUR')('Mise à jour du contenu : ' + e.message); }
     if (portable) return send('manual', i.version); // version sans installation : nouvelle archive à télécharger
@@ -1024,7 +1057,7 @@ function setupAutoUpdate() {
   setInterval(check, 4 * 60 * 60 * 1000); // toutes les 4 h
   ipcMain.handle('check-update', () => autoUpdater.checkForUpdates().catch(() => send('offline'))); // vérification demandée par l'utilisateur
   ipcMain.handle('install-update', () => {
-    if (staged) { codeupdate.apply(staged, true); staged = null; setImmediate(() => app.quit()); return true; } // redémarrage, retour arrière si besoin
+    if (staged) { zt.audit('mise_a_jour_installation', { version: staged.version }); codeupdate.apply(staged, true); staged = null; setImmediate(() => app.quit()); return true; } // redémarrage, retour arrière si besoin
     if (!installable) return false; autoUpdater.quitAndInstall(); return true;
   });
 }

@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const account = require('./account');
+const { audit } = require('./zerotrust');
 
 const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAAWJBQvHRbjGXeR/8N0o1OQtxGqcDumYikk/rFmLnNyQ=
@@ -142,9 +143,10 @@ function init(deps) {
   P.token = path.join(A.app.getPath('userData'), 'licence-jeton.sknt');
   P.machine = path.join(process.env.EDUPDF_MACHINE_DIR || (process.platform === 'win32' ? path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF') : process.platform === 'darwin' ? '/Users/Shared/EduPDF' : '/var/tmp/EduPDF'), 'licence.sknlic');
   A.ipcMain.handle('license-status', () => status());
-  A.ipcMain.handle('license-activate', (_e, { text, scope }) => activate(text, scope));
-  A.ipcMain.handle('license-remove', () => remove());
-  A.ipcMain.handle('license-deactivate', (_e, { ref }) => deactivate(ref));
+  const traced = (type, fn) => async (...a) => { try { const r = await fn(...a); audit(type, { resultat: 'ok', edition: r && r.edition }); return r; } catch (e) { audit(type, { resultat: 'refus', motif: String(e.message).slice(0, 120) }); throw e; } };
+  A.ipcMain.handle('license-activate', traced('licence_activation', (_e, { text, scope }) => activate(text, scope)));
+  A.ipcMain.handle('license-remove', traced('licence_retrait', () => remove()));
+  A.ipcMain.handle('license-deactivate', traced('licence_desactivation', (_e, { ref }) => deactivate(ref)));
   A.ipcMain.handle('license-refresh', () => refresh());
   setTimeout(() => { refresh(); }, 8000); setInterval(() => { refresh(); }, 12 * 3600000).unref(); // vérification en ligne régulière
   A.ipcMain.handle('license-pick', async () => {

@@ -4,6 +4,19 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.5] — Zero Trust : modèles CIA et AAA
+- Autorisation : chaque appel interne vérifie son appelant ; une page étrangère au logiciel est refusée et consignée ;
+  les fonctions de la console d'administration ne répondent qu'à la console
+- Authentification : mot de passe administrateur limité à 5 essais, puis verrouillage progressif (1 à 15 minutes) ;
+  session administrateur fermée après 15 minutes sans action
+- Traçabilité : journal de sécurité local, scellé (toute ligne modifiée, supprimée ou ajoutée est détectée), consultable
+  dans Aide › À propos › Journal de sécurité
+- Confidentialité : la signature manuscrite est conservée chiffrée (AES-256-GCM) ; une signature enregistrée par une
+  version précédente est déplacée automatiquement
+- Disponibilité : l'interface se relance seule après un plantage et propose les documents non enregistrés ; si elle
+  se fige, le logiciel propose d'attendre ou de la relancer
+- Anglais : textes d'attente du panneau Assistant IA traduits ; langue de la page mise à jour au changement de langue
+
 ## [1.13.4] — Info-bulles sur tous les boutons et guide d'utilisation
 - Chaque bouton du ruban affiche au survol son nom, son rôle et son raccourci (100 info-bulles ajoutées, en français et en anglais)
 - Tampons ✔ et ✘ : ils prennent la couleur choisie (ils s'affichaient en emoji violet sous Windows)

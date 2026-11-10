@@ -947,6 +947,43 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         } catch (e) { log('FAIL depot-utilisateur', e.stack); }
       }
 
+      // ---------- Zero Trust (CIA / AAA) : appelant vérifié, essais limités, journal scellé, coffre chiffré ----------
+      try {
+        const ZT = require('./zerotrust'); const { BrowserWindow } = require('electron'); const out = {};
+        // Autorisation : une page étrangère (hors du dossier du logiciel) qui obtiendrait l'interface du logiciel est refusée
+        const page = path.join(outDir, 'page-etrangere.html'); fs.writeFileSync(page, '<!doctype html><title>x</title><p>page étrangère</p>');
+        const w2 = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
+        await w2.loadFile(page);
+        out.pageEtrangere = await w2.webContents.executeJavaScript("(async () => { const r = []; for (const f of ['version', 'licenseStatus', 'policy']) { try { await window.api[f](); r.push('ACCEPTÉ'); } catch (e) { r.push(/non autoris/.test(e.message) ? 'refusé' : e.message.slice(0, 40)); } } try { r.push(await window.api.loadPaths(['C:\\\\Windows\\\\win.ini']).then(() => 'ACCEPTÉ')); } catch { r.push('refusé'); } return r.join(' / '); })()");
+        w2.destroy();
+        out.pageDuLogiciel = await js("window.api.version().then(() => 'acceptée', () => 'REFUSÉE')");
+        out.cadreIntegre = ZT.trustedSender({ sender: { isDestroyed: () => false, mainFrame: {} }, senderFrame: { url: ZT._test.APP_URL + 'index.html' } }) ? 'ACCEPTÉ' : 'refusé';
+        // Traçabilité : journal chaîné ; modification, suppression ou ajout détectés
+        ZT.audit('test_a', { n: 1 }); ZT.audit('test_b', { n: 2 }); ZT.audit('test_c', { n: 3 });
+        const lf = ZT._test.file(); const orig = fs.readFileSync(lf, 'utf8'); const L = orig.split('\n').filter(Boolean);
+        out.journal = (ZT.verify().ok ? 'intact' : 'ALTÉRÉ') + ', refus consigné : ' + L.some((l) => /appel_refuse/.test(l));
+        fs.writeFileSync(lf, orig.replace('"n":2', '"n":9')); ZT._test.reset(); out.ligneModifiee = ZT.verify().ok ? 'NON DÉTECTÉE' : 'détectée';
+        fs.writeFileSync(lf, L.filter((l) => !/test_b/.test(l)).join('\n') + '\n'); out.ligneSupprimee = ZT.verify().ok ? 'NON DÉTECTÉE' : 'détectée';
+        fs.writeFileSync(lf, orig + JSON.stringify({ ts: 'x', type: 'faux', detail: {}, prev: 'x', mac: 'x' }) + '\n'); out.ligneAjoutee = ZT.verify().ok ? 'NON DÉTECTÉE' : 'détectée';
+        fs.writeFileSync(lf, orig); ZT._test.reset(); out.restaure = ZT.verify().ok;
+        // Authentification : 5 essais incorrects verrouillent, un succès remet à zéro
+        const tryLock = () => { try { ZT.attempts.check('test'); return 'libre'; } catch (e) { return 'verrouillé'; } };
+        for (let i = 0; i < 4; i++) ZT.attempts.fail('test'); out.apres4Echecs = tryLock(); ZT.attempts.fail('test'); out.apres5Echecs = tryLock(); ZT.attempts.ok('test'); out.apresSucces = tryLock();
+        // Confidentialité : signature dans le coffre chiffré, ancienne signature en clair déplacée, nom inconnu refusé
+        Object.assign(out, await js(`(async () => {
+          const o = {}; localStorage.setItem('edupdf.signature', 'data:image/png;base64,QUJD');
+          const s = await savedSignature(); o.migration = (s === 'data:image/png;base64,QUJD') + ', clair effacé : ' + (localStorage.getItem('edupdf.signature') === null) + ', relue : ' + ((await window.api.vaultGet('signature')) === s);
+          o.nomInconnu = (await window.api.vaultSet('autre-chose', 'x')) === false && (await window.api.vaultGet('autre-chose')) === null ? 'refusé' : 'ACCEPTÉ';
+          const p = securityLogDialog(); await new Promise((r) => setTimeout(r, 500)); o.fenetreJournal = document.querySelector('#mBody p').textContent.slice(0, 22) + '… ' + document.querySelectorAll('#mBody tr').length + ' lignes';
+          [...document.querySelectorAll('#mBtns button')].pop().click(); await p; await window.api.vaultSet('signature', ''); return o;
+        })()`));
+        const vf = path.join(outDir, 'userdata', 'coffre', 'signature.bin');
+        const okAll = /^refusé \/ refusé \/ refusé \/ refusé$/.test(out.pageEtrangere) && out.pageDuLogiciel === 'acceptée' && out.cadreIntegre === 'refusé' && out.journal === 'intact, refus consigné : true'
+          && out.ligneModifiee === 'détectée' && out.ligneSupprimee === 'détectée' && out.ligneAjoutee === 'détectée' && out.restaure === true
+          && out.apres4Echecs === 'libre' && out.apres5Echecs === 'verrouillé' && out.apresSucces === 'libre' && /^true, clair effacé : true, relue : true$/.test(out.migration) && out.nomInconnu === 'refusé' && /Journal intact/.test(out.fenetreJournal) && !fs.existsSync(vf);
+        log((okAll ? 'OK   ' : 'FAIL ') + 'zero-trust', JSON.stringify(out));
+      } catch (e) { log('FAIL zero-trust', e.stack); }
+
       // ---------- Mise à jour du contenu sans installateur (contrôle intelligent de Windows) ----------
       try {
         const ofs = require('original-fs'); const crypto = require('crypto'); const http = require('http'); const cp = require('child_process'); const CU = require('./codeupdate'); const JSZip = require('jszip');
