@@ -4,6 +4,11 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.13.6] — Supprimer et extraire plusieurs pages
+- Pages › Supprimer et Extraire (et la touche Suppr) ouvrent une fenêtre de choix : intervalle à taper (ex. 2-4, 7),
+  cases à cocher par page, boutons page courante, paires, impaires, toutes ; préremplie avec la sélection des miniatures
+- Suppression annulable (Ctrl+Z) ; impossible de supprimer toutes les pages
+
 ## [1.13.5] — Zero Trust : modèles CIA et AAA
 - Autorisation : chaque appel interne vérifie son appelant ; une page étrangère au logiciel est refusée et consignée ;
   les fonctions de la console d'administration ne répondent qu'à la console

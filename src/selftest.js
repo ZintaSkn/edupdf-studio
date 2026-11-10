@@ -680,6 +680,36 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         if (errs.length || badTools.length) throw new Error('Erreurs : ' + errs.join(' || ') + ' — outils : ' + badTools.join(', ') + ' — ' + JSON.stringify(out));
         return out;
       })()`, 240000);
+      // ---------- Supprimer / extraire plusieurs pages : intervalle, cases à cocher, raccourcis ----------
+      await step('pages-multiples', `(async () => {
+        const T = window.__edupdf; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        window.__features.setLanguage('fr'); await wait(150);
+        for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+        const d = await PDFLib.PDFDocument.create(); for (let i = 1; i <= 8; i++) d.addPage([595, 842]).drawText('Page ' + i, { x: 60, y: 760, size: 30 });
+        await T.insertPdf(await d.save()); T.S.cur = 1; T.S.sel = new Set([1, 2]); T.refresh(); await wait(400);
+        // suppression : préremplie avec la sélection des miniatures, puis intervalle tapé
+        T.actions.delPages(); await wait(300);
+        out.prerempli = q('#pgRange').value + ' / cochées ' + document.querySelectorAll('#mBody [data-pg]:checked').length;
+        q('#pgRange').value = '2-3, 6'; q('#pgRange').dispatchEvent(new Event('input')); await wait(50);
+        out.casesSynchro = [...document.querySelectorAll('#mBody [data-pg]:checked')].map((c) => c.dataset.pg).join(',') + ' / ' + q('#pgInfo').textContent;
+        q('#mBtns button.primary').click(); await wait(300);
+        out.apresSuppression = T.S.pages.length + ' pages : ' + T.S.pages.map((p) => p.idx + 1).join(','); // numéros d'origine des pages restantes
+        T.actions.undo(); await wait(200); out.annulation = T.S.pages.length + ' pages';
+        // cases à cocher et boutons rapides
+        T.actions.delPages(); await wait(300);
+        q('#mBody [data-q="even"]').click(); out.paires = q('#pgRange').value;
+        q('#mBody [data-q="none"]').click(); q('#mBody [data-pg="8"]').click(); q('#mBody [data-pg="1"]').click(); out.casesVersIntervalle = q('#pgRange').value;
+        q('#pgRange').value = '1-8'; q('#pgRange').dispatchEvent(new Event('input')); q('#mBtns button.primary').click(); await wait(100);
+        out.toutesRefusees = q('#pgErr').textContent; [...document.querySelectorAll('#mBtns button')].find((b) => /Annuler/.test(b.textContent)).click(); await wait(200);
+        // extraction : fenêtre identique, avec « Toutes »
+        T.S.sel = new Set([T.S.cur]); const p = pickPages('📤 Extraire des pages', 'Extraire', { all: true }); await wait(300);
+        q('#mBody [data-q="odd"]').click(); out.extraction = q('#pgRange').value + ' / bouton Toutes : ' + !!q('#mBody [data-q="all"]');
+        q('#mBtns button.primary').click(); out.indexExtraits = (await p).join(',');
+        const ok = out.prerempli === '2-3 / cochées 2' && out.casesSynchro === '2,3,6 / 3 page(s) sur 8' && out.apresSuppression === '5 pages : 1,4,5,7,8' && out.annulation === '8 pages'
+          && out.paires === '2, 4, 6, 8' && out.casesVersIntervalle === '1, 8' && /toutes les pages/.test(out.toutesRefusees) && out.extraction === '1, 3, 5, 7 / bouton Toutes : true' && out.indexExtraits === '0,2,4,6';
+        if (!ok) throw new Error('Résultat inattendu : ' + JSON.stringify(out));
+        return out;
+      })()`);
       await step('langue', `(async () => {
         const F = window.__features; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
         const T = window.__edupdf; T.S.dirty = false;

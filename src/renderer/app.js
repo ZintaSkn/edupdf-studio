@@ -1320,12 +1320,63 @@ async function placeSignature(pos) {
 const selected = () => (S.sel.size ? [...S.sel] : [S.cur]).filter((i) => i < S.pages.length).sort((a, b) => a - b);
 
 function rotate(delta) { if (!S.pages.length) return; snapshot(); selected().forEach((i) => { S.pages[i].rot = (S.pages[i].rot + delta + 360) % 360; }); refresh(); }
-function deletePages() {
-  const sel = selected(); if (!S.pages.length) return;
-  if (sel.length === S.pages.length) return alert('Impossible de supprimer toutes les pages.');
-  if (!confirm(`Supprimer ${sel.length} page(s) ?`)) return;
-  snapshot(); sel.reverse().forEach((i) => S.pages.splice(i, 1));
-  S.cur = Math.min(sel[sel.length - 1], S.pages.length - 1); S.sel = new Set([S.cur]); refresh();
+/** « 1-3, 5 » à partir de numéros de page (base 1) triés. */
+function rangeText(nums) {
+  const out = []; let a = null, b = null;
+  for (const n of [...nums].sort((x, y) => x - y)) { if (a !== null && n === b + 1) b = n; else { if (a !== null) out.push(a === b ? a : `${a}-${b}`); a = b = n; } }
+  if (a !== null) out.push(a === b ? a : `${a}-${b}`); return out.join(', ');
+}
+/** « 1-3, 5 ; 8 » → numéros de page valides (base 1), sans doublon. */
+function parsePages(s, max) {
+  const out = new Set();
+  for (const part of String(s).split(/[,;\s]+/)) {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(part.trim()); if (!m) continue;
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) if (i >= 1 && i <= max) out.add(i);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+/**
+ * Choix de plusieurs pages : intervalle à taper (« 2-4, 7 ») ou cases à cocher, préremplis avec la sélection des miniatures.
+ * Retourne les index (base 0) choisis, ou null si annulé.
+ */
+async function pickPages(title, verb, opts = {}) {
+  const n = S.pages.length; const start = selected().map((i) => i + 1);
+  const boxes = Array.from({ length: n }, (_, i) => `<label class="pgck"><input type="checkbox" data-pg="${i + 1}" ${start.includes(i + 1) ? 'checked' : ''}><span>${i + 1}</span></label>`).join('');
+  const html = `<label class="row">Pages <input id="pgRange" type="text" style="flex:1" value="${rangeText(start)}" placeholder="ex. 2-4, 7" autocomplete="off"></label>
+    <div class="row wrap pgquick"><button type="button" class="small" data-q="cur">Page courante (${S.cur + 1})</button><button type="button" class="small" data-q="odd">Impaires</button><button type="button" class="small" data-q="even">Paires</button>${opts.all ? '<button type="button" class="small" data-q="all">Toutes</button>' : ''}<button type="button" class="small" data-q="none">Aucune</button></div>
+    <div class="pggrid">${boxes}</div><p class="muted" id="pgInfo"></p><p class="err" id="pgErr"></p>`;
+  const p = modal(title, html, [['Annuler', null], [verb, () => {
+    const nums = parsePages($('#pgRange').value, n);
+    if (!nums.length) { $('#pgErr').textContent = 'Choisissez au moins une page.'; return false; }
+    if (opts.keepOne && nums.length === n) { $('#pgErr').textContent = 'Impossible de supprimer toutes les pages : gardez-en au moins une.'; return false; }
+    return nums.map((x) => x - 1);
+  }, true]]);
+  const sync = (from) => {
+    const fromBoxes = () => [...document.querySelectorAll('#mBody [data-pg]')].filter((c) => c.checked).map((c) => +c.dataset.pg);
+    const nums = from === 'boxes' ? fromBoxes() : parsePages($('#pgRange').value, n);
+    if (from === 'boxes') $('#pgRange').value = rangeText(nums);
+    else document.querySelectorAll('#mBody [data-pg]').forEach((c) => { c.checked = nums.includes(+c.dataset.pg); });
+    $('#pgInfo').textContent = nums.length ? `${nums.length} page(s) sur ${n}` : ''; $('#pgErr').textContent = '';
+  };
+  $('#pgRange').oninput = () => sync('range');
+  document.querySelectorAll('#mBody [data-pg]').forEach((c) => { c.onchange = () => sync('boxes'); });
+  document.querySelectorAll('#mBody [data-q]').forEach((b) => {
+    b.onclick = () => {
+      const all = Array.from({ length: n }, (_, i) => i + 1); const q = b.dataset.q;
+      $('#pgRange').value = rangeText(q === 'cur' ? [S.cur + 1] : q === 'odd' ? all.filter((x) => x % 2) : q === 'even' ? all.filter((x) => !(x % 2)) : q === 'all' ? all : []); sync('range');
+    };
+  });
+  sync('range'); $('#pgRange').select();
+  return p;
+}
+async function deletePages() {
+  if (!S.pages.length) return;
+  if (S.pages.length === 1) return alert('Impossible de supprimer la seule page du document.');
+  const sel = await pickPages('🗑 Supprimer des pages', 'Supprimer', { keepOne: true }); if (!sel) return;
+  snapshot(); [...sel].reverse().forEach((i) => S.pages.splice(i, 1));
+  S.cur = Math.min(sel[0], S.pages.length - 1); S.sel = new Set([S.cur]); refresh();
+  msg(`${sel.length} page(s) supprimée(s). Ctrl+Z pour annuler.`);
 }
 function duplicatePages() {
   if (!S.pages.length) return; snapshot();
@@ -1368,7 +1419,8 @@ async function numberPages() {
   refresh(); msg('Pages numérotées (relancez après réorganisation pour mettre à jour).');
 }
 async function extractPages() {
-  const sel = selected(); if (!S.pages.length) return;
+  if (!S.pages.length) return;
+  const sel = await pickPages('📤 Extraire des pages', 'Extraire', { all: true }); if (!sel) return;
   busy('Extraction…');
   const bytes = await buildPdf(sel.map((i) => S.pages[i]));
   const p = await window.api.save({ bytes, defaultName: `${baseName()}-extrait.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
