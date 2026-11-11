@@ -145,6 +145,11 @@ a.shot:hover { transform: translateY(-2px); }
 .tag-f { background: #e3f6ec; color: #136c3a; border: 1px solid #b4e2c6; }
 
 /* galerie */
+.video-row { display: grid; gap: 28px; align-items: center; grid-template-columns: 1fr; }
+.video-txt .h2c, .video-txt .intro { text-align: left; }
+.video-note { color: var(--muted); font-size: .95rem; }
+.spot-video { display: block; width: 100%; max-width: 340px; height: auto; aspect-ratio: 9 / 16; margin: 0 auto; border-radius: 22px; background: #0b1f6b; box-shadow: 0 18px 40px rgb(11 31 107 / .28); }
+@media (min-width: 860px) { .video-row { grid-template-columns: 1fr 340px; gap: 56px; } }
 .gallery { display: grid; gap: 22px; grid-template-columns: 1fr; }
 .gallery figure { margin: 0; }
 .gallery figcaption { margin-top: 10px; color: var(--muted); font-size: .95rem; }

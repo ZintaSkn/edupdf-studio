@@ -92,7 +92,7 @@ function layout({ lang, key, title, desc, body, head = '', og }) {
   const inSoft = SOFT.includes(key);
   const ogImg = og || (inSoft ? `og-${lang}.jpg` : `og-zinta-${lang}.jpg`);
   const cur = (k) => (k === key || (k === 'logiciel' && inSoft) ? ' aria-current="page"' : '');
-  const nav = NAV.map(([k, fr, en]) => `<a href="${PAGES[k][lang]}"${cur(k)}>${tr(fr, en)}</a>`).join('');
+  const nav = NAV.map(([k, fr, en]) => `<a href="${PAGES[k][lang]}"${cur(k)}>${tr(fr, en).replace(/&/g, '&amp;')}</a>`).join('');
   const sub = inSoft ? `<nav class="subnav" aria-label="SknEDU-studio"><div class="wrap subnav-row"><span class="subnav-brand"><img src="/img/logo-96.png" width="26" height="26" alt="">SknEDU-studio</span>${SUBNAV.map(([k, fr, en]) => `<a href="${PAGES[k][lang]}"${k === key ? ' aria-current="page"' : ''}>${tr(fr, en)}</a>`).join('')}</div></nav>` : '';
   const prodLinks = UNIVERS.map((u) => `<li><a href="${PAGES[u.key][lang]}">${u[lang][0]}</a></li>`).join('');
   const siteLinks = [['download', 'Télécharger SknEDU-studio', 'Download SknEDU-studio'], ['pricing', 'Tarifs du logiciel', 'Software pricing'], ['order', 'Commander une licence', 'Order a licence'], ['privacy', 'Confidentialité', 'Privacy'], ['legal', 'Mentions légales', 'Legal notice'], ['contact', 'Contact', 'Contact']]
@@ -476,8 +476,8 @@ function pricingCards(lang, { compact = false } = {}) {
     <p class="price">${tr('dès', 'from')} <b>${num(ens[0].prix, lang)}</b> FCFA</p>
     <ul class="durations">
       ${ens.map((o) => `<li><span>${dur(o)}</span><b>${price(o.prix, lang)}</b>${o.jours > 100 ? `<small>${tr('soit', 'i.e.')} ${price(perMonth(o), lang)} ${tr('/ mois', '/ month')}</small>` : ''}</li>`).join('')}
-    </ul>
-    ${compact ? '' : `<ul class="checks">
+    </ul>${compact ? '' : `
+    <ul class="checks">
       <li>${tr('Toutes les fonctions Premium', 'All Premium features')}</li>
       <li>${tr('Modifier le texte, OCR, conversions Office', 'Edit text, OCR, Office conversions')}</li>
       <li>${tr('Assistant IA, outils de la classe', 'AI assistant, classroom tools')}</li>
@@ -540,6 +540,21 @@ function logiciel(lang) {
 <section class="strip" aria-label="${tr('Points clés', 'Key points')}">
   <div class="wrap strip-row">
     <span>📴 ${tr('Hors ligne', 'Offline')}</span><span>🌍 ${tr('Français / anglais', 'French / English')}</span><span>💻 Windows · macOS · Linux</span><span>🔒 ${tr('Vos documents restent sur votre PC', 'Your documents stay on your PC')}</span><span>🔓 ${tr('Code source ouvert', 'Open source')}</span>
+  </div>
+</section>
+
+<section class="sec sec-video" id="video" aria-labelledby="video-titre">
+  <div class="wrap video-row">
+    <div class="video-txt">
+      <h2 class="h2c" id="video-titre">${tr('SknEDU-studio en 30 secondes', 'SknEDU-studio in 30 seconds')}</h2>
+      <p class="intro">${tr('Modifier vos PDF, rendre vos scans modifiables, noter vos copies en un clic, l\'assistant IA et le diaporama : l\'essentiel du logiciel en une courte vidéo.', 'Edit your PDFs, make scans editable, grade papers in one click, the AI assistant and the slideshow: the essentials in a short video.')}</p>
+      ${lang === 'en' ? '<p class="video-note">Video in French, with French subtitles.</p>' : '<p class="video-note">Sous-titrée : elle se comprend aussi sans le son.</p>'}
+      <p><a class="btn btn-gold" href="${PAGES.download[lang]}">${tr('Télécharger l\'essai gratuit', 'Download the free trial')}</a></p>
+    </div>
+    <video class="spot-video" controls playsinline preload="none" width="1080" height="1920" poster="/img/spot-apercu.jpg" aria-label="${tr('Vidéo de présentation de SknEDU-studio, 30 secondes, en français, sous-titrée', 'SknEDU-studio presentation video, 30 seconds, in French, subtitled')}">
+      <source src="/video/sknedu-studio-30s.mp4" type="video/mp4">
+      <a href="/video/sknedu-studio-30s.mp4">${tr('Voir la vidéo (MP4)', 'Watch the video (MP4)')}</a>
+    </video>
   </div>
 </section>
 
@@ -624,7 +639,7 @@ ${faq}
   </div>
 </section>`;
   return layout({ lang, key: 'logiciel', body,
-    title: tr('SknEDU-studio — l\'éditeur PDF hors ligne des enseignants | ZintaServices', 'SknEDU-studio — the offline PDF editor for teachers | ZintaServices'),
+    title: tr('SknEDU-studio — l\'éditeur PDF hors ligne des enseignants', 'SknEDU-studio — the offline PDF editor for teachers | ZintaServices'),
     desc: tr('Modifier les PDF dans leur police d\'origine, OCR, conversions Word / Excel / PowerPoint, assistant IA, correction de copies, évaluations différenciées. Hors ligne, Windows, macOS, Linux. Essai gratuit 30 jours.', 'Edit PDFs in their original font, OCR, Word / Excel / PowerPoint conversions, AI assistant, grading, differentiated tests. Offline, Windows, macOS, Linux. 30-day free trial.'),
     head: `<script type="application/ld+json">${JSON.stringify(ld)}</script>\n` });
 }
@@ -1023,6 +1038,9 @@ function build() {
   Cache-Control: public, max-age=31536000, immutable
 
 /img/*
+  Cache-Control: public, max-age=604800
+
+/video/*
   Cache-Control: public, max-age=604800
 `);
   console.log(`Site généré dans ${OUT} (version des ressources ${ASSET_V}).`);
