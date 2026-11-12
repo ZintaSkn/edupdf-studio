@@ -1518,6 +1518,48 @@ async function pageJpeg(p, scale = 1.6) {
   await pg.render({ canvasContext: ctx, viewport: vp }).promise; await paintItems(ctx, vp, p);
   return { bytes: dataUrlToBytes(c.toDataURL('image/jpeg', 0.9)), w: c.width, h: c.height };
 }
+/**
+ * Mise en page identique (export Word / PowerPoint) : pour chaque page du document final,
+ *  - un fond sans le texte horizontal : images, tableaux, diagrammes, couleurs, formes et texte incliné, tels quels ;
+ *  - les lignes de texte, placées au point près, avec leur police, leur taille, gras, italique et couleur (texte modifiable).
+ * Les dimensions et le nombre de pages sont ceux du PDF.
+ */
+async function layoutOfDocument(scale = 2.2) {
+  const doc = await openPdfJs(await buildPdf()); const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const pg = await doc.getPage(i); const vp1 = pg.getViewport({ scale: 1 }); const vp = pg.getViewport({ scale });
+    const mk = () => { const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height); const x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); return [c, x]; };
+    const [full, fctx] = mk(); await pg.render({ canvasContext: fctx, viewport: vp }).promise;
+    const [bg, bctx] = mk();
+    const upright = () => { const t = bctx.getTransform(); return t.a > 0 && Math.abs(t.b) <= 1e-3 * t.a && Math.abs(t.c) <= 1e-3 * Math.abs(t.d || 1); };
+    for (const m of ['fillText', 'strokeText']) { const o = bctx[m].bind(bctx); bctx[m] = (...a) => (upright() ? undefined : o(...a)); } // le texte droit devient du texte modifiable
+    await pg.render({ canvasContext: bctx, viewport: vp }).promise;
+    const tc = await pg.getTextContent(); const items = [];
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const m = pdfjsLib.Util.transform(vp1.transform, it.transform); if (m[0] <= 0 || Math.abs(m[1]) > 0.01 * m[0]) continue; // texte incliné : reste dans le fond
+      const size = Math.hypot(m[2], m[3]); if (!(size > 1)) continue;
+      const st = tc.styles[it.fontName] || {}; const f = fontOfItem(pg, { fontName: it.fontName, fallback: st.fontFamily });
+      const w = Math.max(size * 0.3, it.width || 0);
+      const col = sampleColors({ l: m[4], t: m[5] - size * 0.78, w, h: size * 0.95 }, full, scale).fg;
+      items.push({ text: it.str, x: m[4], yb: m[5], w, size, font: f.family, bold: !!f.bold, italic: !!f.italic, color: col });
+    }
+    items.sort((a, b) => a.yb - b.yb || a.x - b.x);
+    const lines = [];
+    for (const t of items) { // même ligne de base et même colonne : une ligne ; un grand écart (cellule de tableau, colonne) : une autre
+      const l = lines.find((q) => Math.abs(q.yb - t.yb) < 0.35 * Math.max(q.size, t.size) && t.x - q.right < 1.2 * t.size && t.x > q.x - 1);
+      if (!l) { lines.push({ x: t.x, yb: t.yb, right: t.x + t.w, size: t.size, runs: [{ ...t }] }); continue; }
+      const r = l.runs[l.runs.length - 1]; const gap = t.x - l.right;
+      const space = gap > 0.15 * t.size && !/\s$/.test(r.text) && !/^\s/.test(t.text) ? ' ' : '';
+      const same = r.font === t.font && r.bold === t.bold && r.italic === t.italic && Math.abs(r.size - t.size) < 0.6 && r.color === t.color;
+      if (same) r.text += space + t.text; else l.runs.push({ ...t, text: space + t.text });
+      l.right = Math.max(l.right, t.x + t.w); l.size = Math.max(l.size, t.size);
+    }
+    pages.push({ w: vp1.width, h: vp1.height, bg: dataUrlToBytes(bg.toDataURL('image/jpeg', 0.88)),
+      lines: lines.map((l) => ({ x: l.x, yb: l.yb, w: l.right - l.x, size: l.size, runs: l.runs.map((r) => ({ text: r.text, font: r.font, size: r.size, bold: r.bold, italic: r.italic, color: r.color })) })) });
+  }
+  return pages;
+}
 // Formats d'export : famille (texte, présentation, tableur) et faisabilité sans LibreOffice
 const EXPORTS = {
   docx: { fam: 'text', label: 'Word (.docx)', alone: true }, doc: { fam: 'text', label: 'Word 97-2003 (.doc)' }, odt: { fam: 'text', label: 'OpenDocument Texte (.odt)' },
@@ -1574,19 +1616,21 @@ async function toOffice(format, target) {
       if (r) msg(`Tableur créé : ${r}`);
       return;
     }
-    let mode = 'fidele';
-    if (!office) { if (!E.alone) return officeMissing('PDF → ' + E.label); mode = 'simple'; }
-    else if (format === 'docx' || format === 'pptx') {
+    if (!E.alone && !office) return officeMissing('PDF → ' + E.label);
+    let mode = 'identique';
+    if (format === 'docx' || format === 'pptx') {
       mode = await modal(`PDF → ${E.label}`, format === 'docx'
-        ? `<p><b>Mise en page fidèle</b> : textes, images et positions conservés (LibreOffice) — idéal pour retoucher un document.</p><p><b>Texte simple</b> : paragraphes avec police, taille et gras, sans mise en page — idéal pour réutiliser le contenu.</p>`
-        : `<p><b>Diapositives modifiables</b> : textes et images éditables (LibreOffice).</p><p><b>Diapositives images</b> : chaque page devient une diapositive identique au PDF.</p>`,
-      [['Annuler', null], [format === 'docx' ? 'Texte simple' : 'Diapositives images', 'simple'], [format === 'docx' ? 'Mise en page fidèle' : 'Diapositives modifiables', 'fidele', true]]);
+        ? `<p><b>Mise en page identique</b> (recommandé) : chaque page garde sa taille, sa mise en page, ses tableaux, diagrammes, images et couleurs ; le texte reste modifiable dans sa police, sa taille et sa couleur.</p><p><b>Texte fluide</b> : seulement le texte, en paragraphes qui se recomposent (pratique pour réécrire un document).</p>`
+        : `<p><b>Mise en page identique</b> (recommandé) : chaque page devient une diapositive identique, dont le texte reste modifiable.</p><p><b>Diapositives images</b> : chaque page en image, texte dans les notes.</p>`,
+      [['Annuler', null], [format === 'docx' ? 'Texte fluide' : 'Diapositives images', 'simple'], ['Mise en page identique', 'identique', true]]);
       if (!mode) return;
     }
-    if (mode === 'fidele') {
-      busy(`Conversion en ${E.label}… (LibreOffice)`);
-      const r = await window.api.pdfToOffice(await buildPdf(), format, name); done(r ? `Fichier créé : ${r}` : '');
-      return;
+    if (mode === 'identique') {
+      busy(`Conversion en ${E.label} : mise en page de chaque page…`);
+      const pages = await layoutOfDocument();
+      busy(`Conversion en ${E.label}…`);
+      const r = E.fam === 'slides' ? await window.api.exportPptxLayout(pages, name, format) : await window.api.exportDocxLayout(pages, name, format);
+      done(r ? `Fichier créé : ${r}` : ''); return;
     }
     if (format === 'pptx') {
       busy('Création des diapositives…'); const slides = [];

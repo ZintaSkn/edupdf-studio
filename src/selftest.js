@@ -249,7 +249,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const T = window.__edupdf; window.confirm = () => true;
         // sans LibreOffice : diapositives images
         const office = await window.api.officeStatus();
-        if (!office) await T.toOffice('pptx');
+        if (!office) { const p = T.toOffice('pptx'); await new Promise((r) => setTimeout(r, 400)); [...document.querySelectorAll('#mBtns button')].find((b) => /Diapositives images/.test(b.textContent)).click(); await p; } // choix proposé : diapositives images
         return { office, msg: document.querySelector('#msg').textContent };
       })()`);
       try { const z = fs.readFileSync(path.join(outDir, 'Document.pptx')); log('OK   pptx-file', z.length, z.slice(0, 2).toString()); } catch (e) { log('FAIL pptx-file', e.message); results.pptx = { error: e.message }; }
@@ -710,6 +710,53 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         if (!ok) throw new Error('Résultat inattendu : ' + JSON.stringify(out));
         return out;
       })()`);
+      // ---------- Conversion PDF → Word / PowerPoint : mise en page identique ----------
+      await step('conversion-fidele', `(async () => { try {
+        const T = window.__edupdf; const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
+        for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
+        const { PDFDocument, StandardFonts, rgb } = PDFLib; const d = await PDFDocument.create();
+        const H = await d.embedFont(StandardFonts.Helvetica), HB = await d.embedFont(StandardFonts.HelveticaBold), TI = await d.embedFont(StandardFonts.TimesRomanItalic), CO = await d.embedFont(StandardFonts.Courier);
+        const c = document.createElement('canvas'); c.width = 200; c.height = 120; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 200, 120); gr.addColorStop(0, '#2f6fe4'); gr.addColorStop(1, '#f2b200'); g.fillStyle = gr; g.fillRect(0, 0, 200, 120); g.fillStyle = '#fff'; g.font = 'bold 40px Arial'; g.fillText('IMG', 60, 75);
+        const png = await d.embedPng(Uint8Array.from(atob(c.toDataURL('image/png').split(',')[1]), (x) => x.charCodeAt(0)));
+        const p1 = d.addPage([595, 842]);
+        p1.drawText('Rapport trimestriel', { x: 60, y: 770, size: 26, font: HB, color: rgb(0.05, 0.2, 0.6) });
+        p1.drawText('Texte courant en Helvetica 12 pt, noir.', { x: 60, y: 730, size: 12, font: H });
+        p1.drawText('Citation en Times italique 14 pt, rouge.', { x: 60, y: 705, size: 14, font: TI, color: rgb(0.8, 0.1, 0.1) });
+        p1.drawText('code = 42; // Courier 10 pt', { x: 60, y: 682, size: 10, font: CO, color: rgb(0.1, 0.5, 0.2) });
+        // tableau 3 × 3
+        const rows = [['Classe', 'Élèves', 'Moyenne'], ['6e A', '32', '12,4'], ['6e B', '29', '13,1']];
+        rows.forEach((r, i) => r.forEach((v, j) => { const x = 60 + j * 150, y = 620 - i * 28; p1.drawRectangle({ x, y: y - 8, width: 150, height: 28, borderColor: rgb(0, 0, 0), borderWidth: 1, color: i === 0 ? rgb(0.9, 0.93, 1) : undefined }); p1.drawText(v, { x: x + 8, y, size: 11, font: i === 0 ? HB : H }); }));
+        // diagramme en barres
+        [80, 140, 110, 170].forEach((h, i) => p1.drawRectangle({ x: 80 + i * 60, y: 300, width: 40, height: h, color: [rgb(0.2, 0.4, 0.9), rgb(0.95, 0.7, 0), rgb(0.1, 0.6, 0.3), rgb(0.8, 0.2, 0.2)][i] }));
+        p1.drawLine({ start: { x: 70, y: 300 }, end: { x: 330, y: 300 }, thickness: 1.5 }); p1.drawText('Résultats par trimestre', { x: 80, y: 485, size: 12, font: HB });
+        p1.drawImage(png, { x: 380, y: 320, width: 160, height: 96 });
+        const p2 = d.addPage([595, 842]); p2.drawText('Page 2 : deux colonnes', { x: 60, y: 780, size: 18, font: HB });
+        for (let i = 0; i < 10; i++) { p2.drawText('Colonne gauche, ligne ' + (i + 1), { x: 60, y: 740 - i * 18, size: 11, font: H }); p2.drawText('Colonne droite ' + (i + 1), { x: 330, y: 740 - i * 18, size: 11, font: H }); }
+        const p3 = d.addPage([842, 595]); p3.drawText("Page 3 à l'italienne",{ x: 60, y: 530, size: 20, font: HB, color: rgb(0.4, 0.1, 0.6) });
+        const src = await d.save(); await T.insertPdf(src); T.S.cur = 0; T.refresh(); await wait(500);
+        const pages = await layoutOfDocument();
+        out.pages = pages.length + ' pages : ' + pages.map((p) => Math.round(p.w) + '×' + Math.round(p.h)).join(', ');
+        const all = pages.flatMap((p) => p.lines.flatMap((l) => l.runs));
+        const find = (s) => all.find((r) => r.text.includes(s)) || {};
+        out.titre = [find('Rapport').font, find('Rapport').bold, Math.round(find('Rapport').size), find('Rapport').color].join(' ');
+        out.italique = [find('Citation').font, find('Citation').italic, find('Citation').color].join(' ');
+        out.courier = [find('code').font, find('code').color].join(' ');
+        out.cellules = ['Classe', 'Élèves', 'Moyenne', '6e A', '12,4'].every((s) => pages[0].lines.some((l) => l.runs.map((r) => r.text).join('') === s)) ? 'une ligne par cellule' : 'MÉLANGÉES';
+        out.colonnes = pages[1].lines.filter((l) => /Colonne droite/.test(l.runs[0].text)).length + ' lignes à droite';
+        out.fondSansTexte = pages[0].bg.length > 10000;
+        const r1 = await window.api.exportDocxLayout(pages, 'conversion.docx', 'docx'); const r2 = await window.api.exportPptxLayout(pages, 'conversion.pptx', 'pptx');
+        out.fichiers = [r1, r2].map((x) => x && x.split(/[\\\\/]/).pop()).join(', ');
+        return out;
+      } catch (e) { throw new Error(String(e && (e.stack || e)).slice(0, 500)); } })()`, 120000);
+      try { // structure du fichier Word produit
+        const JSZip = require('jszip'); const z = await JSZip.loadAsync(fs.readFileSync(path.join(outDir, 'conversion.docx'))); const x = await z.file('word/document.xml').async('string');
+        const sizes = [...x.matchAll(/<w:pgSz w:w="(\d+)" w:h="(\d+)"/g)].map((m) => Math.round(m[1] / 20) + '×' + Math.round(m[2] / 20));
+        const fonts = [...new Set([...x.matchAll(/w:ascii="([^"]+)"/g)].map((m) => m[1]))];
+        const colors = [...new Set([...x.matchAll(/<w:color w:val="([0-9A-Fa-f]{6})"/g)].map((m) => m[1].toLowerCase()))];
+        const info = { pagesWord: sizes.length + ' : ' + sizes.join(', '), cadres: (x.match(/<w:framePr/g) || []).length, imagesDeFond: (x.match(/behindDoc="1"/g) || []).length, polices: fonts.join(', '), couleurs: colors.length };
+        const ok = sizes.join(',') === '595×842,595×842,842×595' && info.cadres > 30 && info.imagesDeFond === 3 && fonts.includes('Times New Roman') && fonts.includes('Courier New') && colors.length >= 4;
+        log((ok ? 'OK   ' : 'FAIL ') + 'conversion-word-structure', JSON.stringify(info));
+      } catch (e) { log('FAIL conversion-word-structure', e.stack); }
       await step('langue', `(async () => {
         const F = window.__features; const q = (s) => document.querySelector(s); const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const out = {};
         const T = window.__edupdf; T.S.dirty = false;

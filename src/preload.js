@@ -82,6 +82,8 @@ contextBridge.exposeInMainWorld('api', {
   adminPickFolder: () => ipcRenderer.invoke('admin-pick-folder'),
   scan: () => ipcRenderer.invoke('scan'),
   ocr: (dataUrl, langs) => ipcRenderer.invoke('ocr', { dataUrl, langs }),
+  exportDocxLayout: (pages, defaultName, format) => ipcRenderer.invoke('export-docx-layout', { pages, defaultName, format }),
+  exportPptxLayout: (pages, defaultName, format) => ipcRenderer.invoke('export-pptx-layout', { pages, defaultName, format }),
   exportDocx: (pages, defaultName) => ipcRenderer.invoke('export-docx', { pages, defaultName }),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   showInFolder: (p) => ipcRenderer.invoke('show-in-folder', p),

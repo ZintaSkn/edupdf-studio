@@ -960,6 +960,51 @@ ipcMain.handle('ocr', async (_e, { dataUrl, langs }) => {
 });
 
 // ---------- IPC : export Word (.docx) ----------
+// ---------- Mise en page identique : Word (et formats LibreOffice dérivés) et PowerPoint
+const LAYOUT = { ascent: 0.93, line: 1.22 }; // position de la ligne de base dans le cadre, hauteur de ligne (en taille de police)
+function layoutDocx(pages) {
+  const { Document, Paragraph, TextRun, ImageRun, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType, LineRuleType, SectionType, HeightRule } = require('docx');
+  const tw = (pt) => Math.max(0, Math.round(pt * 20)); const px = (pt) => Math.round(pt * 96 / 72);
+  const safe = (s) => String(s || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const sections = pages.slice(0, 2000).map((p) => ({
+    properties: { type: SectionType.NEXT_PAGE, page: { size: { width: tw(p.w), height: tw(p.h) }, margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0, gutter: 0 } } },
+    children: [
+      new Paragraph({ spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT }, children: [new ImageRun({ data: Buffer.from(p.bg), transformation: { width: px(p.w), height: px(p.h) },
+        floating: { horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 }, verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 }, behindDocument: true, allowOverlap: true, lockAnchor: true, wrap: { type: TextWrappingType.NONE } } })] }),
+      ...(p.lines || []).slice(0, 5000).map((l) => new Paragraph({
+        frame: { type: 'absolute', position: { x: tw(l.x), y: tw(l.yb - LAYOUT.ascent * l.size) }, width: tw(l.w * 1.12 + 1.5 * l.size), height: tw(l.size * LAYOUT.line), rule: HeightRule.EXACT, anchor: { horizontal: 'page', vertical: 'page' } },
+        spacing: { before: 0, after: 0, line: tw(l.size * LAYOUT.line), lineRule: LineRuleType.EXACT },
+        children: (l.runs || []).map((r) => new TextRun({ text: safe(r.text), font: r.font || 'Arial', size: Math.max(2, Math.round(r.size * 2)), bold: !!r.bold, italics: !!r.italic, color: /^#[0-9a-f]{6}$/i.test(r.color) ? r.color.slice(1) : '000000' }))
+      }))
+    ]
+  }));
+  return new Document({ creator: 'SknEDU-studio', sections });
+}
+ipcMain.handle('export-docx-layout', async (_e, { pages, defaultName, format = 'docx' }) => {
+  license.requirePremium('Conversion PDF → Word'); admin.guard('convert', 'Convertir en ' + format);
+  const { Packer } = require('docx'); const buf = await Packer.toBuffer(layoutDocx(pages));
+  if (format === 'docx') return saveAs(buf, defaultName, 'docx');
+  const t = OFFICE_TARGETS[format]; if (!t) throw new Error('Format inconnu : ' + format);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-x-')); const src = path.join(dir, 'document.docx'); fs.writeFileSync(src, buf);
+  try { return saveAs(await convertWithOffice(src, t.f), defaultName, format); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+ipcMain.handle('export-pptx-layout', async (_e, { pages, defaultName, format = 'pptx' }) => {
+  license.requirePremium('Conversion PDF → PowerPoint'); admin.guard('convert', 'Convertir en ' + format);
+  const PptxGenJS = require('pptxgenjs'); const pptx = new PptxGenJS();
+  const W = pages[0].w / 72, H = pages[0].h / 72; pptx.defineLayout({ name: 'EDUPDF', width: W, height: H }); pptx.layout = 'EDUPDF';
+  for (const p of pages.slice(0, 2000)) {
+    const sl = pptx.addSlide(); const k = Math.min(W / (p.w / 72), H / (p.h / 72)); const ox = (W - p.w / 72 * k) / 2, oy = (H - p.h / 72 * k) / 2; const inch = (pt) => pt / 72 * k;
+    sl.addImage({ data: 'image/jpeg;base64,' + Buffer.from(p.bg).toString('base64'), x: ox, y: oy, w: p.w / 72 * k, h: p.h / 72 * k });
+    for (const l of (p.lines || []).slice(0, 3000)) {
+      sl.addText((l.runs || []).map((r) => ({ text: String(r.text || ''), options: { fontFace: r.font || 'Arial', fontSize: Math.max(1, Math.round(r.size * k * 2) / 2), bold: !!r.bold, italic: !!r.italic, color: /^#[0-9a-f]{6}$/i.test(r.color) ? r.color.slice(1) : '000000' } })),
+        { x: ox + inch(l.x), y: oy + inch(l.yb - LAYOUT.ascent * l.size), w: inch(l.w * 1.12 + 1.5 * l.size), h: inch(l.size * LAYOUT.line), margin: 0, valign: 'top', fit: 'none', wrap: false, paraSpaceBefore: 0, paraSpaceAfter: 0 });
+    }
+  }
+  const buf = await pptx.write({ outputType: 'nodebuffer' });
+  if (format === 'pptx') return saveAs(buf, defaultName, 'pptx');
+  const t = OFFICE_TARGETS[format]; const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edupdf-x-')); const src = path.join(dir, 'document.pptx'); fs.writeFileSync(src, buf);
+  try { return saveAs(await convertWithOffice(src, t.f), defaultName, format); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
 ipcMain.handle('export-docx', async (_e, { pages, defaultName }) => {
   license.requirePremium('Conversion PDF → Word');
   admin.guard('convert', 'Convertir en Word');
