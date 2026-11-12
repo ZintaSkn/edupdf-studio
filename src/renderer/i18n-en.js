@@ -60,7 +60,7 @@ window.EN_EXTRA = {
   "🔍 OCR : rendre les scans et les copies numérisées modifiables": "🔍 OCR: make scans and scanned copies editable",
   "🔄 Conversions PDF ↔ Word, Excel, PowerPoint et format d'origine": "🔄 PDF ↔ Word, Excel, PowerPoint conversions and original format",
   "✨ Assistant IA (Claude, ChatGPT, Gemini, Mistral, IA locale)": "✨ AI assistant (Claude, ChatGPT, Gemini, Mistral, local AI)",
-  "🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, équations": "🎓 Classroom tools: grading, differentiated tests, mail merge, bilingual version, connected classroom, equations",
+  "🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, dossier d'échange, équations": "🎓 Classroom tools: grading, differentiated tests, mail merge, bilingual version, connected classroom, exchange folder, equations",
   "🔒 Mot de passe, signature numérique par certificat, comparaison, copie commentée en lecture seule": "🔒 Password, certificate signature, comparison, read-only commented copy",
   "🧰 Sauvegarde automatique dans le cloud, en-tête et pied de page, filigrane, réduction de taille": "🧰 Automatic cloud backup, header and footer, watermark, size reduction",
   "La date de l'ordinateur est antérieure à la dernière utilisation : corrigez la date et l'heure de Windows pour retrouver votre essai.": "The computer's date is earlier than its last use: correct the Windows date and time to get your trial back.",
@@ -681,5 +681,13 @@ window.EN_PATTERNS = [
   [/^Ajusté \((\d+ %)\)$/, 'Fitted ($1)'],
   [/^Indiquez une note entre 0 et (.+)\.$/, 'Enter a grade between 0 and $1.'],
   [/^Note (\S+) inscrite(?: — (.+))?\. Cliquez sur une autre copie pour noter, ou sur l'outil pour l'arrêter\.$/, (m, s, a) => `Grade ${s} written${a ? ' — ' + ((window.EN_EXTRA && window.EN_EXTRA[a]) || a) : ''}. Click another paper to grade it, or the tool to stop.`],
-  [/^(\d+) note\(s\) — moyenne sur 20 : $/, '$1 grade(s) — average out of 20: ']
+  [/^(\d+) note\(s\) — moyenne sur 20 : $/, '$1 grade(s) — average out of 20: '],
+  [/^📂 (\d+) nouvelle\(s\) copie\(s\)$/, '📂 $1 new paper(s)'],
+  [/^(\d+) nouvelle\(s\)$/, '$1 new'],
+  [/^⚠ (\d+) fichier\(s\) ignoré\(s\)$/, '⚠ $1 file(s) ignored'],
+  [/^(\d+) copie\(s\) ouverte\(s\) : (.+)$/, '$1 paper(s) opened: $2'],
+  [/^« (.+) » déposé pour (\d+) élève\(s\) de la classe (.+)\.$/, '“$1” handed out to $2 student(s) in class $3.'],
+  [/^Corrigé rendu à (.+)\.$/, 'Graded work returned to $1.'],
+  [/^Classe (.+) retirée\. Ses dossiers restent dans votre cloud\.$/, 'Class $1 removed. Its folders remain in your cloud.'],
+  [/^Dossier d'échange — (.+)$/, 'Exchange folder — $1']
 ];

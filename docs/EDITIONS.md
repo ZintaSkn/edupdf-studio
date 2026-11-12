@@ -16,7 +16,7 @@ reste utilisable sans limite de durée ; les fonctions Premium demandent une lic
 | 🔍 OCR : rendre les scans et les copies numérisées modifiables | | ✅ | ✅ |
 | 🔄 Conversions PDF ↔ Word, Excel, PowerPoint, format d'origine | | ✅ | ✅ |
 | ✨ Assistant IA (Claude, ChatGPT, Gemini, Mistral, IA locale) | | ✅ | ✅ |
-| 🎓 Correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, équations | | ✅ | ✅ |
+| 🎓 Correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, dossier d'échange (cloud), équations | | ✅ | ✅ |
 | 🔒 Mot de passe, signature par certificat, comparaison, copie commentée en lecture seule | | ✅ | ✅ |
 | 🧰 Sauvegarde automatique dans le cloud, en-tête / pied de page, filigrane, réduction de taille | | ✅ | ✅ |
 | 🛡️ Administration des postes (droits, journal, notifications), licence pour tout le PC | | | ✅ |

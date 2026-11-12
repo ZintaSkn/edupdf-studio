@@ -463,6 +463,62 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
         log('OK   classe-connectee', JSON.stringify({ qr: st.qr, page: page.code, pdf: doc.body.subarray(0, 5).toString(), rendu: post.code, merci: post.body.includes('Copie reçue'), recues: status.received.map((r) => r.eleve), jetonInvalide: bad.code }));
       } catch (e) { log('FAIL classe-connectee', e.stack); results.classe = { error: e.message }; }
+      // ---------- Dossier d'échange : un dossier cloud par élève (distribution, copies rendues, corrigés) ----------
+      try {
+        const cloudDir = path.join(outDir, 'cloud'); fs.mkdirSync(cloudDir, { recursive: true });
+        const made = await js(`(async () => {
+          const l = await window.api.exchangeList(); const cloud = l.clouds.find((c) => c.name === 'Test');
+          const s = await window.api.exchangeCreate({ cloudPath: cloud.path, name: '6e A', eleves: ['Awa Koné', 'Yao Kouassi', '../../pirate', 'CON', 'awa KONÉ', '---'] });
+          const d = await window.api.exchangeDistribute({ id: s.id, bytes: await window.__edupdf.buildPdf(), fileName: '../Fiche 1.pdf' });
+          const refus = [];
+          try { await window.api.exchangeCreate({ cloudPath: 'C:/Windows', name: 'x', eleves: ['a'] }); refus.push('cloud accepté'); } catch (e) { refus.push('cloud inconnu refusé'); }
+          try { await window.api.exchangeReturn({ id: s.id, eleve: '..', bytes: await window.__edupdf.buildPdf(), fileName: 'x.pdf' }); refus.push('élève accepté'); } catch (e) { refus.push('élève inconnu refusé'); }
+          const c = s.classes.find((x) => x.id === s.id);
+          return { id: s.id, dir: c.dir, eleves: c.eleves.map((e) => e.nom), distribue: d.count + ' × ' + d.name, refus };
+        })()`);
+        const SUB = require('./exchange')._test.SUB; const awa = path.join(made.dir, 'Awa Koné');
+        const fiche = path.join(awa, SUB.todo, 'Fiche 1.pdf'); const old = new Date(Date.now() - 10000);
+        const copie = path.join(awa, SUB.done, 'Ma copie.pdf'); fs.copyFileSync(fiche, copie); fs.utimesSync(copie, old, old);
+        const faux = path.join(awa, SUB.done, 'Faux.pdf'); fs.writeFileSync(faux, 'pas un PDF'); fs.utimesSync(faux, old, old);
+        fs.writeFileSync(path.join(awa, SUB.done, 'programme.exe'), 'MZ'); fs.writeFileSync(path.join(awa, SUB.done, '.cache.tmp'), 'x');
+        const horsClasse = !fs.existsSync(path.join(made.dir, '..', '..', 'pirate')) && !fs.existsSync(path.join(made.dir, '..', 'Fiche 1.pdf'));
+        const got = await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms)); let tag = '';
+          for (let i = 0; i < 40 && !tag; i++) { await wait(250); tag = (document.querySelector('#exTag') || {}).textContent || ''; }
+          const avant = (await window.api.exchangeList()).nouvelles;
+          const rc = await window.api.exchangeCopies({ id: '${made.id}', nouvelles: true }); const cs = rc.copies;
+          const loaded = await window.api.loadPaths(cs.map((x) => x.file));
+          const milieu = (await window.api.exchangeList()).nouvelles; // le faux PDF est écarté, la vraie copie reste nouvelle tant qu'elle n'est pas ouverte
+          const vues = await window.api.exchangeSeen({ id: '${made.id}', items: cs.map((x) => ({ eleve: x.eleve, name: x.name })).concat([{ eleve: 'Awa Koné', name: 'programme.exe' }, { eleve: 'Inconnu', name: 'x.pdf' }]) });
+          const back = await window.api.exchangeReturn({ id: '${made.id}', eleve: 'Awa Koné', bytes: await window.__edupdf.buildPdf(), fileName: 'Ma copie - corrigé' });
+          const l = await window.api.exchangeList(); const a = l.classes[0].eleves.find((e) => e.nom === 'Awa Koné');
+          return { etiquette: tag, nouvellesAvant: avant, nouvellesSansFaux: milieu, faux: rc.faux, marqueesVues: vues, ouvertes: cs.map((x) => x.eleve + ' / ' + x.name), lues: loaded.map((f) => f.kind), nouvellesApres: l.nouvelles, awa: a.aFaire + ' à faire, ' + a.copies.length + ' copie(s), ' + a.corriges + ' corrigé(s), ' + a.ignores + ' ignoré(s)' };
+        })()`);
+        // la fenêtre elle-même : tableau des élèves, ouverture des copies d'un élève, retrait de la classe
+        const copie2 = path.join(made.dir, 'Yao Kouassi', SUB.done, 'Devoir.pdf'); fs.copyFileSync(fiche, copie2); fs.utimesSync(copie2, old, old);
+        const ui = await js(`(async () => {
+          const T = window.__edupdf; const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const q = (x) => document.querySelector(x); const out = {};
+          T.actions.exchange(); for (let i = 0; i < 20 && !q('#mBody [data-ex-open]'); i++) await wait(250);
+          const rows = [...document.querySelectorAll('#mBody [data-ex-open]')];
+          out.lignes = rows.length; out.boutonsActifs = rows.filter((b) => !b.disabled).map((b) => b.dataset.exOpen).join(', ');
+          out.relaisCache = getComputedStyle(q('#mBtns button')).display === 'none'; out.actions = document.querySelectorAll('#mBtns button').length - 1;
+          out.ignoresAffiches = !!q('#mBody .exign'); out.nouvelleAffichee = !!q('#mBody .exnew');
+          rows.find((b) => b.dataset.exOpen === 'Yao Kouassi').click();
+          for (let i = 0; i < 40 && !/Yao Kouassi/.test(q('#msg').textContent); i++) await wait(250);
+          out.message = /Yao Kouassi/.test(q('#msg').textContent); out.fenetreFermee = q('#modal').hidden;
+          out.nouvellesApresOuverture = (await window.api.exchangeList()).nouvelles;
+          await window.api.exchangeRemove({ id: '${made.id}' }); const fin = await window.api.exchangeList();
+          for (let i = 0; i < 20 && q('#exTag'); i++) await wait(250); // l'étiquette suit la surveillance du dossier
+          out.classesApresRetrait = fin.classes.length; out.etiquetteFin = !!q('#exTag'); T.S.dirty = false;
+          return out;
+        })()`);
+        const info = { ...made, id: undefined, dir: path.relative(outDir, made.dir), horsClasse, ...got, fenetre: ui, corrigeSurDisque: fs.existsSync(path.join(awa, SUB.back, 'Ma copie - corrigé.pdf')), dossiersConserves: fs.existsSync(copie) };
+        const ok = made.eleves.join('|') === 'Awa Koné|Yao Kouassi|pirate' && made.distribue === '3 × Fiche 1.pdf' && made.refus.join('|') === 'cloud inconnu refusé|élève inconnu refusé' && horsClasse
+          && /2/.test(got.etiquette) && got.nouvellesAvant === 2 && got.nouvellesSansFaux === 1 && got.faux === 1 && got.marqueesVues === 1 && got.ouvertes.join('|') === 'Awa Koné / Ma copie.pdf' && got.lues.join() === 'pdf' && got.nouvellesApres === 0
+          && got.awa === '1 à faire, 1 copie(s), 1 corrigé(s), 2 ignoré(s)' && info.corrigeSurDisque && ui.lignes === 3 && ui.boutonsActifs === 'Awa Koné, Yao Kouassi' && ui.relaisCache && ui.actions === 6 && ui.ignoresAffiches && ui.nouvelleAffichee && ui.message && ui.fenetreFermee && ui.nouvellesApresOuverture === 0
+          && ui.classesApresRetrait === 0 && !ui.etiquetteFin && info.dossiersConserves;
+        log((ok ? 'OK   ' : 'FAIL ') + 'dossier-echange', JSON.stringify(info)); if (!ok) results.echange = { error: 'résultat inattendu' };
+      } catch (e) { log('FAIL dossier-echange', e.stack); results.echange = { error: e.message }; }
       // ---------- 1.10 : défilement continu, zoom, barres automatiques, texte adapté, modifications, commentaires verrouillés, format d'origine, cloud ----------
       const settingsF = path.join(require('electron').app.getPath('userData'), 'settings.json');
       const editSettings = (fn) => { let st = {}; try { st = JSON.parse(fs.readFileSync(settingsF, 'utf8')); } catch { /* absent */ } fn(st); fs.writeFileSync(settingsF, JSON.stringify(st)); };
@@ -641,7 +697,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const A0 = window.alert, C0 = window.confirm; const alerts = []; window.alert = (m) => alerts.push(String(m).slice(0, 60)); window.confirm = () => false;
         // ouvrent une fenêtre du système (fichier, impression, navigateur), quittent l'affichage normal, ou sont testés à part
         const SKIP = new Set(['open', 'new', 'save', 'saveAs', 'cloudSave', 'cloudOpen', 'fromImages', 'insertFiles', 'scan', 'convertOffice', 'print', 'admin', 'language', 'close', 'certSign',
-          'slideshow', 'slideshowHere', 'speak', 'classroom', 'exportOrigin', 'toWord', 'toExcel', 'toPpt', 'exportAs', 'toImages', 'toText', 'split', 'extract', 'commentLocked',
+          'slideshow', 'slideshowHere', 'speak', 'classroom', 'exchange', 'exportOrigin', 'toWord', 'toExcel', 'toPpt', 'exportAs', 'toImages', 'toText', 'split', 'extract', 'commentLocked',
           'aiSubscription', 'ocrAll', 'ocrPage', 'scanCopy', 'compress', 'protect', 'checkUpdate']);
         const fresh = async () => {
           for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }

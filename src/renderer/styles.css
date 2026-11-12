@@ -335,7 +335,7 @@ pre.notices { max-height: 55vh; overflow: auto; font-size: 11px; white-space: pr
 .clgrid .qr { width: 240px; height: 240px; border: 1px solid var(--line); border-radius: 8px; }
 .clgrid code.url { display: block; margin: 4px 0; padding: 4px 6px; background: #f0f3f8; border-radius: 4px; font-size: 12px; word-break: break-all; }
 .cllist { max-height: 240px; overflow: auto; padding-left: 18px; } .cllist small { color: var(--muted); }
-#classTag { background: var(--brand-gold); color: var(--brand-blue); border: none; border-radius: 10px; padding: 1px 10px; font-weight: 600; cursor: pointer; }
+#classTag, #exTag { background: var(--brand-gold); color: var(--brand-blue); border: none; border-radius: 10px; padding: 1px 10px; font-weight: 600; cursor: pointer; }
 .eqprev { min-height: 60px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); border-radius: 8px; margin: 6px 0; padding: 8px; background: #fff; }
 #showInk { position: absolute; z-index: 405; pointer-events: none; }
 #showInk.on { pointer-events: auto; cursor: crosshair; }
@@ -442,3 +442,5 @@ footer > #msg { flex: 1 1 auto; }
 .grtable th, .grtable td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .grtable th { background: #f2f4fa; }
 #pageBox.t-mark #overlayLayer { cursor: crosshair; }
+.exnew { color: #128a3e; margin-left: 6px; } .grgrid td button { padding: 2px 8px; }
+.exign { color: var(--danger); margin-left: 6px; font-size: 12px; cursor: help; }

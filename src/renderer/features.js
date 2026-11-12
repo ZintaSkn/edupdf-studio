@@ -454,6 +454,125 @@ function classroomTag() {
 }
 window.api.onClassroom((s) => { const qr = CLASS.qr; CLASS = { ...s, qr }; classroomTag(); if (!$('#modal').hidden && $('#mTitle').textContent.startsWith('Classe connectée —')) $('#mBody').innerHTML = classroomHtml(); });
 
+// ================================================================ 6 bis. Dossier d'échange (cloud synchronisé : Google Drive, OneDrive…)
+// Un dossier par élève dans le cloud de l'enseignant : documents à faire, copies rendues, corrigés. Les copies déposées
+// par les élèves apparaissent seules ici ; l'enseignant distribue et rend les corrigés en un clic.
+let EX = { classes: [], clouds: [], nouvelles: 0 }; let EX_CUR = null; let EX_PANEL = false; let EX_PICK = null; const EX_SRC = new Map();
+const exClass = () => EX.classes.find((c) => c.id === EX_CUR) || EX.classes[0] || null;
+async function exchangeReload() { EX = await window.api.exchangeList(); exchangeTag(); return EX; }
+async function exchangeDialog() {
+  try { await exchangeReload(); } catch (e) { return alert('Dossier d\'échange indisponible : ' + errMsg(e)); }
+  return EX.classes.length ? exchangePanel() : exchangeCreate();
+}
+async function exchangeCreate() {
+  if (!EX.clouds.length) {
+    const a = await modal('Dossier d\'échange', `<p>Aucun dossier synchronisé avec un cloud n'a été trouvé sur ce PC.</p>
+      <p>Installez <b>Google Drive pour ordinateur</b> ou <b>OneDrive</b>, ou désignez un dossier déjà synchronisé avec votre cloud.</p>`,
+    [['Annuler', null], ['Choisir un dossier synchronisé…', 'add', true]]);
+    if (a !== 'add' || !(await window.api.cloudAdd())) return;
+    await exchangeReload(); if (!EX.clouds.length) return;
+  }
+  const cur = exClass();
+  const r = await modal('Dossier d\'échange — classe et élèves', `<p>Chaque élève reçoit <b>son propre dossier</b> dans votre cloud : les documents à faire, ses copies rendues et ses corrigés. Il ne voit pas les dossiers des autres.</p>
+    <label class="blk">Cloud <select id="exCloud">${EX.clouds.map((c) => `<option value="${esc(c.path)}">${esc(c.name)} — ${esc(c.path)}</option>`).join('')}</select></label>
+    <label class="blk">Nom de la classe <input type="text" id="exName" maxlength="60" placeholder="6e A" value="${cur ? esc(cur.name) : ''}"></label>
+    <label class="blk">Élèves (un nom par ligne) <textarea id="exList" rows="8" placeholder="Awa Koné&#10;Yao Kouassi"></textarea></label>
+    <p class="muted">Pour ajouter des élèves à une classe existante, reprenez le même nom de classe : les dossiers déjà créés sont conservés.</p>`,
+  [['Annuler', null], ['Créer les dossiers', () => ({ cloudPath: $('#exCloud').value, name: $('#exName').value, eleves: $('#exList').value.split(/\r?\n/) }), true]]);
+  if (!r) return;
+  try { busy('Création des dossiers…'); const s = await window.api.exchangeCreate(r); EX = { ...EX, ...s }; EX_CUR = s.id; done(); exchangeTag(); }
+  catch (e) { done(); return alert('Création impossible : ' + errMsg(e)); }
+  const c = exClass();
+  const a = await modal('Dossier d\'échange — partage aux élèves', `<p>✅ Les dossiers de la classe <b>${esc(c.name)}</b> sont créés pour ${c.eleves.length} élève(s).</p>
+    <p><b>Dernière étape, une seule fois :</b> dans votre cloud, partagez à chaque élève <b>son dossier</b> (droit de modification). Ne partagez pas le dossier de la classe entière : chacun verrait les copies des autres.</p>
+    <code class="url">${esc(c.dir)}</code>`, [['Ouvrir le dossier de la classe', 'folder'], ['Continuer', null, true]]);
+  if (a === 'folder') window.api.exchangeOpenFolder({ id: c.id });
+  return exchangePanel();
+}
+function exchangeHtml() {
+  const c = exClass(); if (!c) return '';
+  const D = EX.dossiers || {};
+  return `${EX.classes.length > 1 ? `<label class="blk">Classe <select id="exSel">${EX.classes.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? ' selected' : ''}>${esc(x.name)}${x.nouvelles ? ` (${x.nouvelles})` : ''}</option>`).join('')}</select></label>` : ''}
+    ${c.ok ? '' : '<p class="err">⚠ Le dossier de cette classe est introuvable : vérifiez que votre cloud est bien synchronisé sur ce PC.</p>'}
+    <div class="grgrid"><table><thead><tr><th>Élève</th><th>📄 À faire</th><th>📥 Copies rendues</th><th>✅ Corrigés</th><th></th></tr></thead><tbody>
+    ${c.eleves.map((e) => { const n = e.copies.filter((f) => f.nouveau).length; return `<tr><td>${esc(e.nom)}</td><td>${e.aFaire}</td><td>${e.copies.length}${n ? ` <b class="exnew">${n} nouvelle(s)</b>` : ''}${e.ignores ? ` <span class="exign" title="Type de fichier non pris en charge, faux PDF ou fichier de plus de ${EX.maxMo || 50} Mo.">⚠ ${e.ignores} fichier(s) ignoré(s)</span>` : ''}</td><td>${e.corriges}</td>
+      <td><button data-ex-open="${esc(e.nom)}"${e.copies.length ? '' : ' disabled'}>Ouvrir ses copies</button></td></tr>`; }).join('')}
+    </tbody></table></div>
+    <p class="muted">Dossier : <code>${esc(c.dir)}</code> — chaque élève dépose sa copie dans « ${esc(D.done || '')} » ; elle apparaît ici dès que le cloud l'a synchronisée.</p>
+    <p><button id="exDel">Retirer cette classe du logiciel</button></p>`;
+}
+function exchangeBind() {
+  const s = $('#exSel'); if (s) s.onchange = () => { EX_CUR = s.value; $('#mBody').innerHTML = exchangeHtml(); exchangeBind(); };
+  document.querySelectorAll('#mBody [data-ex-open]').forEach((b) => { b.onclick = () => { EX_PICK = { eleve: b.dataset.exOpen }; $('#mBtns button').click(); }; });
+  const d = $('#exDel'); if (d) d.onclick = () => { EX_PICK = { remove: true }; $('#mBtns button').click(); };
+}
+async function exchangePanel() {
+  const c0 = exClass(); if (!c0) return exchangeCreate();
+  EX_PICK = null; EX_PANEL = true;
+  const p = modal('Dossier d\'échange — ' + c0.name, exchangeHtml(), [['↗', 'pick'], ['Fermer', null], ['Classe et élèves…', 'new'], ['Ouvrir le dossier', 'folder'], ['Rendre un corrigé…', 'back'], ['Distribuer le document ouvert', 'give'], ['Ouvrir les nouvelles copies', 'open', true]]);
+  $('#mBtns button').style.display = 'none'; $('#modal .mbox').classList.add('wide'); exchangeBind(); // 1er bouton : relais invisible des boutons du tableau
+  const r = await p; EX_PANEL = false; $('#modal .mbox').classList.remove('wide');
+  const c = exClass(); if (!r || !c) return;
+  if (r === 'new') return exchangeCreate();
+  if (r === 'folder') { window.api.exchangeOpenFolder({ id: c.id }); return; }
+  if (r === 'pick' && EX_PICK && EX_PICK.remove) {
+    if (!confirm(`Retirer la classe « ${c.name} » du logiciel ?\nLes dossiers et les copies restent dans votre cloud.`)) return exchangePanel();
+    EX = { ...EX, ...(await window.api.exchangeRemove({ id: c.id })) }; EX_CUR = null; exchangeTag(); msg(`Classe ${c.name} retirée. Ses dossiers restent dans votre cloud.`); return;
+  }
+  if (r === 'pick') return EX_PICK && EX_PICK.eleve ? exchangeOpen(c, EX_PICK.eleve) : undefined;
+  if (r === 'open') return exchangeOpen(c, null);
+  if (r === 'give') return exchangeGive(c);
+  if (r === 'back') return exchangeBack(c);
+}
+async function exchangeOpen(c, eleve) {
+  try {
+    const r = await window.api.exchangeCopies({ id: c.id, eleve: eleve || undefined, nouvelles: !eleve }); const list = r.copies;
+    if (!list.length) return alert(r.enCours ? 'Les copies sont encore en cours de synchronisation : réessayez dans un instant.' : eleve ? 'Aucune copie lisible rendue par cet élève.' : 'Aucune nouvelle copie pour l\'instant.');
+    busy('Ouverture des copies…');
+    const loaded = await window.api.loadPaths(list.map((x) => x.file));
+    const ok = list.filter((x, i) => loaded[i] && !loaded[i].error); // une copie illisible reste « nouvelle » : elle sera reproposée
+    if (!ok.length) { done(); return alert('Ouverture impossible : ' + ((loaded[0] && loaded[0].error) || 'copie illisible')); }
+    if (S.pages.length) newTab(); else resetDoc(); await handleLoaded(loaded, 0);
+    const who = [...new Set(ok.map((x) => x.eleve))];
+    S.fileName = who.length === 1 ? `${who[0]} - ${ok.length === 1 ? ok[0].name.replace(/\.[^.]*$/, '') : 'copies'}.pdf` : `Copies - ${c.name}.pdf`;
+    if (who.length === 1) EX_SRC.set(S.fileName, { id: c.id, eleve: who[0] });
+    await window.api.exchangeSeen({ id: c.id, items: ok.map((x) => ({ eleve: x.eleve, name: x.name })) });
+    done(`${ok.length} copie(s) ouverte(s) : ${who.join(', ')}`);
+  } catch (e) { done(); alert('Ouverture impossible : ' + errMsg(e)); }
+  exchangeReload().catch(() => {});
+}
+async function exchangeGive(c) {
+  if (!S.pages.length) return alert('Ouvrez d\'abord le document à distribuer (fiche, évaluation, formulaire…).');
+  const r = await modal('Distribuer aux élèves', `<p>Le document ouvert sera déposé dans le dossier « ${esc((EX.dossiers || {}).todo || '')} » des <b>${c.eleves.length}</b> élève(s) de la classe <b>${esc(c.name)}</b>.</p>
+    <label class="blk">Nom du fichier <input type="text" id="exFile" maxlength="120" value="${esc(baseName())}"></label>`,
+  [['Annuler', null], ['Distribuer', () => ({ fileName: $('#exFile').value || baseName() }), true]]);
+  if (!r) return;
+  try { busy('Distribution du document…'); const s = await window.api.exchangeDistribute({ id: c.id, bytes: await buildPdf(), fileName: r.fileName }); done(`« ${s.name} » déposé pour ${s.count} élève(s) de la classe ${c.name}.`);
+    if (s.echecs && s.echecs.length) alert(`Le document n'a pas pu être déposé pour ${s.echecs.length} élève(s) : ${s.echecs.join(', ')}.\nVérifiez que votre cloud est bien synchronisé, puis distribuez à nouveau.`); }
+  catch (e) { done(); alert('Distribution impossible : ' + errMsg(e)); }
+  exchangeReload().catch(() => {});
+}
+async function exchangeBack(c) {
+  if (!S.pages.length) return alert('Ouvrez d\'abord la copie corrigée à rendre.');
+  const src = EX_SRC.get(S.fileName); const pre = src && src.id === c.id ? src.eleve : '';
+  const r = await modal('Rendre un corrigé', `<p>Le document ouvert sera déposé dans le dossier « ${esc((EX.dossiers || {}).back || '')} » de l'élève.</p>
+    <label class="blk">Élève <select id="exWho">${c.eleves.map((e) => `<option${e.nom === pre ? ' selected' : ''}>${esc(e.nom)}</option>`).join('')}</select></label>
+    <label class="blk">Nom du fichier <input type="text" id="exFile" maxlength="120" value="${esc(baseName().replace(/ - corrigé$/, '') + ' - corrigé')}"></label>`,
+  [['Annuler', null], ['Rendre le corrigé', () => ({ eleve: $('#exWho').value, fileName: $('#exFile').value || baseName() }), true]]);
+  if (!r) return;
+  try { busy('Dépôt du corrigé…'); await window.api.exchangeReturn({ id: c.id, eleve: r.eleve, bytes: await buildPdf(), fileName: r.fileName }); done(`Corrigé rendu à ${r.eleve}.`); }
+  catch (e) { done(); alert('Dépôt impossible : ' + errMsg(e)); }
+  exchangeReload().catch(() => {});
+}
+function exchangeTag() {
+  let t = $('#exTag'); const n = EX.nouvelles || 0;
+  if (!n) { if (t) t.remove(); return; }
+  if (!t) { t = document.createElement('button'); t.id = 'exTag'; t.onclick = () => exchangeDialog(); $('footer').insertBefore(t, $('#update')); }
+  t.textContent = `📂 ${n} nouvelle(s) copie(s)`;
+}
+window.api.onExchange((s) => { EX = { ...EX, ...s }; exchangeTag(); if (EX_PANEL && !$('#modal').hidden) { $('#mBody').innerHTML = exchangeHtml(); exchangeBind(); } });
+window.api.exchangeList().then((s) => { EX = s; exchangeTag(); }).catch(() => {});
+
 // ================================================================ 7. IA locale intégrée (hors ligne, gratuite)
 async function aiLocalDialog() {
   const r = await modal('IA locale (hors ligne, gratuite)', `<p>Installe un moteur d'IA sur ce PC : les demandes ne quittent jamais l'ordinateur et fonctionnent sans Internet.</p>
@@ -584,6 +703,14 @@ const EN = {
   'Insérer dans le document': 'Insert into document', 'Exporter en Word': 'Export to Word', 'Coller la réponse': 'Paste answer', 'Traitement…': 'Working…',
   'Rechercher…': 'Find…', 'Remplacer par…': 'Replace with…', 'Valider': 'OK', 'Créer': 'Create', 'Continuer': 'Continue', 'Nouvel onglet': 'New tab',
   'Corriger des copies': 'Grade papers', 'Évaluations différenciées': 'Differentiated tests', 'Publipostage': 'Mail merge', 'Classe connectée': 'Connected classroom',
+  'Dossier d\'échange': 'Exchange folder', 'Dossier d\'échange — classe et élèves': 'Exchange folder — class and students', 'Dossier d\'échange — partage aux élèves': 'Exchange folder — sharing with students',
+  'Un dossier par élève dans votre cloud (Google Drive, OneDrive…) : distribuez un document, recevez les copies automatiquement et rendez les corrigés.': 'One folder per student in your cloud (Google Drive, OneDrive…): hand out a document, receive papers automatically and return graded work.',
+  'Élève': 'Student', '📄 À faire': '📄 To do', '📥 Copies rendues': '📥 Papers handed in', '✅ Corrigés': '✅ Graded', 'Ouvrir ses copies': 'Open papers',
+  'Classe et élèves…': 'Class and students…', 'Ouvrir le dossier': 'Open folder', 'Rendre un corrigé…': 'Return graded work…', 'Distribuer le document ouvert': 'Hand out the open document',
+  'Ouvrir les nouvelles copies': 'Open new papers', 'Créer les dossiers': 'Create folders', 'Distribuer': 'Hand out', 'Rendre le corrigé': 'Return graded work', 'Distribuer aux élèves': 'Hand out to students',
+  'Rendre un corrigé': 'Return graded work', 'Nom de la classe': 'Class name', 'Nom du fichier': 'File name', 'Ouvrir le dossier de la classe': 'Open the class folder',
+  'Retirer cette classe du logiciel': 'Remove this class from the app', 'Élèves (un nom par ligne)': 'Students (one name per line)', 'Choisir un dossier synchronisé…': 'Choose a synced folder…',
+  'Création des dossiers…': 'Creating folders…', 'Ouverture des copies…': 'Opening papers…', 'Distribution du document…': 'Handing out the document…', 'Dépôt du corrigé…': 'Returning graded work…',
   'Version adaptée (DYS)': 'Accessible version (dyslexia)', 'Lire à voix haute': 'Read aloud', 'Version bilingue': 'Bilingual version', 'IA locale (hors ligne)': 'Local AI (offline)',
   'Édition Communauté': 'Community edition', 'Licences des composants': 'Component licenses', 'Code source': 'Source code', 'Politique de marque': 'Trademark policy'
 };
@@ -668,10 +795,10 @@ async function languageDialog() {
 
 // ================================================================ Branchement dans l'interface
 Object.assign(actions, {
-  grading: gradingDialog, diffEval: diffEvalDialog, mailMerge: mailMergeDialog, dys: dysDialog, speak: speakToggle, classroom: classroomDialog,
+  grading: gradingDialog, diffEval: diffEvalDialog, mailMerge: mailMergeDialog, dys: dysDialog, speak: speakToggle, classroom: classroomDialog, exchange: exchangeDialog,
   aiLocal: aiLocalDialog, equation: equationDialog, bilingual: bilingualDialog, language: languageDialog
 });
-Object.assign(FEATURE_OF.act, { grading: 'edit', diffEval: 'ai', mailMerge: 'save', dys: 'convert', classroom: 'save', aiLocal: 'ai', equation: 'edit', bilingual: 'ai' });
+Object.assign(FEATURE_OF.act, { grading: 'edit', diffEval: 'ai', mailMerge: 'save', dys: 'convert', classroom: 'save', exchange: 'cloud', aiLocal: 'ai', equation: 'edit', bilingual: 'ai' });
 (function initFeatures() {
   LANG = store.get('edupdf.lang') || ((navigator.language || 'fr').startsWith('fr') ? 'fr' : 'en');
   document.documentElement.lang = LANG;

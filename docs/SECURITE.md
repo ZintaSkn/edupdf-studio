@@ -92,6 +92,10 @@ Principe : **ne jamais faire confiance à l'interface**, même si un document pi
   types, tailles, droits d'établissement, droits Premium.
 - **Lecture de fichiers** : seulement les fichiers déposés par l'utilisateur (chemin calculé hors de la page),
   ouverts par double-clic dans l'Explorateur, récents, ou rendus par les élèves. Un chemin inventé par la page est refusé.
+- **Dossier d'échange (cloud synchronisé)** : la liste des classes et des élèves vient des réglages du poste, jamais du
+  dossier partagé ; seuls des fichiers ordinaires d'un type pris en charge (50 Mo au plus) sont proposés, chacun autorisé
+  individuellement ; un faux PDF est écarté ; les noms de classe, d'élève et de fichier sont réduits aux caractères sûrs
+  et l'écriture reste confinée au dossier de la classe. Preuve : étape `dossier-echange` de l'auto-test.
 - **Écriture** : seulement dans les fichiers ouverts ou choisis dans une fenêtre d'enregistrement.
 - **Certificats de signature et fichiers Office protégés** : seulement ceux choisis par l'utilisateur.
 - **Liens** : seulement `https://` et `mailto:` ; aucune navigation, aucune nouvelle fenêtre, aucune vue web intégrée.

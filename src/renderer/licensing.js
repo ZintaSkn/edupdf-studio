@@ -12,7 +12,7 @@ const PREMIUM_GROUPS = {
   ocr: '🔍 OCR : rendre les scans et les copies numérisées modifiables',
   convert: '🔄 Conversions PDF ↔ Word, Excel, PowerPoint et format d\'origine',
   ai: '✨ Assistant IA (Claude, ChatGPT, Gemini, Mistral, IA locale)',
-  classe: '🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, équations',
+  classe: '🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, dossier d\'échange, équations',
   protect: '🔒 Mot de passe, signature numérique par certificat, comparaison, copie commentée en lecture seule',
   pro: '🧰 Sauvegarde automatique dans le cloud, en-tête et pied de page, filigrane, réduction de taille'
 };
@@ -21,7 +21,7 @@ const PREMIUM_ACTS = {
   ocrPage: 'ocr', ocrAll: 'ocr', editAfterOcr: 'ocr', scanCopy: 'ocr',
   toWord: 'convert', toExcel: 'convert', toPpt: 'convert', exportAs: 'convert', convertOffice: 'convert', exportOrigin: 'convert',
   aiPanel: 'ai', aiSettings: 'ai', aiSubscription: 'ai', aiLocal: 'ai',
-  grading: 'classe', diffEval: 'classe', mailMerge: 'classe', bilingual: 'classe', classroom: 'classe', equation: 'classe',
+  grading: 'classe', diffEval: 'classe', mailMerge: 'classe', bilingual: 'classe', classroom: 'classe', exchange: 'classe', equation: 'classe',
   protect: 'protect', certSign: 'protect', compare: 'protect', commentLocked: 'protect',
   cloudAuto: 'pro', headerFooter: 'pro', watermark: 'pro', compress: 'pro'
 };
