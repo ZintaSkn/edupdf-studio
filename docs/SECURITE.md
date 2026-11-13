@@ -53,7 +53,7 @@ lui-même. Pour l'obtenir : faire réaliser un audit ASVS niveau 3 par un presta
 |---|---|
 | Application → Internet (licences, mises à jour, IA en ligne, polices) | **TLS 1.3 minimum** imposé (`tls.DEFAULT_MIN_VERSION` et `ssl-version-min`) ; toute connexion plus ancienne est refusée |
 | Service d'activation | TLS 1.3, HSTS, certificat surveillé chaque jour (alerte à moins de 14 jours de l'échéance) |
-| Classe connectée (réseau local de la classe) | **Exception** : HTTP sur le réseau local, car un certificat valable est impossible sur une adresse locale. Atténuations : jeton aléatoire de 72 bits, seuls des PDF sont acceptés, session arrêtée par l'enseignant, aucun accès à Internet |
+| Classe connectée (réseau local de la classe) | **Exception** : HTTP sur le réseau local, car un certificat valable est impossible sur une adresse locale. Atténuations : jeton aléatoire de 72 bits, seuls des PDF et des photos sont acceptés (type vérifié d'après le contenu), chaque copie est réécrite page par page puis verrouillée (AES-256, mot de passe de modification aléatoire jamais conservé), session arrêtée par l'enseignant, aucun accès à Internet |
 | IA locale Ollama | **Exception** : HTTP sur `127.0.0.1` uniquement (ne quitte pas l'ordinateur) |
 
 ### Données chiffrées par le logiciel

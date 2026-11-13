@@ -371,7 +371,7 @@ if (!app.requestSingleInstanceLock()) {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
     codeupdate.init({ app, net: require('electron').net });
-    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win });
+    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)) });
     exchange.init({ app, ipcMain, shell, guard: admin.guard, logEvent: admin.logEvent, premium: license.requirePremium, getWin: () => win, readSettings: () => readSettings(), writeSettings: (v) => writeSettings(v), grant: (f) => grantPath(f), docExt: () => ALL_EXT,
       roots: () => { const l = cloud.detect(readSettings().clouds || []); const t = process.env.EDUPDF_SELFTEST && path.join(process.env.EDUPDF_SELFTEST, 'cloud'); if (t && fs.existsSync(t)) l.push({ id: 'custom', name: 'Test', path: t }); return l; } });
     ai.init({ app, ipcMain, safeStorage: require('electron').safeStorage, guard: admin.guard, logEvent: admin.logEvent });

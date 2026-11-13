@@ -424,19 +424,40 @@ async function classroomDialog() {
   const r = await modal('Classe connectée', `<p>Les élèves connectés au <b>même Wi-Fi</b> que ce PC ouvrent le document en scannant un QR code, puis rendent leur copie. Aucune connexion Internet n'est nécessaire.</p>
     <label class="blk">Titre affiché aux élèves <input type="text" id="clT" value="${esc(baseName())}"></label>
     <label class="blk">Consigne <input type="text" id="clM" value="Téléchargez le document, complétez-le, puis rendez-le en PDF."></label>
+    <label class="ck"><input type="checkbox" id="clF" checked> Les élèves peuvent remplir le document dans leur navigateur (rien à installer)</label>
+    <label class="ck"><input type="checkbox" id="clW"> Proposer aussi le document en Word (.docx) modifiable</label>
     <label class="ck"><input type="checkbox" id="clC" checked> Récupérer les copies des élèves</label>
+    <p class="muted">🔒 Chaque copie rendue est enregistrée en PDF verrouillé : l'élève ne peut plus la modifier après l'envoi.</p>
     <p class="muted">Au premier partage, Windows peut demander d'autoriser SknEDU-studio sur les réseaux privés : acceptez.</p>`,
-  [['Annuler', null], ['Démarrer le partage', () => ({ title: $('#clT').value || baseName(), message: $('#clM').value, collect: $('#clC').checked }), true]]);
+  [['Annuler', null], ['Démarrer le partage', () => ({ title: $('#clT').value || baseName(), message: $('#clM').value, collect: $('#clC').checked, fill: $('#clF').checked, word: $('#clW').checked }), true]]);
   if (!r) return;
   busy('Préparation du partage…');
-  try { const bytes = await buildPdf(); CLASS = await window.api.classroomStart({ bytes, title: r.title, message: r.message, collect: r.collect, fileName: S.fileName }); done(); classroomTag(); classroomPanel(); }
+  try {
+    const bytes = await buildPdf(); let layout = null;
+    if (r.word) { busy('Préparation de la version Word…'); layout = await layoutOfDocument(); }
+    CLASS = await window.api.classroomStart({ bytes, title: r.title, message: r.message, collect: r.collect, fill: r.fill, layout, fileName: S.fileName }); done(); classroomTag();
+    if (CLASS.fillOff === 'pages') alert('Ce document est trop long pour être rempli dans le navigateur (40 pages au plus) : les élèves le recevront en PDF.');
+    if (CLASS.wordOff) alert('La version Word n\'a pas pu être créée : les élèves recevront le PDF.');
+    classroomPanel();
+  }
   catch (e) { done(); alert('Partage impossible : ' + errMsg(e)); }
 }
 function classroomHtml() {
-  return `<div class="clgrid"><div><img src="${CLASS.qr || ''}" alt="QR code" class="qr"><p class="muted">Ou saisir l'adresse :</p>${(CLASS.urls || [CLASS.url]).map((u) => `<code class="url">${esc(u)}</code>`).join('')}</div>
-    <div><p>📥 Téléchargements : <b id="clDl">${CLASS.downloads || 0}</b></p>${CLASS.collect ? `<p>📤 Copies reçues : <b>${(CLASS.received || []).length}</b></p>
-    <ul class="cllist">${(CLASS.received || []).map((r) => `<li>${esc(r.eleve)} <small>${new Date(r.at).toLocaleTimeString('fr-FR')}</small></li>`).join('') || '<li class="muted">En attente…</li>'}</ul>` : ''}</div></div>`;
+  const how = { 'en ligne': 'rempli en ligne', pdf: 'PDF', photo: 'photo', photos: 'photos' };
+  return `<div class="clgrid"><div><img src="${CLASS.qr || ''}" alt="QR code" class="qr"><p class="muted">Ou saisir l'adresse :</p>${(CLASS.urls || [CLASS.url]).map((u) => `<code class="url">${esc(u)}</code>`).join('')}
+    <p><button id="clCopy">📋 Copier le lien</button> <span class="muted" id="clCopied"></span></p>
+    <p class="muted">Ce lien s'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) connecté au même réseau que ce PC.</p></div>
+    <div><p>Documents proposés aux élèves : <b>PDF</b>${CLASS.fill ? ', <b>page à remplir en ligne</b>' : ''}${CLASS.word ? ', <b>Word (.docx)</b>' : ''}</p>
+    <p>📥 Ouvertures et téléchargements : <b id="clDl">${CLASS.downloads || 0}</b></p>${CLASS.collect ? `<p>📤 Copies reçues : <b>${(CLASS.received || []).length}</b> <span class="muted">🔒 PDF verrouillés</span></p>
+    <ul class="cllist">${(CLASS.received || []).map((r) => `<li>${esc(r.eleve)} <small>${new Date(r.at).toLocaleTimeString('fr-FR')}${how[r.how] ? ' · ' + how[r.how] : ''}</small></li>`).join('') || '<li class="muted">En attente…</li>'}</ul>` : ''}</div></div>`;
 }
+// « Copier le lien » : le panneau est redessiné à chaque copie reçue, d'où une écoute au niveau du document
+document.addEventListener('click', async (e) => {
+  if (!e.target || e.target.id !== 'clCopy' || !CLASS.url) return;
+  let ok = true; try { await navigator.clipboard.writeText(CLASS.url); } catch { ok = false; }
+  const s = $('#clCopied'); if (s) s.textContent = ok ? '✅ Lien copié' : 'Copie impossible : sélectionnez l\'adresse ci-dessus.';
+  if (ok) msg('Lien de la classe copié : collez-le dans un message, un courriel ou l\'ENT.');
+});
 async function classroomPanel() {
   const r = await modal('Classe connectée — partage en cours', classroomHtml(), [['Arrêter le partage', 'stop'], ...(CLASS.collect ? [['Ouvrir les copies reçues', 'open'], ['Corriger les copies', 'grade']] : []), ['Réduire', null, true]]);
   if (r === 'stop') { const s = await window.api.classroomStop(); CLASS = { active: false }; classroomTag(); msg(`Partage arrêté. ${s.received} copie(s) reçue(s), conservées dans ${s.dir}.`); }
@@ -709,7 +730,14 @@ const EN = {
   'Classe et élèves…': 'Class and students…', 'Ouvrir le dossier': 'Open folder', 'Rendre un corrigé…': 'Return graded work…', 'Distribuer le document ouvert': 'Hand out the open document',
   'Ouvrir les nouvelles copies': 'Open new papers', 'Créer les dossiers': 'Create folders', 'Distribuer': 'Hand out', 'Rendre le corrigé': 'Return graded work', 'Distribuer aux élèves': 'Hand out to students',
   'Rendre un corrigé': 'Return graded work', 'Nom de la classe': 'Class name', 'Nom du fichier': 'File name', 'Ouvrir le dossier de la classe': 'Open the class folder',
-  'Retirer cette classe du logiciel': 'Remove this class from the app', 'Élèves (un nom par ligne)': 'Students (one name per line)', 'Choisir un dossier synchronisé…': 'Choose a synced folder…',
+  'Retirer cette classe du logiciel': 'Remove this class from the app',
+  '📋 Copier le lien': '📋 Copy link', '✅ Lien copié': '✅ Link copied', 'Préparation de la version Word…': 'Preparing the Word version…', 'Préparation du partage…': 'Preparing sharing…',
+  'Lien de la classe copié : collez-le dans un message, un courriel ou l\'ENT.': 'Class link copied: paste it into a message, an email or your school platform.',
+  'Les élèves peuvent remplir le document dans leur navigateur (rien à installer)': 'Students can fill in the document in their browser (nothing to install)',
+  'Proposer aussi le document en Word (.docx) modifiable': 'Also offer the document as an editable Word file (.docx)',
+  '🔒 Chaque copie rendue est enregistrée en PDF verrouillé : l\'élève ne peut plus la modifier après l\'envoi.': '🔒 Every paper handed in is saved as a locked PDF: the student can no longer change it after sending.',
+  'Ce lien s\'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) connecté au même réseau que ce PC.': 'This link opens in any browser (Windows, Mac, iPad, iPhone, Android) connected to the same network as this PC.',
+  '🔒 PDF verrouillés': '🔒 locked PDFs', 'page à remplir en ligne': 'page to fill in online', 'Élèves (un nom par ligne)': 'Students (one name per line)', 'Choisir un dossier synchronisé…': 'Choose a synced folder…',
   'Création des dossiers…': 'Creating folders…', 'Ouverture des copies…': 'Opening papers…', 'Distribution du document…': 'Handing out the document…', 'Dépôt du corrigé…': 'Returning graded work…',
   'Version adaptée (DYS)': 'Accessible version (dyslexia)', 'Lire à voix haute': 'Read aloud', 'Version bilingue': 'Bilingual version', 'IA locale (hors ligne)': 'Local AI (offline)',
   'Édition Communauté': 'Community edition', 'Licences des composants': 'Component licenses', 'Code source': 'Source code', 'Politique de marque': 'Trademark policy'

@@ -136,4 +136,69 @@ async function convertToPdf(bytes, fileName) {
   } finally { doc.destroy && doc.destroy(); }
 }
 
-module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue, redactPdf, compressPdf };
+// ---------- Copies d'élèves : document figé et verrouillé ----------
+/**
+ * Fige un document (PDF ou image) : chaque page est réécrite, si bien que les champs de formulaire, les annotations
+ * et les notes ajoutées sont fondus dans la page et ne peuvent plus être modifiés. Le texte reste du texte.
+ * notes (PDF seulement) : [{ p, x, y, w, h, fs, text }] en fractions de la page (origine en haut à gauche), fs en fraction de la largeur.
+ */
+async function flattenToPdf(bytes, name = 'application/pdf', notes = []) {
+  const m = await mu();
+  let doc = m.Document.openDocument(new Uint8Array(bytes), name);
+  try {
+    if (doc.needsPassword()) throw new Error('Ce document est protégé par un mot de passe.');
+    const n = doc.countPages(); if (!n) throw new Error('Document vide.'); if (n > 300) throw new Error('Document trop long (300 pages maximum).');
+    const pdf = doc.asPDF && doc.asPDF();
+    if (pdf && notes.length) {
+      for (const t of notes) {
+        if (!(t.p >= 0 && t.p < n)) continue;
+        const page = pdf.loadPage(t.p); const b = page.getBounds(); const W = b[2] - b[0], H = b[3] - b[1];
+        const size = Math.min(40, Math.max(6, t.fs * W)); const lines = String(t.text).split('\n').length;
+        const x0 = b[0] + Math.min(0.97, Math.max(0, t.x)) * W, y0 = b[1] + Math.min(0.98, Math.max(0, t.y)) * H;
+        const x1 = Math.min(b[2], x0 + Math.max(40, t.w * W * 1.04)), y1 = Math.min(b[3], y0 + Math.max(t.h * H * 1.25, lines * size * 1.4 + 4));
+        const a = page.createAnnotation('FreeText'); a.setRect([x0, y0, x1, y1]); a.setContents(String(t.text));
+        a.setDefaultAppearance('Helv', size, [0, 0.19, 0.61]); try { a.setBorderWidth(0); } catch { /* version sans bordure réglable */ }
+        a.update();
+      }
+      const mid = pdf.saveToBuffer('encrypt=none').asUint8Array().slice(); doc.destroy && doc.destroy();
+      doc = m.Document.openDocument(mid, 'application/pdf');
+    }
+    const buf = new m.Buffer(); const writer = new m.DocumentWriter(buf, 'pdf', '');
+    for (let i = 0; i < n; i++) {
+      const page = doc.loadPage(i); const dev = writer.beginPage(page.getBounds());
+      page.run(dev, m.Matrix.identity); writer.endPage(); page.destroy && page.destroy();
+    }
+    writer.close();
+    return buf.asUint8Array().slice();
+  } finally { doc.destroy && doc.destroy(); }
+}
+/** Verrouille un PDF : chiffrement AES-256 avec un mot de passe de modification aléatoire, jamais conservé. Lecture, impression et copie du texte restent permises. */
+async function sealPdf(bytes) {
+  return encryptPdf(bytes, { ownerPassword: require('crypto').randomBytes(24).toString('hex'), permissions: { print: true, copy: true, modify: false, annotate: false } });
+}
+/** Nombre de pages et dimensions (points) d'un PDF. */
+async function pageSizes(bytes) {
+  const m = await mu(); const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf');
+  try { const out = []; const n = doc.countPages(); for (let i = 0; i < n; i++) { const b = doc.loadPage(i).getBounds(); out.push({ w: b[2] - b[0], h: b[3] - b[1] }); } return out; }
+  finally { doc.destroy && doc.destroy(); }
+}
+/** Image JPEG d'une page (affichage dans le navigateur des élèves), large de « width » pixels environ. */
+async function pageJpeg(bytes, index, width = 1100) {
+  const m = await mu(); const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf');
+  try {
+    const page = doc.loadPage(index); const b = page.getBounds(); const k = Math.min(3, Math.max(0.5, width / Math.max(1, b[2] - b[0])));
+    return Buffer.from(page.toPixmap(m.Matrix.scale(k, k), m.ColorSpace.DeviceRGB, false, true).asJPEG(82));
+  } finally { doc.destroy && doc.destroy(); }
+}
+
+/** Texte et nombre de champs ou d'annotations encore modifiables d'un PDF (contrôle des copies verrouillées). */
+async function describePdf(bytes) {
+  const m = await mu(); const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf');
+  try {
+    const pdf = doc.asPDF(); const n = doc.countPages(); let text = ''; let editable = 0;
+    for (let i = 0; i < n; i++) { const p = pdf.loadPage(i); text += p.toStructuredText('').asText() + '\n'; editable += p.getWidgets().length + p.getAnnotations().length; }
+    return { pages: n, text, editable, encrypted: isEncrypted(doc), needsPassword: doc.needsPassword() };
+  } finally { doc.destroy && doc.destroy(); }
+}
+
+module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue, redactPdf, compressPdf, flattenToPdf, sealPdf, pageSizes, pageJpeg, describePdf };

@@ -460,8 +460,30 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const u = new URL(st.url + 'rendre');
         const post = await new Promise((res, rej) => { const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, (rs) => { const c = []; rs.on('data', (d) => c.push(d)); rs.on('end', () => res({ code: rs.statusCode, body: Buffer.concat(c).toString() })); }); r.on('error', rej); r.end(body); });
         const bad = await get(st.url.replace(/\/c\/[^/]+\//, '/c/mauvais-jeton/'));
+        // page à remplir dans le navigateur : la page, l'image d'une page, puis une copie remplie en ligne
+        const send = (p, type, data) => new Promise((res, rej) => { const w = new URL(/^http/.test(p) ? p : st.url + p); const r = http.request({ hostname: w.hostname, port: w.port, path: w.pathname, method: 'POST', headers: { 'Content-Type': type, 'Content-Length': data.length } }, (rs) => { const c = []; rs.on('data', (d) => c.push(d)); rs.on('end', () => res({ code: rs.statusCode, body: Buffer.concat(c).toString() })); }); r.on('error', rej); r.end(data); });
+        const fillPage = await get(st.url + 'remplir'); const img = await get(st.url + 'page/0.jpg'); const noPage = await get(st.url + 'page/999.jpg');
+        const filled = await send('remplir', 'application/json', Buffer.from(JSON.stringify({ eleve: 'Yao <b>Kouassi</b>', items: [{ p: 0, x: 0.1, y: 0.3, w: 0.5, h: 0.03, fs: 0.024, text: 'Réponse écrite en ligne : 42' }, { p: 99, x: 0.1, y: 0.1, w: 0.2, h: 0.02, fs: 0.02, text: 'hors document' }] })));
+        const vide = await send('remplir', 'application/json', Buffer.from(JSON.stringify({ eleve: 'Yao', items: [] })));
+        // fichiers refusés : document Word (à enregistrer en PDF) et fichier quelconque ; photo acceptée et convertie
+        const multi = (name, data, who) => send('rendre', 'multipart/form-data; boundary=' + boundary, Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="eleve"\r\n\r\n${who}\r\n--${boundary}\r\nContent-Disposition: form-data; name="copie"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`), data, Buffer.from(`\r\n--${boundary}--\r\n`)]));
+        const word = await multi('copie.docx', Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.alloc(40)]), 'Word'); const exe = await multi('copie.pdf', Buffer.concat([Buffer.from('MZ'), Buffer.alloc(40)]), 'Exe');
+        const photo = await multi('copie.jpg', img.body, 'Photo Élève');
         const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
-        log('OK   classe-connectee', JSON.stringify({ qr: st.qr, page: page.code, pdf: doc.body.subarray(0, 5).toString(), rendu: post.code, merci: post.body.includes('Copie reçue'), recues: status.received.map((r) => r.eleve), jetonInvalide: bad.code }));
+        const mu = require('./mu'); const desc = {};
+        for (const r of status.received) { const d = await mu.describePdf(fs.readFileSync(r.file)); desc[r.eleve] = { how: r.how, verrouille: d.encrypted && !d.needsPassword, modifiable: d.editable, pages: d.pages, texte: d.text }; }
+        const online = desc['Yao bKouassib'] || {}; const all = Object.values(desc);
+        const info = { qr: st.qr, page: page.code, formats: /Remplir en ligne/.test(page.body.toString()) + '/' + /document\.pdf/.test(page.body.toString()), pdf: doc.body.subarray(0, 5).toString(), rendu: post.code, merci: post.body.includes('Copie reçue'), recues: status.received.map((r) => r.eleve + ' (' + r.how + ')'), jetonInvalide: bad.code,
+          pageARemplir: fillPage.code, imagePage: img.body.subarray(0, 3).toString('hex'), pageAbsente: noPage.code, renduEnLigne: filled.code, reponseDansLaCopie: /42/.test(online.texte || '') && !/hors document/.test(online.texte || ''), copieVide: vide.code, wordRefuse: word.code, fichierRefuse: exe.code, photo: photo.code,
+          toutesVerrouillees: all.length === 3 && all.every((d) => d.verrouille && d.modifiable === 0) };
+        const ok = info.page === 200 && info.formats === 'true/true' && info.rendu === 200 && info.merci && info.jetonInvalide === 404 && info.pageARemplir === 200 && info.imagePage === 'ffd8ff' && info.pageAbsente === 404 && info.renduEnLigne === 200 && info.reponseDansLaCopie
+          && info.copieVide === 400 && info.wordRefuse === 400 && info.fichierRefuse === 400 && info.photo === 200 && info.toutesVerrouillees;
+        log((ok ? 'OK   ' : 'FAIL ') + 'classe-connectee', JSON.stringify(info)); if (!ok) results.classe = { error: 'résultat inattendu' };
+        // version Word proposée aux élèves
+        const w2 = await js(`(async () => window.api.classroomStart({ bytes: await window.__edupdf.buildPdf(), layout: await layoutOfDocument(), title: 'Test Word', collect: false, fill: false, fileName: 'fiche.pdf' }).then((s) => ({ url: s.url, word: s.word, fill: s.fill })))()`);
+        const dx = await get(w2.url + 'document.docx'); const noFill = await get(w2.url + 'remplir'); const noCollect = await send(w2.url + 'remplir', 'application/json', Buffer.from('{}')); await js('window.api.classroomStop()');
+        const okW = w2.word && !w2.fill && dx.code === 200 && dx.body.subarray(0, 2).toString() === 'PK' && noFill.code === 404 && noCollect.code === 404;
+        log((okW ? 'OK   ' : 'FAIL ') + 'classe-connectee-word', JSON.stringify({ word: w2.word, docx: dx.code + ' ' + dx.body.subarray(0, 2).toString() + ' ' + dx.body.length, pageARemplirDesactivee: noFill.code, renduDesactive: noCollect.code })); if (!okW) results.classeWord = { error: 'résultat inattendu' };
       } catch (e) { log('FAIL classe-connectee', e.stack); results.classe = { error: e.message }; }
       // ---------- Dossier d'échange : un dossier cloud par élève (distribution, copies rendues, corrigés) ----------
       try {
