@@ -4,6 +4,18 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.14.0] — Classe connectée à distance, dossier d'échange, conversion fidèle
+- **Classe connectée à distance** : nouveau lien utilisable hors du réseau de la classe (maison, 4G), chiffré de bout en bout ;
+  le relais de l'éditeur transporte le document et les copies sans pouvoir les lire et ne conserve rien
+- **Classe connectée** : lien copiable d'un clic ; page élève compatible avec tout navigateur (Windows, Mac, iPad, iPhone, Android) ;
+  document à remplir directement dans le navigateur, en PDF ou en Word (.docx)
+- **Copies verrouillées** : toute copie rendue (remplie en ligne, PDF ou photos) est enregistrée en PDF figé, non modifiable
+- **Dossier d'échange** (onglet Classe) : un dossier par élève dans votre cloud (Google Drive, OneDrive, Dropbox…) ; distribution d'un
+  document à toute la classe, copies reçues automatiquement, corrigé déposé dans le dossier de l'élève par un simple Enregistrer
+- **Conversion PDF → Word et PowerPoint** : nouvelle « mise en page identique » (taille des pages, tableaux, diagrammes, images,
+  couleurs conservés ; texte modifiable dans sa police, sa taille et sa couleur), sans LibreOffice
+- **Mon abonnement IA** : fenêtre guidée en trois étapes (préparer la demande, ouvrir l'IA et coller, rapporter la réponse)
+
 ## [1.13.6] — Supprimer et extraire plusieurs pages
 - Pages › Supprimer et Extraire (et la touche Suppr) ouvrent une fenêtre de choix : intervalle à taper (ex. 2-4, 7),
   cases à cocher par page, boutons page courante, paires, impaires, toutes ; préremplie avec la sélection des miniatures

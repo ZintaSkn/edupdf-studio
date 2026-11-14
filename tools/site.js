@@ -433,7 +433,7 @@ const COMPARE = [
   ['🔍 OCR : rendre les scans et les copies numérisées modifiables', '🔍 OCR: make scans and scanned papers editable', 0, 1, 1],
   ['🔄 Conversions PDF ↔ Word, Excel, PowerPoint, format d\'origine', '🔄 PDF ↔ Word, Excel, PowerPoint conversions, original format', 0, 1, 1],
   ['✨ Assistant IA (Claude, ChatGPT, Gemini, Mistral, IA locale)', '✨ AI assistant (Claude, ChatGPT, Gemini, Mistral, local AI)', 0, 1, 1],
-  ['🎓 Correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, équations', '🎓 Grading, differentiated tests, mail merge, bilingual version, connected classroom, equations', 0, 1, 1],
+  ['🎓 Correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée (sur place et à distance), dossier d’échange, équations', '🎓 Grading, differentiated tests, mail merge, bilingual version, connected classroom (on site and remote), exchange folder, equations', 0, 1, 1],
   ['🔒 Mot de passe, signature par certificat, comparaison, copie commentée en lecture seule', '🔒 Password, certificate signature, comparison, read-only annotated copy', 0, 1, 1],
   ['🧰 Sauvegarde automatique dans le cloud, en-tête / pied de page, filigrane, réduction de taille', '🧰 Automatic cloud backup, header / footer, watermark, file size reduction', 0, 1, 1],
   ['🛡️ Administration des postes (droits, journal, notifications), licence pour tout le PC', '🛡️ Workstation administration (permissions, log, notifications), licence for the whole PC', 0, 0, 1],
