@@ -84,6 +84,8 @@ contextBridge.exposeInMainWorld('api', {
   // administration
   policy: () => ipcRenderer.invoke('policy'),
   logEvent: (type, detail) => ipcRenderer.invoke('log-event', { type, detail }),
+  clipboardWrite: (text) => ipcRenderer.invoke('clipboard-write', text),
+  clipboardRead: () => ipcRenderer.invoke('clipboard-read'),
   adminStatus: () => ipcRenderer.invoke('admin-status'),
   adminSetup: (a) => ipcRenderer.invoke('admin-setup', a),
   adminEnroll: (a) => ipcRenderer.invoke('admin-enroll', a),

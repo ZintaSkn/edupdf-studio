@@ -53,6 +53,7 @@ lui-même. Pour l'obtenir : faire réaliser un audit ASVS niveau 3 par un presta
 |---|---|
 | Application → Internet (licences, mises à jour, IA en ligne, polices) | **TLS 1.3 minimum** imposé (`tls.DEFAULT_MIN_VERSION` et `ssl-version-min`) ; toute connexion plus ancienne est refusée |
 | Service d'activation | TLS 1.3, HSTS, certificat surveillé chaque jour (alerte à moins de 14 jours de l'échéance) |
+| Classe connectée à distance (relais de l'éditeur) | HTTPS (TLS 1.3) jusqu'au relais, et **chiffrement de bout en bout** par-dessus : AES-256-GCM avec une clé aléatoire créée pour chaque partage, placée dans le lien après « # » (jamais transmise au relais). Le relais ne voit que des tailles et des horaires ; il ne conserve rien sur disque et supprime la salle à l'arrêt du partage ou après 8 h. Lecture des demandes, réponses et fermeture réservées à l'enseignant (clé de salle de 256 bits, comparée par empreinte). Chaque message porte son identifiant dans le sceau : une demande rejouée ou déplacée est rejetée. Limite : la page élève est servie par le relais ; un relais malveillant pourrait servir un programme modifié — le relais est le service de l'éditeur, sous sa supervision |
 | Classe connectée (réseau local de la classe) | **Exception** : HTTP sur le réseau local, car un certificat valable est impossible sur une adresse locale. Atténuations : jeton aléatoire de 72 bits, seuls des PDF et des photos sont acceptés (type vérifié d'après le contenu), chaque copie est réécrite page par page puis verrouillée (AES-256, mot de passe de modification aléatoire jamais conservé), session arrêtée par l'enseignant, aucun accès à Internet |
 | IA locale Ollama | **Exception** : HTTP sur `127.0.0.1` uniquement (ne quitte pas l'ordinateur) |
 
@@ -100,6 +101,7 @@ Principe : **ne jamais faire confiance à l'interface**, même si un document pi
 - **Certificats de signature et fichiers Office protégés** : seulement ceux choisis par l'utilisateur.
 - **Liens** : seulement `https://` et `mailto:` ; aucune navigation, aucune nouvelle fenêtre, aucune vue web intégrée.
 - **Permissions du navigateur** (caméra, micro, position, notifications…) : toutes refusées sauf plein écran et presse-papiers.
+  Le presse-papiers (texte seulement) sert à copier une demande d'IA et à coller sa réponse ; les liens ouverts restent limités à `https://`.
 - **Service d'activation** : chaque demande est vérifiée seule (signature de la licence, e-mail, poste),
   sans session ni confiance dans l'horloge du poste.
 
@@ -140,6 +142,8 @@ mais un administrateur du PC peut le supprimer en entier.
   liens `file:` et `javascript:`, dossier cloud arbitraire, nouvelle fenêtre, caméra, position, notifications ;
 - `intrusion-disque` : copies de récupération confinées et chiffrées, clé protégée par Windows, coût scrypt ;
 - `intrusion-classe` : nom d'élève piégé (`../`, `<script>`), nom de fichier piégé, jeton deviné ;
+- `classe-a-distance` et `server/test-relay.js` : rien ne passe en clair par le relais, accès réservé à l'enseignant,
+  limites de taille et de nombre, délais, salle supprimée à l'arrêt ;
 - `depot-utilisateur` : contre-épreuve (un fichier réellement déposé s'ouvre) ;
 - `licence-jeton-falsifie`, `licence-autre-poste` et `server/test-core.js` : jetons et licences falsifiés,
   activation simultanée, entrées hostiles.

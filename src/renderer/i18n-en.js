@@ -597,7 +597,13 @@ window.EN_EXTRA = {
   "Traduit dans la langue choisie.": "Translates into the chosen language.",
   "Crée une grille d'évaluation (critères, niveaux).": "Creates an assessment rubric (criteria, levels).",
   "Propose un plan de séance.": "Suggests a lesson plan.",
-  "Utilise votre abonnement ChatGPT, Claude, Gemini ou Copilot dans le navigateur (sans clé API).": "Uses your ChatGPT, Claude, Gemini or Copilot subscription in the browser (no API key).",
+  "Sans clé API : prépare votre demande, ouvre le site de votre IA (ChatGPT, Claude, Gemini, Copilot…) et rapporte sa réponse dans le document.": "No API key: prepares your request, opens your AI's website (ChatGPT, Claude, Gemini, Copilot…) and brings its answer back into the document.",
+  "1. Préparez votre demande": "1. Prepare your request", "2. Ouvrez votre IA et collez la demande": "2. Open your AI and paste the request", "3. Rapportez la réponse": "3. Bring the answer back",
+  "📥 Coller la réponse dans SknEDU-studio": "📥 Paste the answer into SknEDU-studio", "Aucun (demande seule)": "None (request only)",
+  "Cliquez sur votre IA : la demande est copiée et le site s'ouvre dans votre navigateur habituel, où vous êtes déjà connecté.": "Click your AI: the request is copied and the site opens in your usual browser, where you are already signed in.",
+  "Sur le site : cliquez dans la zone de message, collez avec Ctrl+V, puis envoyez.": "On the site: click in the message box, paste with Ctrl+V, then send.",
+  "Quand l'IA a répondu, copiez sa réponse sur le site (bouton « Copier » sous la réponse), puis revenez ici.": "When the AI has answered, copy its answer on the site (the Copy button under the answer), then come back here.",
+  "Pour une page scannée ou un schéma, glissez aussi le fichier PDF dans la conversation du site.": "For a scanned page or a diagram, also drag the PDF file into the conversation on the site.",
   "Choix du fournisseur (Claude, ChatGPT, Gemini, Mistral, IA locale), du modèle et de la clé API.": "Choice of provider (Claude, ChatGPT, Gemini, Mistral, local AI), model and API key.",
   "Installe une IA locale gratuite (Ollama) qui fonctionne sans Internet.": "Installs a free local AI (Ollama) that works without Internet.",
   "Console d'administration de l'établissement : fonctions autorisées par poste et par utilisateur, journal, revue des droits.": "School administration console: features allowed per computer and per user, log, rights review.",
@@ -688,6 +694,8 @@ window.EN_PATTERNS = [
   [/^(\d+) copie\(s\) ouverte\(s\) : (.+)$/, '$1 paper(s) opened: $2'],
   [/^« (.+) » déposé pour (\d+) élève\(s\) de la classe (.+)\.$/, '“$1” handed out to $2 student(s) in class $3.'],
   [/^Corrigé rendu à (.+)\.$/, 'Graded work returned to $1.'],
+  [/^Corrigé enregistré dans le dossier de (.+?) : (.+)$/, 'Graded work saved in $1\'s folder: $2'],
+  [/^(\d+) copie\(s\) ouverte\(s\) : (.+) — Enregistrer \(Ctrl\+S\) déposera le corrigé dans son dossier\.$/, '$1 paper(s) opened: $2 — Save (Ctrl+S) will put the graded work in their folder.'],
   [/^Classe (.+) retirée\. Ses dossiers restent dans votre cloud\.$/, 'Class $1 removed. Its folders remain in your cloud.'],
   [/^Dossier d'échange — (.+)$/, 'Exchange folder — $1']
 ];

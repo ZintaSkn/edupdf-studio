@@ -27,6 +27,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       # Règles du service d'activation (un poste à la fois, transfert, cumul de 2, entrées hostiles)
       - run: node server/test-core.js
+      - run: node server/test-relay.js
   service-en-ligne:
     runs-on: ubuntu-latest
     timeout-minutes: 5

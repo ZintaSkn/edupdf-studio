@@ -485,6 +485,71 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const okW = w2.word && !w2.fill && dx.code === 200 && dx.body.subarray(0, 2).toString() === 'PK' && noFill.code === 404 && noCollect.code === 404;
         log((okW ? 'OK   ' : 'FAIL ') + 'classe-connectee-word', JSON.stringify({ word: w2.word, docx: dx.code + ' ' + dx.body.subarray(0, 2).toString() + ' ' + dx.body.length, pageARemplirDesactivee: noFill.code, renduDesactive: noCollect.code })); if (!okW) results.classeWord = { error: 'résultat inattendu' };
       } catch (e) { log('FAIL classe-connectee', e.stack); results.classe = { error: e.message }; }
+      // ---------- Classe connectée à distance : un « élève » passe par le relais, tout est chiffré de bout en bout ----------
+      try {
+        let local = null; try { local = require('../tools/relais-local'); } catch { /* application installée : le relais d'essai n'est pas fourni */ }
+        if (!local) log('SKIP classe-a-distance (relais d\'essai absent)');
+        else {
+          const relay = await local.start(0); process.env.EDUPDF_RELAY = relay.url;
+          try {
+            const st = await js(`(async () => window.api.classroomStart({ bytes: await window.__edupdf.buildPdf(), title: 'Devoir secret', collect: true, fill: true, remote: true, fileName: 'devoir.pdf' }).then((s) => ({ remote: s.remote, off: s.remoteOff, qr: !!s.qrRemote })))()`);
+            const C = require('./classroom')._test; const crypto = require('crypto');
+            const link = new URL(st.remote.url); const key = Buffer.from(link.hash.slice(1), 'base64url'); const api = link.origin + link.pathname;
+            // l'élève : demande chiffrée → relais → enseignant → réponse chiffrée
+            const call = async (head, body, shared) => {
+              const id = crypto.randomBytes(16).toString('hex'); const ck = shared ? crypto.createHmac('sha256', key).update('cache:' + JSON.stringify(head)).digest('base64url') : '';
+              const res = await fetch(api + '/q', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Id': id, ...(ck ? { 'X-Cache': ck } : {}) }, body: C.seal(key, 'q:' + id, C.frame(head, body)) });
+              const raw = Buffer.from(await res.arrayBuffer()); if (res.status !== 200) return { status: res.status, raw };
+              return { status: 200, raw, ...C.unframe(C.unseal(key, res.headers.get('x-aad') === 'c' ? 'c:' + ck : 'a:' + id, raw)) };
+            };
+            const shell = await (await fetch(api)).text();
+            const info = await call({ op: 'info' }, null, true); const info2 = await call({ op: 'info' }, null, true);
+            const pdf = await call({ op: 'pdf' }, null, true); const img = await call({ op: 'page', i: 0 }, null, true);
+            const sent = await call({ op: 'fill', eleve: 'Awa À Distance', items: [{ p: 0, x: 0.1, y: 0.3, w: 0.5, h: 0.03, fs: 0.024, text: 'Réponse envoyée de la maison : 99' }] });
+            const photo = await call({ op: 'files', eleve: 'Yao Photo', files: [{ name: 'copie.jpg', size: img.body.length }] }, img.body);
+            const bad = await call({ op: 'files', eleve: 'Exe', files: [{ name: 'x.pdf', size: 42 }] }, Buffer.concat([Buffer.from('MZ'), Buffer.alloc(40)]));
+            // un curieux sans la clé de l'enseignant ne peut ni lire les demandes ni fermer la salle
+            const spy = await fetch(api + '/next'); const spyDel = await fetch(api, { method: 'DELETE' });
+            const status = await js('window.api.classroomStatus()'); const stats = [...relay.rooms.values()].map((e) => e.room.stats())[0] || {};
+            await js('window.api.classroomStop()'); const after = await fetch(api + '/q', { method: 'POST', headers: { 'X-Id': crypto.randomBytes(16).toString('hex') }, body: Buffer.from('x') });
+            const mu = require('./mu'); const desc = [];
+            for (const r of status.received) { const d = await mu.describePdf(fs.readFileSync(r.file)); desc.push({ eleve: r.eleve, how: r.how, verrouille: d.encrypted && !d.needsPassword && d.editable === 0, texte: /99/.test(d.text) }); }
+            const clair = [shell, info.raw.toString('latin1'), pdf.raw.toString('latin1'), sent.raw.toString('latin1')].some((x) => /Devoir secret|%PDF-|Awa/.test(x));
+            const out = { lien: /^http:\/\/localhost:\d+\/r\/[\w-]{16,}#[\w-]{43}$/.test(st.remote.url), qr: st.qr, enLigne: status.remote && status.remote.online, titre: info.head && info.head.title, pages: info.head && info.head.pages.length,
+              pdf: pdf.body && pdf.body.subarray(0, 5).toString(), image: img.body && img.body.subarray(0, 3).toString('hex'), renduEnLigne: sent.head && sent.head.ok, photo: photo.head && photo.head.ok, fichierRefuse: bad.head && bad.head.ok === false,
+              recues: desc.map((d) => d.eleve + ' (' + d.how + ')'), toutesVerrouillees: desc.length === 2 && desc.every((d) => d.verrouille), reponseDansLaCopie: desc.some((d) => d.texte),
+              relaisNeVoitRienEnClair: !clair, gardeParLeRelais: stats.cached, infoResservie: info2.head && info2.head.title === info.head.title, curieux: spy.status + '/' + spyDel.status, apresArret: after.status };
+            const ok = out.lien && out.qr && out.enLigne && out.titre === 'Devoir secret' && out.pages >= 1 && out.pdf === '%PDF-' && out.image === 'ffd8ff' && out.renduEnLigne && out.photo && out.fichierRefuse && out.toutesVerrouillees && out.reponseDansLaCopie
+              && out.relaisNeVoitRienEnClair && out.gardeParLeRelais >= 3 && out.infoResservie && out.curieux === '401/401' && out.apresArret === 404;
+            log((ok ? 'OK   ' : 'FAIL ') + 'classe-a-distance', JSON.stringify(out)); if (!ok) results.distance = { error: 'résultat inattendu' };
+          } finally { delete process.env.EDUPDF_RELAY; try { await js('window.api.classroomStop()'); } catch { /* déjà arrêté */ } await relay.close(); }
+        }
+      } catch (e) { log('FAIL classe-a-distance', e.stack); results.distance = { error: e.message }; }
+      // ---------- Abonnement IA : demande préparée, copiée, site ouvert ; réponse rapportée ----------
+      try {
+        const clip = require('electron').clipboard; await clip.writeText('ancien contenu');
+        const sub = await js(`(async () => {
+          const T = window.__edupdf; const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const q = (x) => document.querySelector(x); const out = {};
+          document.querySelector('#aiPrompt').value = ''; T.actions.aiSubscription(); await wait(400);
+          out.etapes = document.querySelectorAll('#mBody .aistep').length; out.sites = document.querySelectorAll('#mBody [data-site]').length;
+          q('#mBody [data-site]').click(); await wait(400); out.sansDemande = q('#aiSubState').className; // rien n'est copié sans demande
+          q('[data-aisub-preset=qcm]').click(); out.demande = q('#aiSubAsk').value.length > 20;
+          q('#mBody [data-site]').click(); for (let i = 0; i < 40 && q('#aiSubState').className !== 'ok'; i++) await wait(250);
+          out.etat = q('#aiSubState').className; out.fenetreOuverte = !q('#modal').hidden;
+          return out;
+        })()`);
+        const copied = String((await clip.readText()) || ''); const opened = (global.__edupdfExternal || []).slice(-1)[0] || '';
+        await clip.writeText('Réponse de l\'IA : voici le QCM demandé.');
+        const back = await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const q = (x) => document.querySelector(x);
+          q('#aiSubPaste').click(); await wait(600);
+          const out = { reponse: q('#aiOut').textContent.slice(0, 40), fenetreFermee: q('#modal').hidden, etat: (q('#aiSubState') || {}).textContent || '' };
+          if (!q('#modal').hidden) q('#mBtns button').click(); q('#aiPanel').hidden = true; q('#aiOut').textContent = ''; q('#aiPrompt').value = ''; return out;
+        })()`);
+        const info = { ...sub, debutCopie: copied.slice(0, 50), demandeCopiee: /QCM de 10 questions/.test(copied) && /<document>/.test(copied) && copied.length, siteOuvert: opened, retour: back.fenetreFermee ? back.reponse : 'non collée : ' + back.etat.slice(0, 60) };
+        const ok = sub.etapes === 3 && sub.sites >= 4 && sub.sansDemande === 'err' && sub.demande && sub.etat === 'ok' && sub.fenetreOuverte && !!info.demandeCopiee && /^https:\/\/chatgpt\.com/.test(opened) && back.fenetreFermee && /QCM demandé/.test(back.reponse);
+        log((ok ? 'OK   ' : 'FAIL ') + 'abonnement-ia', JSON.stringify(info)); if (!ok) results.abonnement = { error: 'résultat inattendu' };
+      } catch (e) { log('FAIL abonnement-ia', e.stack); results.abonnement = { error: e.message }; }
       // ---------- Dossier d'échange : un dossier cloud par élève (distribution, copies rendues, corrigés) ----------
       try {
         const cloudDir = path.join(outDir, 'cloud'); fs.mkdirSync(cloudDir, { recursive: true });
@@ -528,16 +593,18 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
           rows.find((b) => b.dataset.exOpen === 'Yao Kouassi').click();
           for (let i = 0; i < 40 && !/Yao Kouassi/.test(q('#msg').textContent); i++) await wait(250);
           out.message = /Yao Kouassi/.test(q('#msg').textContent); out.fenetreFermee = q('#modal').hidden;
+          await T.actions.save(); out.enregistrement = /Yao Kouassi/.test(q('#msg').textContent); // Enregistrer : le corrigé va dans le dossier de l'élève
           out.nouvellesApresOuverture = (await window.api.exchangeList()).nouvelles;
           await window.api.exchangeRemove({ id: '${made.id}' }); const fin = await window.api.exchangeList();
           for (let i = 0; i < 20 && q('#exTag'); i++) await wait(250); // l'étiquette suit la surveillance du dossier
           out.classesApresRetrait = fin.classes.length; out.etiquetteFin = !!q('#exTag'); T.S.dirty = false;
           return out;
         })()`);
+        ui.corrigeDansLeDossierDeLEleve = fs.existsSync(path.join(made.dir, 'Yao Kouassi', SUB.back, 'Devoir - corrigé.pdf')) && fs.readdirSync(path.join(made.dir, 'Yao Kouassi', SUB.done)).join() === 'Devoir.pdf';
         const info = { ...made, id: undefined, dir: path.relative(outDir, made.dir), horsClasse, ...got, fenetre: ui, corrigeSurDisque: fs.existsSync(path.join(awa, SUB.back, 'Ma copie - corrigé.pdf')), dossiersConserves: fs.existsSync(copie) };
         const ok = made.eleves.join('|') === 'Awa Koné|Yao Kouassi|pirate' && made.distribue === '3 × Fiche 1.pdf' && made.refus.join('|') === 'cloud inconnu refusé|élève inconnu refusé' && horsClasse
           && /2/.test(got.etiquette) && got.nouvellesAvant === 2 && got.nouvellesSansFaux === 1 && got.faux === 1 && got.marqueesVues === 1 && got.ouvertes.join('|') === 'Awa Koné / Ma copie.pdf' && got.lues.join() === 'pdf' && got.nouvellesApres === 0
-          && got.awa === '1 à faire, 1 copie(s), 1 corrigé(s), 2 ignoré(s)' && info.corrigeSurDisque && ui.lignes === 3 && ui.boutonsActifs === 'Awa Koné, Yao Kouassi' && ui.relaisCache && ui.actions === 6 && ui.ignoresAffiches && ui.nouvelleAffichee && ui.message && ui.fenetreFermee && ui.nouvellesApresOuverture === 0
+          && got.awa === '1 à faire, 1 copie(s), 1 corrigé(s), 2 ignoré(s)' && info.corrigeSurDisque && ui.lignes === 3 && ui.boutonsActifs === 'Awa Koné, Yao Kouassi' && ui.relaisCache && ui.actions === 6 && ui.ignoresAffiches && ui.nouvelleAffichee && ui.message && ui.fenetreFermee && ui.enregistrement && ui.corrigeDansLeDossierDeLEleve && ui.nouvellesApresOuverture === 0
           && ui.classesApresRetrait === 0 && !ui.etiquetteFin && info.dossiersConserves;
         log((ok ? 'OK   ' : 'FAIL ') + 'dossier-echange', JSON.stringify(info)); if (!ok) results.echange = { error: 'résultat inattendu' };
       } catch (e) { log('FAIL dossier-echange', e.stack); results.echange = { error: e.message }; }

@@ -22,6 +22,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       # Règles du service d'activation des licences (un poste à la fois, transfert, cumul de 2)
       - run: node server/test-core.js
+      - run: node server/test-relay.js
       # Auto-test complet (édition, polices, PDF protégés, OCR, formulaires, conversions, IA, administration, affichage)
       - name: Auto-test
         shell: pwsh

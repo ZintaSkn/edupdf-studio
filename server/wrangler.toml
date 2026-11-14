@@ -15,6 +15,15 @@ class_name = "LicenceStore"
 tag = "v1"
 new_sqlite_classes = ["LicenceStore"]
 
+# Relais de la classe connectée : une salle par partage à distance (contenus chiffrés de bout en bout, rien n'est conservé).
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Room"]
+
 # Journaux et métriques du service (supervision continue) : tableau de bord Cloudflare › Workers › sknedu-licences › Observability
 [observability]
 enabled = true

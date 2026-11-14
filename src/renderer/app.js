@@ -308,7 +308,7 @@ async function openFiles(insert) {
 }
 function confirmDiscard() { return !S.dirty || confirm('Des modifications ne sont pas enregistrées. Continuer quand même ?'); }
 function resetDoc() {
-  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; S.origin = null; S.readOnly = false; S.rid = null; FIND.hits = [];
+  S.sources = []; S.pages = []; S.cur = 0; S.sel = new Set(); S.filePath = null; S.fileName = 'Document.pdf'; S.selItem = -1; S.protect = null; S.watermark = null; S.origin = null; S.readOnly = false; S.rid = null; S.exchange = null; FIND.hits = [];
   hist.undo = []; hist.redo = []; thumbCache.clear(); textCache.clear(); setDirty(false);
 }
 
@@ -526,6 +526,7 @@ async function buildPdf(list = S.pages) {
 async function save(asNew) {
   if (!S.pages.length) return;
   if (!can('save')) return denied('save');
+  if (!asNew && S.exchange && window.exchangeSave && await window.exchangeSave()) return; // copie d'élève : le corrigé va dans son dossier
   if (!asNew && S.origin && window.saveOriginDialog && await window.saveOriginDialog()) return;
   busy('Enregistrement…');
   try {
@@ -2224,27 +2225,59 @@ async function aiSettings() {
   try { AI.status = await window.api.aiSave(r); await refreshAiBadge(); msg('Assistant IA configuré.'); if (doTest && window.aiTestConnection) await window.aiTestConnection(); return AI.status.providers[r.provider].hasKey; }
   catch (e) { alert(errMsg(e)); return false; }
 }
+/** Copie dans le presse-papiers par le processus principal (fiable même si la fenêtre n'a pas le focus), sinon par la page. */
+async function copyText(t) {
+  try { if (await window.api.clipboardWrite(t)) return true; } catch { /* repli ci-dessous */ }
+  try { await navigator.clipboard.writeText(t); return true; } catch { return false; }
+}
+// Un abonnement grand public (ChatGPT, Claude, Gemini, Copilot…) ne se branche pas dans un logiciel : il ne fonctionne que
+// sur le site de l'IA. Le logiciel fait donc le lien en trois gestes : préparer la demande, la coller sur le site, rapporter la réponse.
+let AI_SUB = { copied: '' };
+const aiSubState = (t, cls) => { const s = $('#aiSubState'); if (s) { s.textContent = t; s.className = cls || 'muted'; } };
 async function aiSubscription() {
   if (!can('ai')) return denied('ai');
-  const ask = $('#aiPrompt').value.trim() || AI_PRESETS.resume[1];
-  const pages = S.pages.length ? await aiScopePages() : [];
-  const text = pages.length ? await aiDocText(pages) : '';
-  const full = `${AI_SYSTEM}\n\n${ask}${text ? `\n\n<document>\n${text}</document>` : ''}`;
-  const site = await modal('Utiliser mon abonnement IA', `<p>Votre demande et le texte du document sont copiés. Choisissez votre IA : elle s'ouvre dans le navigateur où vous êtes déjà connecté ; <b>collez (Ctrl+V)</b> puis envoyez.</p>
-    <div class="cols3">${AI_SITES.map(([n, u], i) => `<button class="cloudbtn" data-site="${i}"><b>${esc(n)}</b><small>${esc(u.replace('https://', ''))}</small></button>`).join('')}</div>
-    <p class="muted">Pour les pages scannées ou les schémas, glissez aussi le fichier PDF enregistré dans la conversation. Ensuite, copiez la réponse et cliquez « Coller la réponse » dans le panneau IA pour l'insérer dans le document.</p>`, [['Fermer', null]]);
-  void site;
+  AI_SUB = { copied: '' };
+  const scopes = S.pages.length ? [...$('#aiScope').options].map((o) => [o.value, o.textContent, o.value === $('#aiScope').value]) : [];
+  await modal('Utiliser mon abonnement IA', `<p>Un abonnement ChatGPT, Claude, Gemini ou Copilot <b>ne peut pas être branché dans un logiciel</b> : il ne fonctionne que sur le site de l'IA. SknEDU-studio fait donc le lien en trois étapes, sans clé API ni frais supplémentaires.</p>
+    <div class="aistep"><b>1. Préparez votre demande</b>
+      <div class="row wrap">${Object.entries(AI_PRESETS).map(([k, [n]]) => `<button class="small" data-aisub-preset="${k}">${esc(n)}</button>`).join('')}</div>
+      <textarea id="aiSubAsk" rows="3" placeholder="Écrivez votre demande, ou choisissez un modèle ci-dessus.">${esc($('#aiPrompt').value.trim())}</textarea>
+      ${scopes.length ? `<label class="row">Texte du document joint à la demande <select id="aiSubScope">${scopes.map(([v, n, on]) => `<option value="${v}"${on ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="none">Aucun (demande seule)</option></select></label>`
+    : '<p class="muted">Aucun document ouvert : seule votre demande sera copiée.</p>'}</div>
+    <div class="aistep"><b>2. Ouvrez votre IA et collez la demande</b>
+      <p class="muted">Cliquez sur votre IA : la demande est copiée et le site s'ouvre dans votre navigateur habituel, où vous êtes déjà connecté.</p>
+      <div class="cols3">${AI_SITES.map(([n, u], i) => `<button class="cloudbtn" data-site="${i}"><b>${esc(n)}</b><small>${esc(u.replace('https://', ''))}</small></button>`).join('')}</div>
+      <p id="aiSubState" class="muted">Sur le site : cliquez dans la zone de message, collez avec Ctrl+V, puis envoyez.</p></div>
+    <div class="aistep"><b>3. Rapportez la réponse</b>
+      <p class="muted">Quand l'IA a répondu, copiez sa réponse sur le site (bouton « Copier » sous la réponse), puis revenez ici.</p>
+      <button id="aiSubPaste">📥 Coller la réponse dans SknEDU-studio</button></div>
+    <p class="muted">Pour une page scannée ou un schéma, glissez aussi le fichier PDF dans la conversation du site.</p>`, [['Fermer', null]]);
 }
 document.addEventListener('click', async (e) => {
+  const preset = e.target.closest('[data-aisub-preset]');
+  if (preset) { const a = $('#aiSubAsk'); if (a) { a.value = AI_PRESETS[preset.dataset.aisubPreset][1]; a.focus(); } return; }
+  if (e.target.id === 'aiSubPaste') {
+    let t = ''; try { t = String(await window.api.clipboardRead() || '').trim(); } catch { t = ''; }
+    if (!t) { try { t = (await navigator.clipboard.readText()).trim(); } catch { t = ''; } }
+    if (!t || t === AI_SUB.copied.trim()) return aiSubState('⚠ Le presse-papiers ne contient pas encore la réponse : copiez-la d\'abord sur le site de l\'IA, puis cliquez à nouveau ici.', 'err');
+    AI.text = t; $('#aiOut').textContent = t; $('#mBtns button').click(); $('#aiPanel').hidden = false;
+    msg('Réponse collée : vous pouvez l\'insérer dans le document ou l\'exporter en Word.'); return;
+  }
   const b = e.target.closest('[data-site]'); if (!b) return;
   const [n, u] = AI_SITES[+b.dataset.site];
-  const ask = $('#aiPrompt').value.trim() || AI_PRESETS.resume[1];
-  const pages = S.pages.length ? await aiScopePages() : [];
+  const ask = ($('#aiSubAsk') ? $('#aiSubAsk').value : $('#aiPrompt').value).trim();
+  if (!ask) { aiSubState('⚠ Écrivez d\'abord votre demande à l\'étape 1, ou choisissez un modèle (Résumer, QCM…).', 'err'); if ($('#aiSubAsk')) $('#aiSubAsk').focus(); return; }
+  const scope = $('#aiSubScope') ? $('#aiSubScope').value : 'none';
+  const pages = !S.pages.length || scope === 'none' ? [] : scope === 'page' ? [curPage()] : scope === 'sel' ? selected().map((i) => S.pages[i]) : S.pages;
+  aiSubState('Préparation de la demande…');
   const text = pages.length ? await aiDocText(pages) : '';
-  await navigator.clipboard.writeText(`${AI_SYSTEM}\n\n${ask}${text ? `\n\n<document>\n${text}</document>` : ''}`);
-  window.api.openExternal(u); $('#mBtns button').click(); $('#aiPanel').hidden = false;
+  const full = `${AI_SYSTEM}\n\n${ask}${text.trim() ? `\n\n<document>\n${text}</document>` : ''}`;
+  $('#aiPrompt').value = ask;
+  if (!(await copyText(full))) return aiSubState('⚠ La demande n\'a pas pu être copiée dans le presse-papiers. Fermez cette fenêtre et réessayez.', 'err');
+  AI_SUB.copied = full; window.api.openExternal(u);
   window.api.logEvent('export', { action: `Demande copiée vers ${n}` });
-  msg(`Demande copiée : collez-la (Ctrl+V) dans ${n}.`);
+  aiSubState(`✅ Demande copiée (${full.length.toLocaleString('fr-FR')} caractères) et ${n} ouvert dans votre navigateur. Cliquez dans la zone de message de ${n}, collez avec Ctrl+V, puis envoyez.`
+    + (full.length > 60000 ? ' Demande longue : si l\'IA la refuse, choisissez « Page courante » à l\'étape 1.' : '') + (pages.length && !text.trim() ? ' Ce document ne contient pas de texte lisible (scan) : glissez aussi le PDF dans la conversation.' : ''), 'ok');
 });
 async function aiInsert() {
   const t = (AI.text || $('#aiOut').textContent).replace(/\n?⚠️.*$/s, '').trim(); if (!t) return;
@@ -2439,13 +2472,13 @@ window.addEventListener('resize', () => { if (innerWidth > 1000) document.body.c
 // ================= Onglets de documents (plusieurs fichiers dans la même fenêtre) =================
 function docState() {
   return { sources: S.sources, pages: S.pages, cur: S.cur, sel: S.sel, zoom: S.zoom, filePath: S.filePath, fileName: S.fileName, dirty: S.dirty,
-    selItem: S.selItem, protect: S.protect, watermark: S.watermark, origin: S.origin, readOnly: S.readOnly, rid: S.rid, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
+    selItem: S.selItem, protect: S.protect, watermark: S.watermark, origin: S.origin, readOnly: S.readOnly, rid: S.rid, exchange: S.exchange || null, undo: hist.undo, redo: hist.redo, thumbs: thumbCache, texts: textCache };
 }
 const emptyDoc = () => ({ sources: [], pages: [], cur: 0, sel: new Set(), zoom: 'fit', filePath: null, fileName: 'Document.pdf', dirty: false,
-  selItem: -1, protect: null, watermark: null, origin: null, readOnly: false, rid: null, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
+  selItem: -1, protect: null, watermark: null, origin: null, readOnly: false, rid: null, exchange: null, undo: [], redo: [], thumbs: new Map(), texts: new Map() });
 function loadDocState(d) {
   Object.assign(S, { sources: d.sources, pages: d.pages, cur: d.cur, sel: d.sel, zoom: d.zoom, filePath: d.filePath, fileName: d.fileName, dirty: d.dirty,
-    selItem: d.selItem, protect: d.protect, watermark: d.watermark, origin: d.origin || null, readOnly: !!d.readOnly, rid: d.rid || null });
+    selItem: d.selItem, protect: d.protect, watermark: d.watermark, origin: d.origin || null, readOnly: !!d.readOnly, rid: d.rid || null, exchange: d.exchange || null });
   if (window.afterDocSwitch) window.afterDocSwitch();
   hist.undo = d.undo; hist.redo = d.redo; thumbCache = d.thumbs; textCache = d.texts;
   FIND.hits = []; drawFindLayer();

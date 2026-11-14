@@ -427,15 +427,17 @@ async function classroomDialog() {
     <label class="ck"><input type="checkbox" id="clF" checked> Les élèves peuvent remplir le document dans leur navigateur (rien à installer)</label>
     <label class="ck"><input type="checkbox" id="clW"> Proposer aussi le document en Word (.docx) modifiable</label>
     <label class="ck"><input type="checkbox" id="clC" checked> Récupérer les copies des élèves</label>
+    <label class="ck"><input type="checkbox" id="clR"> Lien utilisable à distance (maison, 4G) — chiffré de bout en bout ; ce PC doit être connecté à Internet</label>
     <p class="muted">🔒 Chaque copie rendue est enregistrée en PDF verrouillé : l'élève ne peut plus la modifier après l'envoi.</p>
     <p class="muted">Au premier partage, Windows peut demander d'autoriser SknEDU-studio sur les réseaux privés : acceptez.</p>`,
-  [['Annuler', null], ['Démarrer le partage', () => ({ title: $('#clT').value || baseName(), message: $('#clM').value, collect: $('#clC').checked, fill: $('#clF').checked, word: $('#clW').checked }), true]]);
+  [['Annuler', null], ['Démarrer le partage', () => ({ title: $('#clT').value || baseName(), message: $('#clM').value, collect: $('#clC').checked, fill: $('#clF').checked, word: $('#clW').checked, remote: $('#clR').checked }), true]]);
   if (!r) return;
   busy('Préparation du partage…');
   try {
     const bytes = await buildPdf(); let layout = null;
     if (r.word) { busy('Préparation de la version Word…'); layout = await layoutOfDocument(); }
-    CLASS = await window.api.classroomStart({ bytes, title: r.title, message: r.message, collect: r.collect, fill: r.fill, layout, fileName: S.fileName }); done(); classroomTag();
+    CLASS = await window.api.classroomStart({ bytes, title: r.title, message: r.message, collect: r.collect, fill: r.fill, layout, remote: r.remote, fileName: S.fileName }); done(); classroomTag();
+    if (CLASS.remoteOff) alert(CLASS.remoteOff + (CLASS.url ? '\nLe partage reste disponible sur le réseau de la classe.' : ''));
     if (CLASS.fillOff === 'pages') alert('Ce document est trop long pour être rempli dans le navigateur (40 pages au plus) : les élèves le recevront en PDF.');
     if (CLASS.wordOff) alert('La version Word n\'a pas pu être créée : les élèves recevront le PDF.');
     classroomPanel();
@@ -443,20 +445,28 @@ async function classroomDialog() {
   catch (e) { done(); alert('Partage impossible : ' + errMsg(e)); }
 }
 function classroomHtml() {
-  const how = { 'en ligne': 'rempli en ligne', pdf: 'PDF', photo: 'photo', photos: 'photos' };
-  return `<div class="clgrid"><div><img src="${CLASS.qr || ''}" alt="QR code" class="qr"><p class="muted">Ou saisir l'adresse :</p>${(CLASS.urls || [CLASS.url]).map((u) => `<code class="url">${esc(u)}</code>`).join('')}
-    <p><button id="clCopy">📋 Copier le lien</button> <span class="muted" id="clCopied"></span></p>
-    <p class="muted">Ce lien s'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) connecté au même réseau que ce PC.</p></div>
+  const how = (h) => String(h || '').replace('en ligne', 'rempli en ligne').replace('pdf', 'PDF');
+  const R = CLASS.remote;
+  const etat = !R ? '' : R.ended ? '<span class="err">terminé (8 h au plus) : relancez le partage</span>' : R.online ? '<span class="exnew">en ligne</span>' : '<span class="err">hors ligne : vérifiez la connexion Internet de ce PC</span>';
+  return `<div class="clgrid"><div><img src="${(R ? CLASS.qrRemote : CLASS.qr) || CLASS.qr || ''}" alt="QR code" class="qr">
+    ${R ? `<p><b>🌍 Lien à distance</b> (maison, 4G, tout Wi-Fi) — ${etat}</p><code class="url">${esc(R.url)}</code>
+    <p><button id="clCopyR">📋 Copier le lien à distance</button></p>
+    <p class="muted">🔐 Chiffré de bout en bout : le relais transporte le document et les copies sans pouvoir les lire. Gardez SknEDU-studio ouvert : le lien ne répond que pendant ce partage.</p>` : ''}
+    ${CLASS.url ? `<p><b>📶 Lien du réseau de la classe</b>${R ? ' (sans Internet)' : ''}</p>${(CLASS.urls || [CLASS.url]).map((u) => `<code class="url">${esc(u)}</code>`).join('')}
+    <p><button id="clCopy">📋 Copier le lien</button></p>
+    <p class="muted">Ce lien s'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) connecté au même réseau que ce PC.</p>` : ''}
+    <p class="muted" id="clCopied"></p></div>
     <div><p>Documents proposés aux élèves : <b>PDF</b>${CLASS.fill ? ', <b>page à remplir en ligne</b>' : ''}${CLASS.word ? ', <b>Word (.docx)</b>' : ''}</p>
     <p>📥 Ouvertures et téléchargements : <b id="clDl">${CLASS.downloads || 0}</b></p>${CLASS.collect ? `<p>📤 Copies reçues : <b>${(CLASS.received || []).length}</b> <span class="muted">🔒 PDF verrouillés</span></p>
-    <ul class="cllist">${(CLASS.received || []).map((r) => `<li>${esc(r.eleve)} <small>${new Date(r.at).toLocaleTimeString('fr-FR')}${how[r.how] ? ' · ' + how[r.how] : ''}</small></li>`).join('') || '<li class="muted">En attente…</li>'}</ul>` : ''}</div></div>`;
+    <ul class="cllist">${(CLASS.received || []).map((r) => `<li>${esc(r.eleve)} <small>${new Date(r.at).toLocaleTimeString('fr-FR')}${r.how ? ' · ' + esc(how(r.how)) : ''}</small></li>`).join('') || '<li class="muted">En attente…</li>'}</ul>` : ''}</div></div>`;
 }
 // « Copier le lien » : le panneau est redessiné à chaque copie reçue, d'où une écoute au niveau du document
 document.addEventListener('click', async (e) => {
-  if (!e.target || e.target.id !== 'clCopy' || !CLASS.url) return;
-  let ok = true; try { await navigator.clipboard.writeText(CLASS.url); } catch { ok = false; }
-  const s = $('#clCopied'); if (s) s.textContent = ok ? '✅ Lien copié' : 'Copie impossible : sélectionnez l\'adresse ci-dessus.';
-  if (ok) msg('Lien de la classe copié : collez-le dans un message, un courriel ou l\'ENT.');
+  const far = !!e.target && e.target.id === 'clCopyR'; if (!e.target || (!far && e.target.id !== 'clCopy')) return;
+  const link = far ? CLASS.remote && CLASS.remote.url : CLASS.url; if (!link) return;
+  const ok = await copyText(link);
+  const s = $('#clCopied'); if (s) s.textContent = ok ? (far ? '✅ Lien à distance copié' : '✅ Lien copié') : 'Copie impossible : sélectionnez l\'adresse ci-dessus.';
+  if (ok) msg(far ? 'Lien à distance copié : envoyez-le aux élèves par message, courriel ou ENT. Il ne s\'ouvre que pendant ce partage.' : 'Lien de la classe copié : collez-le dans un message, un courriel ou l\'ENT.');
 });
 async function classroomPanel() {
   const r = await modal('Classe connectée — partage en cours', classroomHtml(), [['Arrêter le partage', 'stop'], ...(CLASS.collect ? [['Ouvrir les copies reçues', 'open'], ['Corriger les copies', 'grade']] : []), ['Réduire', null, true]]);
@@ -473,12 +483,12 @@ function classroomTag() {
   if (!t) { t = document.createElement('button'); t.id = 'classTag'; t.onclick = () => classroomPanel(); $('footer').insertBefore(t, $('#update')); }
   t.textContent = `📡 Partage en cours${CLASS.collect ? ` — ${(CLASS.received || []).length} copie(s)` : ''}`;
 }
-window.api.onClassroom((s) => { const qr = CLASS.qr; CLASS = { ...s, qr }; classroomTag(); if (!$('#modal').hidden && $('#mTitle').textContent.startsWith('Classe connectée —')) $('#mBody').innerHTML = classroomHtml(); });
+window.api.onClassroom((s) => { const qr = CLASS.qr; const qrRemote = CLASS.qrRemote; CLASS = { ...s, qr, qrRemote }; classroomTag(); if (!$('#modal').hidden && $('#mTitle').textContent.startsWith('Classe connectée —')) $('#mBody').innerHTML = classroomHtml(); });
 
 // ================================================================ 6 bis. Dossier d'échange (cloud synchronisé : Google Drive, OneDrive…)
 // Un dossier par élève dans le cloud de l'enseignant : documents à faire, copies rendues, corrigés. Les copies déposées
 // par les élèves apparaissent seules ici ; l'enseignant distribue et rend les corrigés en un clic.
-let EX = { classes: [], clouds: [], nouvelles: 0 }; let EX_CUR = null; let EX_PANEL = false; let EX_PICK = null; const EX_SRC = new Map();
+let EX = { classes: [], clouds: [], nouvelles: 0 }; let EX_CUR = null; let EX_PANEL = false; let EX_PICK = null;
 const exClass = () => EX.classes.find((c) => c.id === EX_CUR) || EX.classes[0] || null;
 async function exchangeReload() { EX = await window.api.exchangeList(); exchangeTag(); return EX; }
 async function exchangeDialog() {
@@ -555,10 +565,12 @@ async function exchangeOpen(c, eleve) {
     if (!ok.length) { done(); return alert('Ouverture impossible : ' + ((loaded[0] && loaded[0].error) || 'copie illisible')); }
     if (S.pages.length) newTab(); else resetDoc(); await handleLoaded(loaded, 0);
     const who = [...new Set(ok.map((x) => x.eleve))];
-    S.fileName = who.length === 1 ? `${who[0]} - ${ok.length === 1 ? ok[0].name.replace(/\.[^.]*$/, '') : 'copies'}.pdf` : `Copies - ${c.name}.pdf`;
-    if (who.length === 1) EX_SRC.set(S.fileName, { id: c.id, eleve: who[0] });
+    const base = ok.length === 1 ? ok[0].name.replace(/\.[^.]*$/, '') : 'copies';
+    S.fileName = who.length === 1 ? `${who[0]} - ${base}.pdf` : `Copies - ${c.name}.pdf`;
+    S.filePath = null; // la copie rendue par l'élève n'est jamais écrasée
+    S.exchange = who.length === 1 ? { id: c.id, eleve: who[0], name: base } : null; // « Enregistrer » déposera le corrigé dans le dossier de cet élève
     await window.api.exchangeSeen({ id: c.id, items: ok.map((x) => ({ eleve: x.eleve, name: x.name })) });
-    done(`${ok.length} copie(s) ouverte(s) : ${who.join(', ')}`);
+    done(`${ok.length} copie(s) ouverte(s) : ${who.join(', ')}` + (S.exchange ? ' — Enregistrer (Ctrl+S) déposera le corrigé dans son dossier.' : ''));
   } catch (e) { done(); alert('Ouverture impossible : ' + errMsg(e)); }
   exchangeReload().catch(() => {});
 }
@@ -575,7 +587,7 @@ async function exchangeGive(c) {
 }
 async function exchangeBack(c) {
   if (!S.pages.length) return alert('Ouvrez d\'abord la copie corrigée à rendre.');
-  const src = EX_SRC.get(S.fileName); const pre = src && src.id === c.id ? src.eleve : '';
+  const src = S.exchange; const pre = src && src.id === c.id ? src.eleve : '';
   const r = await modal('Rendre un corrigé', `<p>Le document ouvert sera déposé dans le dossier « ${esc((EX.dossiers || {}).back || '')} » de l'élève.</p>
     <label class="blk">Élève <select id="exWho">${c.eleves.map((e) => `<option${e.nom === pre ? ' selected' : ''}>${esc(e.nom)}</option>`).join('')}</select></label>
     <label class="blk">Nom du fichier <input type="text" id="exFile" maxlength="120" value="${esc(baseName().replace(/ - corrigé$/, '') + ' - corrigé')}"></label>`,
@@ -585,6 +597,15 @@ async function exchangeBack(c) {
   catch (e) { done(); alert('Dépôt impossible : ' + errMsg(e)); }
   exchangeReload().catch(() => {});
 }
+/** Enregistrer une copie venue du dossier d'échange : le corrigé va tout seul dans le dossier cloud de l'élève (« 3 - Corrigés »). */
+window.exchangeSave = async () => {
+  const x = S.exchange; if (!x) return false;
+  busy('Enregistrement du corrigé…');
+  try {
+    const p = await window.api.exchangeReturn({ id: x.id, eleve: x.eleve, bytes: await buildPdf(), fileName: `${x.name} - corrigé` });
+    setDirty(false); done(`Corrigé enregistré dans le dossier de ${x.eleve} : ${p}`); exchangeReload().catch(() => {}); return true;
+  } catch (e) { done(); alert(`Le corrigé n'a pas pu être enregistré dans le dossier de ${x.eleve} : ${errMsg(e)}\nChoisissez un autre emplacement.`); return false; }
+};
 function exchangeTag() {
   let t = $('#exTag'); const n = EX.nouvelles || 0;
   if (!n) { if (t) t.remove(); return; }
@@ -731,7 +752,10 @@ const EN = {
   'Ouvrir les nouvelles copies': 'Open new papers', 'Créer les dossiers': 'Create folders', 'Distribuer': 'Hand out', 'Rendre le corrigé': 'Return graded work', 'Distribuer aux élèves': 'Hand out to students',
   'Rendre un corrigé': 'Return graded work', 'Nom de la classe': 'Class name', 'Nom du fichier': 'File name', 'Ouvrir le dossier de la classe': 'Open the class folder',
   'Retirer cette classe du logiciel': 'Remove this class from the app',
-  '📋 Copier le lien': '📋 Copy link', '✅ Lien copié': '✅ Link copied', 'Préparation de la version Word…': 'Preparing the Word version…', 'Préparation du partage…': 'Preparing sharing…',
+  '📋 Copier le lien': '📋 Copy link', '✅ Lien copié': '✅ Link copied', '📋 Copier le lien à distance': '📋 Copy remote link', '✅ Lien à distance copié': '✅ Remote link copied', 'en ligne': 'online',
+  'Lien utilisable à distance (maison, 4G) — chiffré de bout en bout ; ce PC doit être connecté à Internet': 'Link usable remotely (home, mobile data) — end-to-end encrypted; this PC must be connected to the Internet',
+  '🔐 Chiffré de bout en bout : le relais transporte le document et les copies sans pouvoir les lire. Gardez SknEDU-studio ouvert : le lien ne répond que pendant ce partage.': '🔐 End-to-end encrypted: the relay carries the document and the papers without being able to read them. Keep SknEDU-studio open: the link only answers during this sharing session.',
+  'Lien à distance copié : envoyez-le aux élèves par message, courriel ou ENT. Il ne s\'ouvre que pendant ce partage.': 'Remote link copied: send it to students by message, email or school platform. It only opens during this sharing session.', 'Préparation de la version Word…': 'Preparing the Word version…', 'Préparation du partage…': 'Preparing sharing…',
   'Lien de la classe copié : collez-le dans un message, un courriel ou l\'ENT.': 'Class link copied: paste it into a message, an email or your school platform.',
   'Les élèves peuvent remplir le document dans leur navigateur (rien à installer)': 'Students can fill in the document in their browser (nothing to install)',
   'Proposer aussi le document en Word (.docx) modifiable': 'Also offer the document as an editable Word file (.docx)',

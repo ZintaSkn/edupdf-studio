@@ -371,7 +371,9 @@ if (!app.requestSingleInstanceLock()) {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
     codeupdate.init({ app, net: require('electron').net });
-    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)) });
+    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)),
+      fetch: (...a) => require('electron').net.fetch(...a), // passe par le proxy du système (réseaux d'établissement)
+      relayUrl: () => { const c = require('../package.json').commercial || {}; return (process.env.EDUPDF_SELFTEST && process.env.EDUPDF_RELAY) || c.relay || c.licenceServer || ''; } });
     exchange.init({ app, ipcMain, shell, guard: admin.guard, logEvent: admin.logEvent, premium: license.requirePremium, getWin: () => win, readSettings: () => readSettings(), writeSettings: (v) => writeSettings(v), grant: (f) => grantPath(f), docExt: () => ALL_EXT,
       roots: () => { const l = cloud.detect(readSettings().clouds || []); const t = process.env.EDUPDF_SELFTEST && path.join(process.env.EDUPDF_SELFTEST, 'cloud'); if (t && fs.existsSync(t)) l.push({ id: 'custom', name: 'Test', path: t }); return l; } });
     ai.init({ app, ipcMain, safeStorage: require('electron').safeStorage, guard: admin.guard, logEvent: admin.logEvent });
@@ -875,7 +877,15 @@ ipcMain.handle('font-file', (_e, spec) => {
   fontFiles.set(spec, data);
   return data;
 });
-ipcMain.handle('open-external', (_e, url) => (/^https:\/\//i.test(String(url)) || /^mailto:[^\s<>"']+$/i.test(String(url)) ? shell.openExternal(String(url)) : null)); // pages https et e-mails seulement
+ipcMain.handle('open-external', (_e, url) => {
+  if (!(/^https:\/\//i.test(String(url)) || /^mailto:[^\s<>"']+$/i.test(String(url)))) return null; // pages https et e-mails seulement
+  if (process.env.EDUPDF_SELFTEST) { (global.__edupdfExternal = global.__edupdfExternal || []).push(String(url)); return null; } // auto-test : aucun navigateur ouvert
+  return shell.openExternal(String(url));
+});
+// Presse-papiers (texte seulement) : copier une demande d'IA, coller sa réponse — la page y a déjà droit, ce chemin est simplement fiable sans le focus
+// (selon la version d'Electron, le presse-papiers répond tout de suite ou par une promesse : « await » couvre les deux)
+ipcMain.handle('clipboard-read', async () => String((await require('electron').clipboard.readText()) || '').slice(0, 4 * 1048576));
+ipcMain.handle('clipboard-write', async (_e, text) => { if (typeof text !== 'string' || text.length > 4 * 1048576) return false; await require('electron').clipboard.writeText(text); return true; });
 ipcMain.handle('show-in-folder', (_e, p) => { if (typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)) shell.showItemInFolder(p); });
 ipcMain.handle('app-version', () => app.getVersion());
 
