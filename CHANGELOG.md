@@ -4,7 +4,7 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
-## [1.14.0] — Classe connectée à distance, dossier d'échange, conversion fidèle
+## [1.14.1] — Classe connectée à distance, dossier d'échange, conversion fidèle
 - **Classe connectée à distance** : nouveau lien utilisable hors du réseau de la classe (maison, 4G), chiffré de bout en bout ;
   le relais de l'éditeur transporte le document et les copies sans pouvoir les lire et ne conserve rien
 - **Classe connectée** : lien copiable d'un clic ; page élève compatible avec tout navigateur (Windows, Mac, iPad, iPhone, Android) ;

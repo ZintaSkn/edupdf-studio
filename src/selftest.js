@@ -249,7 +249,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const T = window.__edupdf; window.confirm = () => true;
         // sans LibreOffice : diapositives images
         const office = await window.api.officeStatus();
-        if (!office) { const p = T.toOffice('pptx'); await new Promise((r) => setTimeout(r, 400)); [...document.querySelectorAll('#mBtns button')].find((b) => /Diapositives images/.test(b.textContent)).click(); await p; } // choix proposé : diapositives images
+        if (!office) { const p = T.toOffice('pptx'); await new Promise((r) => setTimeout(r, 400)); document.querySelectorAll('#mBtns button')[1].click(); await p; } // 2e bouton, quel que soit la langue de l'interface // choix proposé : diapositives images
         return { office, msg: document.querySelector('#msg').textContent };
       })()`);
       try { const z = fs.readFileSync(path.join(outDir, 'Document.pptx')); log('OK   pptx-file', z.length, z.slice(0, 2).toString()); } catch (e) { log('FAIL pptx-file', e.message); results.pptx = { error: e.message }; }
@@ -528,6 +528,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
       // ---------- Abonnement IA : demande préparée, copiée, site ouvert ; réponse rapportée ----------
       try {
         const clip = require('electron').clipboard; await clip.writeText('ancien contenu');
+        if (String((await clip.readText()) || '') !== 'ancien contenu') throw Object.assign(new Error('presse-papiers indisponible sur ce poste'), { skip: true }); // serveur de construction sans presse-papiers
         const sub = await js(`(async () => {
           const T = window.__edupdf; const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const q = (x) => document.querySelector(x); const out = {};
           document.querySelector('#aiPrompt').value = ''; T.actions.aiSubscription(); await wait(400);
@@ -549,7 +550,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const info = { ...sub, debutCopie: copied.slice(0, 50), demandeCopiee: /QCM de 10 questions/.test(copied) && /<document>/.test(copied) && copied.length, siteOuvert: opened, retour: back.fenetreFermee ? back.reponse : 'non collée : ' + back.etat.slice(0, 60) };
         const ok = sub.etapes === 3 && sub.sites >= 4 && sub.sansDemande === 'err' && sub.demande && sub.etat === 'ok' && sub.fenetreOuverte && !!info.demandeCopiee && /^https:\/\/chatgpt\.com/.test(opened) && back.fenetreFermee && /QCM demandé/.test(back.reponse);
         log((ok ? 'OK   ' : 'FAIL ') + 'abonnement-ia', JSON.stringify(info)); if (!ok) results.abonnement = { error: 'résultat inattendu' };
-      } catch (e) { log('FAIL abonnement-ia', e.stack); results.abonnement = { error: e.message }; }
+      } catch (e) { if (e.skip) log('SKIP abonnement-ia (' + e.message + ')'); else { log('FAIL abonnement-ia', e.stack); results.abonnement = { error: e.message }; } }
       // ---------- Dossier d'échange : un dossier cloud par élève (distribution, copies rendues, corrigés) ----------
       try {
         const cloudDir = path.join(outDir, 'cloud'); fs.mkdirSync(cloudDir, { recursive: true });
