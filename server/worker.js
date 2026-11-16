@@ -45,7 +45,7 @@ export class LicenceStore extends DurableObject {
   }
   /** Appel depuis le Worker : traité seul, sans entrelacement avec une autre demande. */
   async process(method, pathname, body, ip) {
-    if (!this.allow(ip || 'inconnu')) return { status: 429, body: { ok: false, code: 'RATE_LIMIT', error: 'Trop de demandes : réessayez dans une minute.' } };
+    if (!this.allow(ip || 'inconnu')) { console.warn(JSON.stringify({ evenement: 'licences_limite' })); return { status: 429, body: { ok: false, code: 'RATE_LIMIT', error: 'Trop de demandes : réessayez dans une minute.' } }; }
     const k = await this.keys(); const st = this.ctx.storage;
     const service = createService({
       store: { get: async (key) => (await st.get(key)) || null, put: async (key, v) => st.put(key, v) },
@@ -75,8 +75,13 @@ export class Room extends DurableObject {
     if (!this.meta) this.meta = (await this.ctx.storage.get('meta')) || null;
     if (!this.meta) return new Response(null, { status: 404, headers: RELAY_HEADERS });
     if (!this.room) this.room = createRoom(TIMERS);
+    const ip = request.headers.get('cf-connecting-ip') || 'inconnu'; const t = Date.now(); this.rl = this.rl || new Map(); const e = this.rl.get(ip) || { n: 0, since: t };
+    if (t - e.since > 60000) { e.n = 0; e.since = t; }
+    e.n++; this.rl.set(ip, e); if (this.rl.size > 3000) for (const [k, v] of this.rl) if (t - v.since > 60000) this.rl.delete(k);
+    if (e.n > 900) { if (e.n === 901) console.warn(JSON.stringify({ evenement: 'relais_limite' })); return new Response(null, { status: 429, headers: { ...RELAY_HEADERS, 'Retry-After': '60' } }); } // 900 demandes par minute et par adresse
     const sub = new URL(request.url).pathname.replace(/^\/r\/[^/]+/, '');
     const r = await handleRoom(this.room, this.meta, { method: request.method, sub, header: (n) => request.headers.get(n), body: async () => new Uint8Array(await request.arrayBuffer()), hash: sha256hex }, TIMERS.now);
+    if (r.status === 401 || r.status === 413) console.warn(JSON.stringify({ evenement: 'relais_refus', statut: r.status, action: request.method + ' ' + sub.replace(/[0-9a-f]{16,}/, '…') })); // journal de supervision : ni adresse ni contenu
     if (r.end) await this.end();
     return new Response(r.body || null, { status: r.status, headers: { ...RELAY_HEADERS, ...(r.body ? { 'Content-Type': 'application/octet-stream' } : {}), ...(r.headers || {}) } });
   }
@@ -84,7 +89,7 @@ export class Room extends DurableObject {
 async function relay(request, env, url) {
   if (request.method === 'POST' && url.pathname === '/r/new') { // une salle par partage ; nombre limité par adresse
     const ip = request.headers.get('cf-connecting-ip') || 'inconnu';
-    if (!(await env.STORE.get(env.STORE.idFromName('licences')).allowRoom(ip))) return json(429, { ok: false, code: 'RATE_LIMIT', error: 'Trop de partages à distance ouverts depuis ce réseau : réessayez plus tard.' });
+    if (!(await env.STORE.get(env.STORE.idFromName('licences')).allowRoom(ip))) return (console.warn(JSON.stringify({ evenement: 'relais_salles_limite' })), json(429, { ok: false, code: 'RATE_LIMIT', error: 'Trop de partages à distance ouverts depuis ce réseau : réessayez plus tard.' }));
     const room = rnd(16); const hostKey = rnd(32); const expires = Date.now() + LIMITS.ttlMs;
     await env.ROOMS.get(env.ROOMS.idFromName(room)).init(await sha256hex(hostKey), expires);
     return json(200, { ok: true, room, hostKey, expires, maxBody: LIMITS.body });

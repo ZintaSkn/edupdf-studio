@@ -150,6 +150,15 @@ function fillPage(base) {
   return page(s.title, `${SP.fillBody(`<a href="${base}/">Retour</a>`)}
     <script>window.CFG = ${SP.jsonForScript(cfg)};</script><script>${SP.FILL_JS}</script><script>${SP.LAN_JS}</script>`, true);
 }
+/** Limite par appareil et par minute : 600 demandes, 8 envois de copie (un appareil ne peut pas saturer le PC de l'enseignant). */
+function allowed(s, ip, post) {
+  const t = Date.now(); const e = s.rate.get(ip) || { n: 0, posts: 0, since: t };
+  if (t - e.since > 60000) { e.n = 0; e.posts = 0; e.since = t; }
+  e.n++; if (post) e.posts++; s.rate.set(ip, e);
+  if (s.rate.size > 2000) for (const [k, v] of s.rate) if (t - v.since > 60000) s.rate.delete(k);
+  const ok = e.n <= 600 && e.posts <= 8; if (!ok && !e.noted) { e.noted = true; s.refused++; if (A.audit) A.audit('classe_limite', { appareil: String(ip).slice(0, 45) }); }
+  return ok;
+}
 function handler(req, res) {
   const u = new URL(req.url, 'http://x'); const base = `/c/${session.token}`;
   const send = (code, body, type = 'text/html; charset=utf-8', extra = {}) => {
@@ -158,6 +167,7 @@ function handler(req, res) {
     res.end(body);
   };
   const json = (code, o) => send(code, JSON.stringify(o), 'application/json; charset=utf-8');
+  if (!allowed(session, req.socket.remoteAddress || '?', req.method === 'POST')) return send(429, page('Trop de demandes', '<div class="card err">Trop de demandes depuis cet appareil : patientez une minute, puis réessayez.</div>'), 'text/html; charset=utf-8', { 'Retry-After': '60' });
   if (!u.pathname.startsWith(base)) return send(404, page('Introuvable', '<div class="card">Adresse invalide ou partage terminé.</div>'));
   const sub = u.pathname.slice(base.length) || '/';
   const s = session;
@@ -293,7 +303,7 @@ async function start({ bytes, title, fileName, message, collect, fill, layout, r
   const dir = path.join(A.app.getPath('userData'), 'classe', new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'));
   fs.mkdirSync(dir, { recursive: true });
   const s = { token, bytes: pdf, title: String(title || 'Document').slice(0, 120), fileName: path.basename(String(fileName || 'document.pdf')).replace(/["\\<>]/g, '_').slice(0, 120), message: message ? String(message).slice(0, 400) : '',
-    collect: collect !== false, fill: canFill, pages, images: [], docx, dir, received: [], downloads: 0, remote: null, urls: [], url: '' };
+    collect: collect !== false, fill: canFill, pages, images: [], docx, dir, received: [], downloads: 0, remote: null, urls: [], url: '', rate: new Map(), refused: 0 };
   session = s;
   const QR = require('qrcode'); const qrOf = (u) => QR.toDataURL(u, { margin: 1, width: 320, color: { dark: '#001871', light: '#ffffff' } });
   if (ips.length) {

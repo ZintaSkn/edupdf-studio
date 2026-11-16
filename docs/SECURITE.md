@@ -144,6 +144,10 @@ mais un administrateur du PC peut le supprimer en entier.
 - `intrusion-classe` : nom d'élève piégé (`../`, `<script>`), nom de fichier piégé, jeton deviné ;
 - `classe-a-distance` et `server/test-relay.js` : rien ne passe en clair par le relais, accès réservé à l'enseignant,
   limites de taille et de nombre, délais, salle supprimée à l'arrêt ;
+- `intrusion-environnement` : variables d'environnement modifiées au lancement (ProgramData, LOCALAPPDATA, USERPROFILE) —
+  les dossiers du poste (règles de l'établissement, licence, période d'essai) ne se déplacent pas ;
+- limite de demandes : 8 envois de copie et 600 demandes par minute et par appareil sur le réseau de la classe,
+  900 demandes par minute et par adresse sur le relais, 60 sur l'activation ; refus consignés ;
 - `depot-utilisateur` : contre-épreuve (un fichier réellement déposé s'ouvre) ;
 - `licence-jeton-falsifie`, `licence-autre-poste` et `server/test-core.js` : jetons et licences falsifiés,
   activation simultanée, entrées hostiles.

@@ -1010,6 +1010,8 @@ function build() {
   if (stale.length) console.warn('Pages obsolètes (plus générées) :\n  ' + stale.join('\n  '));
   const urls = Object.values(PAGES).flatMap((p) => ['fr', 'en'].map((l) => `  <url><loc>${BASE + p[l]}</loc>${['fr', 'en'].map((h) => `<xhtml:link rel="alternate" hreflang="${h}" href="${BASE + p[h]}"/>`).join('')}</url>`));
   write('/sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`);
+  // Contact pour signaler une faille (RFC 9116) ; à renouveler avant l'échéance
+  write('/.well-known/security.txt', `Contact: mailto:${(require('../package.json').commercial || {}).email}\nExpires: 2027-11-01T00:00:00.000Z\nPreferred-Languages: fr, en\nCanonical: ${BASE}/.well-known/security.txt\nPolicy: https://github.com/ZintaSkn/edupdf-studio/blob/main/docs/SECURITE.md\n`);
   write('/robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${BASE}/sitemap.xml\n`);
   // adresses courtes faciles à partager
   write('/_redirects', `/telecharger /sknedu-studio/telecharger/ 301
@@ -1033,6 +1035,9 @@ function build() {
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  ! Access-Control-Allow-Origin
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

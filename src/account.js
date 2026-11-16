@@ -48,8 +48,9 @@ function files() {
   if (testMode()) { const d = path.join(process.env.EDUPDF_SELFTEST, 'essai'); return ['a', 'b', 'c'].map((n) => path.join(d, n, '.sknedu')); }
   const home = os.homedir(); const list = [];
   if (process.platform === 'win32') {
-    list.push(path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF', '.skn-trial'));
-    list.push(path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'SknEDU', 'trial.dat'));
+    const SD = require('./sysdirs'); // emplacements demandés à Windows, pas aux variables d'environnement (modifiables au lancement)
+    list.push(path.join(SD.programData(), 'EduPDF', '.skn-trial'));
+    list.push(path.join(SD.localAppData(), 'SknEDU', 'trial.dat'));
   } else if (process.platform === 'darwin') {
     list.push('/Users/Shared/EduPDF/.skn-trial', path.join(home, 'Library', 'Application Support', '.sknedu-trial'));
   } else list.push('/var/tmp/EduPDF/.skn-trial', path.join(home, '.config', '.sknedu-trial'));

@@ -278,6 +278,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: !app.isPackaged, // application installée : outils de développement indisponibles
       backgroundThrottling: false // OCR / export continuent même fenêtre réduite
     }
   });
@@ -371,7 +372,7 @@ if (!app.requestSingleInstanceLock()) {
     admin.init({ app, Notification, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog, shell, iconPath: ICON, openMain, preloadAdmin: path.join(__dirname, 'admin-preload.js') });
     license.init({ app, ipcMain, dialog });
     codeupdate.init({ app, net: require('electron').net });
-    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)),
+    classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, audit: (t, d) => zt.audit(t, d), heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)),
       fetch: (...a) => require('electron').net.fetch(...a), // passe par le proxy du système (réseaux d'établissement)
       relayUrl: () => { const c = require('../package.json').commercial || {}; return (process.env.EDUPDF_SELFTEST && process.env.EDUPDF_RELAY) || c.relay || c.licenceServer || ''; } });
     exchange.init({ app, ipcMain, shell, guard: admin.guard, logEvent: admin.logEvent, premium: license.requirePremium, getWin: () => win, readSettings: () => readSettings(), writeSettings: (v) => writeSettings(v), grant: (f) => grantPath(f), docExt: () => ALL_EXT,

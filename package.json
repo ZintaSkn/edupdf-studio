@@ -1,7 +1,7 @@
 {
   "name": "edupdf-studio",
   "productName": "SknEDU-studio",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "description": "SknEDU-studio : éditeur PDF hors-ligne pour l'enseignement (créer, modifier, organiser, scanner, OCR, convertir, IA).",
   "main": "src/main.js",
   "author": "EduPDF",
@@ -32,6 +32,7 @@
     "electron-updater": "^6.3.9",
     "exceljs": "^4.4.0",
     "heic-convert": "^2.1.0",
+    "jszip": "^3.10.1",
     "mammoth": "^1.13.0",
     "mathjax": "^3.2.2",
     "mupdf": "^1.28.1",

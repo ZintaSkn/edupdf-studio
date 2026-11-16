@@ -141,7 +141,7 @@ function init(deps) {
   account.init(deps);
   P.user = path.join(A.app.getPath('userData'), 'licence.sknlic');
   P.token = path.join(A.app.getPath('userData'), 'licence-jeton.sknt');
-  P.machine = path.join(process.env.EDUPDF_MACHINE_DIR || (process.platform === 'win32' ? path.join(process.env.ProgramData || 'C:\\ProgramData', 'EduPDF') : process.platform === 'darwin' ? '/Users/Shared/EduPDF' : '/var/tmp/EduPDF'), 'licence.sknlic');
+  P.machine = path.join(require('./sysdirs').machineDir(), 'licence.sknlic');
   A.ipcMain.handle('license-status', () => status());
   const traced = (type, fn) => async (...a) => { try { const r = await fn(...a); audit(type, { resultat: 'ok', edition: r && r.edition }); return r; } catch (e) { audit(type, { resultat: 'refus', motif: String(e.message).slice(0, 120) }); throw e; } };
   A.ipcMain.handle('license-activate', traced('licence_activation', (_e, { text, scope }) => activate(text, scope)));

@@ -1150,12 +1150,25 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
           const http = require('http'); const u = new URL(st.url + 'rendre'); const boundary = '----x' + Date.now();
           const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="eleve"\r\n\r\n../../../..\\evasion<script>\r\n--${boundary}\r\nContent-Disposition: form-data; name="copie"; filename="../../x.pdf"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.7 test\r\n--${boundary}--\r\n`)]);
           const post = await new Promise((res, rej) => { const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, (rs) => { rs.resume(); rs.on('end', () => res(rs.statusCode)); }); r.on('error', rej); r.end(body); });
+          const flood = []; for (let i = 0; i < 9; i++) flood.push(await new Promise((res, rej) => { const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, (rs) => { rs.resume(); rs.on('end', () => res(rs.statusCode)); }); r.on('error', rej); r.end(body); }));
           const guess = await new Promise((res) => http.get(st.url.replace(/\/c\/[^/]+\//, '/c/AAAAAAAAAAAA/') + 'document.pdf', (r) => { r.resume(); res(r.statusCode); }).on('error', () => res('erreur')));
           const status = await js('window.api.classroomStatus()'); await js('window.api.classroomStop()');
           const saved = (status.received || []).map((r) => r.file);
           const confine = saved.every((f) => path.dirname(f) === st.dir && !/[\\/]\.\.|<|>/.test(path.basename(f)));
-          log((confine && guess === 404 ? 'OK   ' : 'FAIL ') + 'intrusion-classe', JSON.stringify({ envoi: post, fichiers: saved.map((f) => path.basename(f)), confineDansLeDossierDeLaClasse: confine, jetonDevine: guess }));
+          const limite = flood.slice(0, 7).every((c) => c === 400) && flood.slice(7).every((c) => c === 429); // 8 envois par minute et par appareil, puis refus (le jeton deviné est refusé de même)
+          log((confine && (guess === 404 || guess === 429) && limite ? 'OK   ' : 'FAIL ') + 'intrusion-classe', JSON.stringify({ envoi: post, fichiers: saved.map((f) => path.basename(f)), confineDansLeDossierDeLaClasse: confine, jetonDevine: guess, envoisEnRafale: flood.join(',') }));
+          if (!(confine && limite)) results.intrusionClasse = { error: 'résultat inattendu' };
         } catch (e) { log('FAIL intrusion-classe', e.stack); }
+        try { // variables d'environnement modifiées au lancement : les dossiers du poste (règles, licence, essai) ne bougent pas
+          const SD = require('./sysdirs'); const keep = { ProgramData: process.env.ProgramData, LOCALAPPDATA: process.env.LOCALAPPDATA, USERPROFILE: process.env.USERPROFILE, EDUPDF_SELFTEST: process.env.EDUPDF_SELFTEST };
+          const faux = path.join(outDir, 'faux'); let seen;
+          try { process.env.ProgramData = faux; process.env.LOCALAPPDATA = faux; process.env.USERPROFILE = faux; delete process.env.EDUPDF_SELFTEST; seen = [SD.programData(), SD.localAppData(), SD.machineDir()]; }
+          finally { for (const [k, v] of Object.entries(keep)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+          const moved = seen.some((p) => path.resolve(p).toLowerCase().startsWith(path.resolve(outDir).toLowerCase()));
+          const test = SD.machineDir(); const okTest = path.resolve(test).toLowerCase().startsWith(path.resolve(outDir).toLowerCase());
+          log((!moved && okTest ? 'OK   ' : 'FAIL ') + 'intrusion-environnement', JSON.stringify({ dossiersDeplacesParLesVariables: moved, dossierDuPoste: path.basename(path.dirname(seen[2])) + '/' + path.basename(seen[2]), autoTestIsole: okTest }));
+          if (moved || !okTest) results.intrusionEnv = { error: 'dossiers du poste déplaçables' };
+        } catch (e) { log('FAIL intrusion-environnement', e.stack); results.intrusionEnv = { error: e.message }; }
         try { // contre-épreuve : un fichier réellement choisi par l'utilisateur (hors des dossiers du logiciel) s'ouvre toujours
           const dropFile = path.join(require('os').tmpdir(), 'sknedu-depot-' + Date.now() + '.pdf');
           const { PDFDocument } = require('pdf-lib'); const d0 = await PDFDocument.create(); d0.addPage(); fs.writeFileSync(dropFile, await d0.save());
