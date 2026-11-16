@@ -4,6 +4,13 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.14.2] — Audit de sécurité
+- Les règles de l'établissement, la licence du poste et la période d'essai ne peuvent plus être déplacées en lançant le logiciel
+  avec des variables d'environnement modifiées
+- Classe connectée : limite de demandes par appareil (600 par minute, 8 envois de copie) ; dépassement consigné au journal
+- Outils de développement désactivés dans le logiciel installé
+- Service en ligne : limite de demandes sur le relais, refus consignés ; site : accès inter-sites retiré, contact de sécurité
+
 ## [1.14.1] — Classe connectée à distance, dossier d'échange, conversion fidèle
 - **Classe connectée à distance** : nouveau lien utilisable hors du réseau de la classe (maison, 4G), chiffré de bout en bout ;
   le relais de l'éditeur transporte le document et les copies sans pouvoir les lire et ne conserve rien
