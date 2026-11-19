@@ -2546,6 +2546,7 @@ const HOME_ITEMS = [
     ['data-act="mailMerge"', '✉️', 'Publipostage', 'Génère bulletins, attestations ou convocations en lot à partir d\'un fichier Excel ou CSV.'],
     ['data-act="dys"', '🔠', 'Version adaptée (DYS / malvoyants)', 'Recrée le document avec une police lisible, des interlignes larges et une règle de lecture colorée.'],
     ['data-act="speak"', '🔊', 'Lire à voix haute', 'Lit la page courante avec les voix de Windows, sans connexion. Cliquer à nouveau pour arrêter.'],
+    ['data-act="epreuve"', '📝', 'Épreuve en ligne', 'Envoie le sujet par un lien valable jusqu\'à une date limite, même ce PC éteint : les élèves répondent dans tout navigateur (Windows, Mac, iPad, Android), les copies reviennent en PDF verrouillé.'],
     ['data-act="exchange"', '📂', 'Dossier d\'échange', 'Un dossier par élève dans votre cloud (Google Drive, OneDrive…) : distribuez un document, recevez les copies automatiquement et rendez les corrigés.'],
     ['data-act="classroom"', '📡', 'Classe connectée', 'Partage le document aux élèves par le Wi-Fi de la classe (QR code) et récupère leurs copies, sans Internet.'],
     ['data-ai="qcm"', '✅', 'Créer un QCM (IA)', 'L\'assistant IA crée un QCM corrigé à partir du document ouvert.'],

@@ -30,6 +30,7 @@ require('tls').DEFAULT_MIN_VERSION = 'TLSv1.3';
 app.commandLine.appendSwitch('ssl-version-min', 'tls1.3');
 const classroom = require('./classroom');
 const exchange = require('./exchange');
+const epreuve = require('./epreuve');
 const { Notification, Tray, nativeImage } = require('electron');
 const ICON = process.platform === 'win32' ? path.join(__dirname, 'icon.ico') : path.join(__dirname, 'renderer', 'icon.png');
 
@@ -374,6 +375,10 @@ if (!app.requestSingleInstanceLock()) {
     codeupdate.init({ app, net: require('electron').net });
     classroom.init({ app, ipcMain, guard: admin.guard, getWin: () => win, audit: (t, d) => zt.audit(t, d), heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)),
       fetch: (...a) => require('electron').net.fetch(...a), // passe par le proxy du système (réseaux d'établissement)
+      relayUrl: () => { const c = require('../package.json').commercial || {}; return (process.env.EDUPDF_SELFTEST && process.env.EDUPDF_RELAY) || c.relay || c.licenceServer || ''; } });
+    epreuve.init({ app, ipcMain, shell, guard: admin.guard, logEvent: admin.logEvent, audit: (t, d) => zt.audit(t, d), premium: license.requirePremium, getWin: () => win,
+      readSettings: () => readSettings(), writeSettings: (v) => writeSettings(v), grant: (f) => grantPath(f), protect: (b) => encryptData(b), unprotect: (b) => decryptData(b),
+      heic: (b) => heicToJpeg(b), docx: (pages) => require('docx').Packer.toBuffer(layoutDocx(pages)), fetch: (...a) => require('electron').net.fetch(...a),
       relayUrl: () => { const c = require('../package.json').commercial || {}; return (process.env.EDUPDF_SELFTEST && process.env.EDUPDF_RELAY) || c.relay || c.licenceServer || ''; } });
     exchange.init({ app, ipcMain, shell, guard: admin.guard, logEvent: admin.logEvent, premium: license.requirePremium, getWin: () => win, readSettings: () => readSettings(), writeSettings: (v) => writeSettings(v), grant: (f) => grantPath(f), docExt: () => ALL_EXT,
       roots: () => { const l = cloud.detect(readSettings().clouds || []); const t = process.env.EDUPDF_SELFTEST && path.join(process.env.EDUPDF_SELFTEST, 'cloud'); if (t && fs.existsSync(t)) l.push({ id: 'custom', name: 'Test', path: t }); return l; } });

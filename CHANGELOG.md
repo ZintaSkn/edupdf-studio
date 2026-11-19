@@ -4,6 +4,17 @@ Toutes les versions sont publiées sur https://github.com/ZintaSkn/edupdf-studio
 automatiquement sur les ordinateurs déjà équipés. Chaque version passe l'audit de sécurité des dépendances et
 l'auto-test complet avant publication.
 
+## [1.15.0] — Épreuve en ligne
+- **Épreuve en ligne** (onglet Classe) : le sujet est envoyé par un lien valable jusqu'à une date limite (jusqu'à 31 jours),
+  même quand le PC de l'enseignant est éteint ; les élèves l'ouvrent dans tout navigateur (Windows, Mac, iPad, iPhone, Android)
+- Les élèves répondent en ligne, directement sur le sujet, ou envoient leur copie en PDF (ou en photos, si l'enseignant
+  le permet) ; un numéro de dépôt et l'heure de réception leur sont donnés
+- Les copies sont relevées automatiquement dès que le logiciel est ouvert, enregistrées en PDF verrouillé, puis effacées
+  du service ; ouverture, correction et dossier des copies depuis la fenêtre de l'épreuve
+- Sujet et copies chiffrés de bout en bout : le service ne peut pas les lire, et chaque copie n'est lisible que par l'enseignant
+- **Zones de réponse** : les champs de formulaire du sujet (texte, cases à cocher, boutons radio, listes) deviennent de vraies
+  zones de saisie pour les élèves, en ligne comme dans la classe connectée
+
 ## [1.14.2] — Audit de sécurité
 - Les règles de l'établissement, la licence du poste et la période d'essai ne peuvent plus être déplacées en lançant le logiciel
   avec des variables d'environnement modifiées

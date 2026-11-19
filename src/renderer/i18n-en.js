@@ -60,7 +60,7 @@ window.EN_EXTRA = {
   "🔍 OCR : rendre les scans et les copies numérisées modifiables": "🔍 OCR: make scans and scanned copies editable",
   "🔄 Conversions PDF ↔ Word, Excel, PowerPoint et format d'origine": "🔄 PDF ↔ Word, Excel, PowerPoint conversions and original format",
   "✨ Assistant IA (Claude, ChatGPT, Gemini, Mistral, IA locale)": "✨ AI assistant (Claude, ChatGPT, Gemini, Mistral, local AI)",
-  "🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, dossier d'échange, équations": "🎓 Classroom tools: grading, differentiated tests, mail merge, bilingual version, connected classroom, exchange folder, equations",
+  "🎓 Outils de la classe : correction de copies, évaluations différenciées, publipostage, version bilingue, classe connectée, dossier d'échange, épreuve en ligne, équations": "🎓 Classroom tools: grading, differentiated tests, mail merge, bilingual version, connected classroom, exchange folder, online test, equations",
   "🔒 Mot de passe, signature numérique par certificat, comparaison, copie commentée en lecture seule": "🔒 Password, certificate signature, comparison, read-only commented copy",
   "🧰 Sauvegarde automatique dans le cloud, en-tête et pied de page, filigrane, réduction de taille": "🧰 Automatic cloud backup, header and footer, watermark, size reduction",
   "La date de l'ordinateur est antérieure à la dernière utilisation : corrigez la date et l'heure de Windows pour retrouver votre essai.": "The computer's date is earlier than its last use: correct the Windows date and time to get your trial back.",
@@ -585,6 +585,8 @@ window.EN_EXTRA = {
   "Paquet de copies scannées : barème, note et commentaires par copie (à la main ou proposés par l'IA), export Excel.": "Batch of scanned papers: scale, grade and comments per paper (by hand or suggested by AI), Excel export.",
   "À partir du document : 3 niveaux, sujets A/B mélangés et corrigé ; export Moodle (GIFT) et tableur.": "From the document: 3 levels, shuffled A/B versions and answer key; Moodle (GIFT) and spreadsheet export.",
   "Un PDF par élève depuis un fichier Excel/CSV : bulletins, attestations, convocations ({{Nom}}, {{Classe}}…).": "One PDF per student from an Excel/CSV file: reports, certificates, notices ({{Nom}}, {{Classe}}…).",
+  "Envoie le sujet par un lien valable jusqu'à une date limite, même ce PC éteint : les élèves répondent dans tout navigateur, les copies reviennent en PDF verrouillé.": "Sends the test as a link valid until a deadline, even with this PC off: students answer in any browser, papers come back as locked PDFs.",
+  "Envoie le sujet par un lien valable jusqu'à une date limite, même ce PC éteint : les élèves répondent dans tout navigateur (Windows, Mac, iPad, Android), les copies reviennent en PDF verrouillé.": "Sends the test as a link valid until a deadline, even with this PC off: students answer in any browser (Windows, Mac, iPad, Android), papers come back as locked PDFs.",
   "Partage le document par le Wi-Fi de la classe (QR code), sans Internet, et récupère les copies des élèves.": "Shares the document over the classroom Wi-Fi (QR code), without Internet, and collects the students' papers.",
   "Recrée le document avec la police OpenDyslexic, de larges interlignes et une règle de lecture.": "Recreates the document with the OpenDyslexic font, wide line spacing and a reading ruler.",
   "Lit la page à voix haute avec les voix de Windows, sans connexion.": "Reads the page aloud with the Windows voices, offline.",
@@ -697,5 +699,9 @@ window.EN_PATTERNS = [
   [/^Corrigé enregistré dans le dossier de (.+?) : (.+)$/, 'Graded work saved in $1\'s folder: $2'],
   [/^(\d+) copie\(s\) ouverte\(s\) : (.+) — Enregistrer \(Ctrl\+S\) déposera le corrigé dans son dossier\.$/, '$1 paper(s) opened: $2 — Save (Ctrl+S) will put the graded work in their folder.'],
   [/^Classe (.+) retirée\. Ses dossiers restent dans votre cloud\.$/, 'Class $1 removed. Its folders remain in your cloud.'],
-  [/^Dossier d'échange — (.+)$/, 'Exchange folder — $1']
+  [/^Dossier d'échange — (.+)$/, 'Exchange folder — $1'],
+  [/^Épreuve en ligne — (.+)$/, 'Online test — $1'],
+  [/^📝 (\d+) nouvelle\(s\) copie\(s\) d'épreuve$/, '📝 $1 new test paper(s)'],
+  [/^Relève terminée : (\d+) nouvelle\(s\) copie\(s\)\.$/, 'Collection done: $1 new paper(s).'],
+  [/^📥 Copies reçues : (\d+)$/, '📥 Papers received: $1']
 ];

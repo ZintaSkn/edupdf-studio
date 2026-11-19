@@ -14,15 +14,14 @@ const path = require('path');
 const crypto = require('crypto');
 const mu = require('./mu');
 const SP = require('./student-page');
+const CP = require('./copies');
+const { seal, unseal, frame, unframe } = require('./e2e');
 
-let A = null; let server = null; let session = null; let chain = Promise.resolve();
+let A = null; let server = null; let session = null;
 
-const MAX_UPLOAD = 40 * 1048576; const MAX_REMOTE_UPLOAD = 25 * 1048576; const MAX_FILES = 20; const MAX_FILL_PAGES = 40; const MAX_NOTES = 400; const MAX_COPIES = 400;
+const MAX_UPLOAD = 40 * 1048576; const MAX_REMOTE_UPLOAD = 25 * 1048576; const MAX_FILL_PAGES = 40; const MAX_COPIES = 400;
 const { esc, page } = SP;
-const cleanStudent = (s) => String(s || '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 80);
-class UserError extends Error {}
-/** Une seule copie traitée à la fois : le moteur PDF travaille dans le processus principal. */
-function queued(fn) { const p = chain.then(fn); chain = p.catch(() => {}); return p; }
+const { UserError, queued, kindOf, cleanStudent, MAX_FILES } = CP;
 
 function lanAddresses() {
   const out = [];
@@ -57,39 +56,7 @@ function parseMultipart(buf, boundary) {
   return parts;
 }
 
-// ---------- Copie rendue : toujours un PDF figé et verrouillé ----------
-const PNG = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-/** Type réel du fichier, d'après son contenu (jamais d'après son nom). */
-function kindOf(d) {
-  if (!d || d.length < 12) return null;
-  if (d.subarray(0, 5).toString('latin1') === '%PDF-') return 'pdf';
-  if (d[0] === 0xFF && d[1] === 0xD8 && d[2] === 0xFF) return 'jpg';
-  if (d.subarray(0, 8).equals(PNG)) return 'png';
-  if (d.subarray(4, 8).toString('latin1') === 'ftyp' && /^(heic|heix|hevc|mif1|msf1|heif)$/.test(d.subarray(8, 12).toString('latin1'))) return 'heic';
-  if (d[0] === 0x50 && d[1] === 0x4B) return 'office';
-  return null;
-}
-async function flatten(d) {
-  const k = kindOf(d);
-  if (k === 'pdf') return mu.flattenToPdf(d, 'application/pdf');
-  if (k === 'jpg' || k === 'png') return mu.flattenToPdf(d, 'photo.' + k);
-  if (k === 'heic') return mu.flattenToPdf(await A.heic(d), 'photo.jpg');
-  if (k === 'office') throw new UserError('Un document Word ne peut pas être rendu tel quel : enregistrez-le en PDF (Fichier › Enregistrer sous › PDF), puis envoyez le PDF.');
-  throw new UserError('Choisissez un fichier PDF ou une photo de votre copie.');
-}
-/** Plusieurs fichiers (photos d'une copie de plusieurs pages) : réunis en un seul PDF, puis verrouillé. */
-async function lockedCopy(s, files, notes) {
-  const flats = [];
-  if (notes) flats.push(await mu.flattenToPdf(s.bytes, 'application/pdf', notes));
-  else for (const f of files) { try { flats.push(await flatten(f.data)); } catch (e) { if (e instanceof UserError) throw e; throw new UserError('Fichier illisible ou protégé par un mot de passe : vérifiez-le, puis envoyez-le à nouveau.'); } }
-  let pdf = flats[0];
-  if (flats.length > 1) {
-    const { PDFDocument } = require('pdf-lib'); const out = await PDFDocument.create();
-    for (const b of flats) { const d = await PDFDocument.load(b); (await out.copyPages(d, d.getPageIndices())).forEach((p) => out.addPage(p)); }
-    pdf = await out.save();
-  }
-  return Buffer.from(await mu.sealPdf(pdf));
-}
+// ---------- Copie rendue : toujours un PDF figé et verrouillé (src/copies.js) ----------
 function store(s, eleve, buf, how) {
   const base = `${eleve} - ${new Date().toISOString().slice(11, 19).replace(/:/g, 'h')}`; let file = path.join(s.dir, base + '.pdf');
   for (let i = 2; fs.existsSync(file) && i < 50; i++) file = path.join(s.dir, `${base} (${i}).pdf`);
@@ -103,22 +70,20 @@ async function submitFiles(s, rawName, files, remote) {
   if (s.received.length >= MAX_COPIES) return { code: 429, error: 'Trop de copies reçues pour ce partage : prévenez l\'enseignant.' };
   const eleve = cleanStudent(rawName); const list = (files || []).filter((x) => x && x.data && x.data.length).slice(0, MAX_FILES);
   if (!eleve || !list.length) return { code: 400, error: 'Indiquez votre nom et choisissez un fichier PDF ou des photos de votre copie.' };
-  let locked; try { locked = await queued(() => lockedCopy(s, list, null)); } catch (e) { return { code: 400, error: e instanceof UserError ? e.message : 'Copie illisible : vérifiez le fichier, puis envoyez-le à nouveau.' }; }
+  let locked; try { locked = await queued(() => CP.lockedCopy({ files: list, photos: true, heic: A.heic })); } catch (e) { return { code: 400, error: e instanceof UserError ? e.message : 'Copie illisible : vérifiez le fichier, puis envoyez-le à nouveau.' }; }
   if (session !== s) return { code: 410, error: 'Le partage est terminé.' };
   store(s, eleve, locked, (list.length > 1 ? 'photos' : kindOf(list[0].data) === 'pdf' ? 'pdf' : 'photo') + (remote ? ' · à distance' : ''));
   return { code: 200, eleve };
 }
-/** Copie remplie dans le navigateur : { eleve, items:[{ p, x, y, w, h, fs, text }] }. */
+/** Copie remplie dans le navigateur : { eleve, items:[{ p, x, y, w, h, fs, text }], answers:{ k: valeur } }. */
 async function submitFill(s, d, remote) {
   if (!s.collect || !s.fill) return { code: 404, error: 'Ce partage ne reçoit pas de copies remplies en ligne.' };
   if (s.received.length >= MAX_COPIES) return { code: 429, error: 'Trop de copies reçues pour ce partage : prévenez l\'enseignant.' };
-  const eleve = cleanStudent(d && d.eleve); const num = (v) => (typeof v === 'number' && isFinite(v) ? v : NaN); let total = 0;
-  const notes = (d && Array.isArray(d.items) ? d.items : []).slice(0, MAX_NOTES).map((t) => ({ p: Math.floor(num(t && t.p)), x: num(t && t.x), y: num(t && t.y), w: num(t && t.w), h: num(t && t.h), fs: num(t && t.fs),
-    text: String((t && t.text) || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').slice(0, 2000).trim() }))
-    .filter((t) => t.text && t.p >= 0 && t.p < s.pages.length && t.x >= 0 && t.x <= 1 && t.y >= 0 && t.y <= 1 && t.w > 0 && t.w <= 1 && t.h > 0 && t.h <= 1 && t.fs >= 0.006 && t.fs <= 0.08 && (total += t.text.length) <= 60000);
+  const eleve = cleanStudent(d && d.eleve);
+  const notes = CP.cleanNotes(d && d.items, s.pages.length); const answers = CP.cleanAnswers(d && d.answers, s.fields);
   if (!eleve) return { code: 400, error: 'Indiquez votre nom et votre prénom.' };
-  if (!notes.length) return { code: 400, error: 'Écrivez au moins une réponse sur le document.' };
-  let locked; try { locked = await queued(() => lockedCopy(s, null, notes)); } catch { return { code: 500, error: 'La copie n\'a pas pu être créée : prévenez l\'enseignant.' }; }
+  if (!notes.length && !Object.keys(answers).length) return { code: 400, error: 'Écrivez au moins une réponse sur le document.' };
+  let locked; try { locked = await queued(() => CP.lockedCopy({ base: s.bytes, notes, answers })); } catch { return { code: 500, error: 'La copie n\'a pas pu être créée : prévenez l\'enseignant.' }; }
   if (session !== s) return { code: 410, error: 'Le partage est terminé.' };
   store(s, eleve, locked, 'en ligne' + (remote ? ' · à distance' : ''));
   return { code: 200, eleve };
@@ -128,7 +93,7 @@ function pageImage(s, i) {
   if (!s.images[i]) { s.images[i] = queued(() => mu.pageJpeg(s.bytes, i)); s.images[i].catch(() => { s.images[i] = null; }); }
   return s.images[i];
 }
-const infoOf = (s) => ({ ok: true, title: s.title, message: s.message, fill: s.fill, pages: s.fill ? s.pages : [], collect: s.collect, word: !!s.docx, fileName: s.fileName, maxUpload: MAX_REMOTE_UPLOAD });
+const infoOf = (s) => ({ ok: true, title: s.title, message: s.message, fill: s.fill, pages: s.fill ? s.pages : [], fields: s.fill ? s.fields : [], collect: s.collect, word: !!s.docx, fileName: s.fileName, maxUpload: MAX_REMOTE_UPLOAD });
 
 // ---------- Réseau de la classe : pages servies directement par ce PC ----------
 function homePage(base) {
@@ -146,7 +111,7 @@ function homePage(base) {
 }
 function fillPage(base) {
   const s = session;
-  const cfg = { base, key: s.token.slice(0, 8), pages: s.pages, t: { ...SP.FILL_TEXT, fail: 'Envoi impossible : vérifiez que vous êtes toujours sur le Wi-Fi de la classe, puis réessayez.' } };
+  const cfg = { base, key: s.token.slice(0, 8), pages: s.pages, fields: s.fields, t: { ...SP.FILL_TEXT, fail: 'Envoi impossible : vérifiez que vous êtes toujours sur le Wi-Fi de la classe, puis réessayez.' } };
   return page(s.title, `${SP.fillBody(`<a href="${base}/">Retour</a>`)}
     <script>window.CFG = ${SP.jsonForScript(cfg)};</script><script>${SP.FILL_JS}</script><script>${SP.LAN_JS}</script>`, true);
 }
@@ -207,18 +172,7 @@ function handler(req, res) {
 }
 
 // ---------- À distance : relais de l'éditeur, contenus chiffrés de bout en bout ----------
-// Message = [4 octets : longueur de l'en-tête][en-tête JSON][données], chiffré en AES-256-GCM ; envoyé = [IV 12 octets][chiffré][sceau 16 octets].
-const frame = (head, body) => { const h = Buffer.from(JSON.stringify(head), 'utf8'); const n = Buffer.alloc(4); n.writeUInt32BE(h.length); return Buffer.concat([n, h, body || Buffer.alloc(0)]); };
-function unframe(buf) { const n = buf.readUInt32BE(0); if (n > buf.length - 4 || n > 2 * 1048576) throw new Error('message invalide'); return { head: JSON.parse(buf.subarray(4, 4 + n).toString('utf8')), body: buf.subarray(4 + n) }; }
-function seal(key, aad, plain) {
-  const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', key, iv); c.setAAD(Buffer.from(aad, 'utf8'));
-  return Buffer.concat([iv, c.update(plain), c.final(), c.getAuthTag()]);
-}
-function unseal(key, aad, msg) {
-  if (msg.length < 29) throw new Error('message invalide');
-  const d = crypto.createDecipheriv('aes-256-gcm', key, msg.subarray(0, 12)); d.setAAD(Buffer.from(aad, 'utf8')); d.setAuthTag(msg.subarray(msg.length - 16));
-  return Buffer.concat([d.update(msg.subarray(12, msg.length - 16)), d.final()]);
-}
+// Messages chiffrés en AES-256-GCM (src/e2e.js : seal, unseal, frame, unframe).
 const cacheKeyOf = (key, head) => crypto.createHmac('sha256', key).update('cache:' + JSON.stringify(head)).digest('base64url');
 const SHARED_OPS = new Set(['info', 'pdf', 'docx', 'page']);
 /** Répond à une demande d'élève arrivée par le relais. Rend { head, body?, shared }. */
@@ -230,10 +184,8 @@ async function remoteAnswer(s, head, body) {
   if (op === 'page' && s.fill && Number.isInteger(head.i) && head.i >= 0 && head.i < s.pages.length) return { head: { ok: true }, body: await pageImage(s, head.i), shared: true };
   if (op === 'fill') { const r = await submitFill(s, head, true); return { head: r.code === 200 ? { ok: true } : { ok: false, error: r.error } }; }
   if (op === 'files') {
-    const meta = Array.isArray(head.files) ? head.files.slice(0, MAX_FILES) : []; const files = []; let off = 0;
     if (body.length > MAX_REMOTE_UPLOAD) return { head: { ok: false, error: 'Fichiers trop volumineux (25 Mo au plus pour une copie envoyée à distance).' } };
-    for (const f of meta) { const n = Math.floor(Number(f && f.size)); if (!(n > 0) || off + n > body.length) break; files.push({ filename: String((f && f.name) || ''), data: body.subarray(off, off + n) }); off += n; }
-    const r = await submitFiles(s, head.eleve, files, true); return { head: r.code === 200 ? { ok: true } : { ok: false, error: r.error } };
+    const r = await submitFiles(s, head.eleve, CP.splitFiles(head.files, body), true); return { head: r.code === 200 ? { ok: true } : { ok: false, error: r.error } };
   }
   return { head: { ok: false, error: 'Demande inconnue.' } };
 }
@@ -298,12 +250,13 @@ async function start({ bytes, title, fileName, message, collect, fill, layout, r
   const pdf = Buffer.from(bytes); if (pdf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new Error('Document illisible.');
   let pages = []; if (fill !== false) { try { pages = await mu.pageSizes(pdf); } catch { pages = []; } }
   const canFill = pages.length > 0 && pages.length <= MAX_FILL_PAGES;
+  let fields = []; if (canFill) { try { fields = await mu.formFields(pdf); } catch { fields = []; } } // zones de réponse du PDF
   let docx = null; if (Array.isArray(layout) && layout.length && A.docx) { try { docx = Buffer.from(await A.docx(layout)); } catch { docx = null; } }
   const token = crypto.randomBytes(9).toString('base64url');
   const dir = path.join(A.app.getPath('userData'), 'classe', new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'));
   fs.mkdirSync(dir, { recursive: true });
   const s = { token, bytes: pdf, title: String(title || 'Document').slice(0, 120), fileName: path.basename(String(fileName || 'document.pdf')).replace(/["\\<>]/g, '_').slice(0, 120), message: message ? String(message).slice(0, 400) : '',
-    collect: collect !== false, fill: canFill, pages, images: [], docx, dir, received: [], downloads: 0, remote: null, urls: [], url: '', rate: new Map(), refused: 0 };
+    collect: collect !== false, fill: canFill, pages, fields, images: [], docx, dir, received: [], downloads: 0, remote: null, urls: [], url: '', rate: new Map(), refused: 0 };
   session = s;
   const QR = require('qrcode'); const qrOf = (u) => QR.toDataURL(u, { margin: 1, width: 320, color: { dark: '#001871', light: '#ffffff' } });
   if (ips.length) {

@@ -24,6 +24,16 @@ class_name = "Room"
 tag = "v2"
 new_sqlite_classes = ["Room"]
 
+# Épreuve en ligne : une épreuve par Durable Object (morceaux chiffrés de bout en bout ; contenu effacé 1 jour après la
+# date limite, copies non relevées 30 jours après ; 3 Go au plus pour toutes les épreuves).
+[[durable_objects.bindings]]
+name = "EXAMS"
+class_name = "Exam"
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Exam"]
+
 # Journaux et métriques du service (supervision continue) : tableau de bord Cloudflare › Workers › sknedu-licences › Observability
 [observability]
 enabled = true

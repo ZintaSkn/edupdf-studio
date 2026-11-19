@@ -53,6 +53,7 @@ lui-même. Pour l'obtenir : faire réaliser un audit ASVS niveau 3 par un presta
 |---|---|
 | Application → Internet (licences, mises à jour, IA en ligne, polices) | **TLS 1.3 minimum** imposé (`tls.DEFAULT_MIN_VERSION` et `ssl-version-min`) ; toute connexion plus ancienne est refusée |
 | Service d'activation | TLS 1.3, HSTS, certificat surveillé chaque jour (alerte à moins de 14 jours de l'échéance) |
+| Épreuve en ligne (service de l'éditeur) | HTTPS (TLS 1.3) jusqu'au service, et **chiffrement de bout en bout** par-dessus. Le sujet est chiffré (AES-256-GCM) avec une clé aléatoire créée pour chaque épreuve, placée dans le lien après « # » (jamais transmise au service) ; chaque morceau est lié à l'épreuve et à son nom. Chaque copie est chiffrée **pour l'enseignant seul** : clé éphémère P-256 de l'élève + clé publique de l'enseignant (ECDH), puis SHA-256 et AES-256-GCM ; les autres élèves, qui ont pourtant le lien, ne peuvent pas la lire. Le service ne voit que des tailles et des horaires ; il refuse tout dépôt après la date limite (2 minutes de grâce), efface le sujet un jour après et les copies non relevées 30 jours après ; le logiciel efface chaque copie du service dès qu'il l'a relevée. Dépôt du sujet, lecture et suppression des copies réservés à l'enseignant (clé de gestion de 256 bits, comparée par empreinte) ; sujet immuable une fois ouvert. Limites : 25 Mo par copie, 150 copies par heure et par adresse, 600 copies en attente par épreuve, 3 Go pour toutes les épreuves (le stockage des licences ne peut jamais être saturé). Les clés de l'épreuve sont chiffrées sur le PC de l'enseignant. Même limite de confiance que le relais : la page élève est servie par le service de l'éditeur |
 | Classe connectée à distance (relais de l'éditeur) | HTTPS (TLS 1.3) jusqu'au relais, et **chiffrement de bout en bout** par-dessus : AES-256-GCM avec une clé aléatoire créée pour chaque partage, placée dans le lien après « # » (jamais transmise au relais). Le relais ne voit que des tailles et des horaires ; il ne conserve rien sur disque et supprime la salle à l'arrêt du partage ou après 8 h. Lecture des demandes, réponses et fermeture réservées à l'enseignant (clé de salle de 256 bits, comparée par empreinte). Chaque message porte son identifiant dans le sceau : une demande rejouée ou déplacée est rejetée. Limite : la page élève est servie par le relais ; un relais malveillant pourrait servir un programme modifié — le relais est le service de l'éditeur, sous sa supervision |
 | Classe connectée (réseau local de la classe) | **Exception** : HTTP sur le réseau local, car un certificat valable est impossible sur une adresse locale. Atténuations : jeton aléatoire de 72 bits, seuls des PDF et des photos sont acceptés (type vérifié d'après le contenu), chaque copie est réécrite page par page puis verrouillée (AES-256, mot de passe de modification aléatoire jamais conservé), session arrêtée par l'enseignant, aucun accès à Internet |
 | IA locale Ollama | **Exception** : HTTP sur `127.0.0.1` uniquement (ne quitte pas l'ordinateur) |
@@ -93,6 +94,9 @@ Principe : **ne jamais faire confiance à l'interface**, même si un document pi
   types, tailles, droits d'établissement, droits Premium.
 - **Lecture de fichiers** : seulement les fichiers déposés par l'utilisateur (chemin calculé hors de la page),
   ouverts par double-clic dans l'Explorateur, récents, ou rendus par les élèves. Un chemin inventé par la page est refusé.
+- **Épreuve en ligne** : les copies relevées sur le service sont des données d'élèves non fiables ; le logiciel vérifie
+  chaque réponse d'après la liste des zones de l'épreuve (type, longueur, choix permis), le type réel de chaque fichier,
+  puis réécrit la copie page par page avant de la verrouiller. Une copie illisible est gardée, chiffrée, sans être ouverte.
 - **Dossier d'échange (cloud synchronisé)** : la liste des classes et des élèves vient des réglages du poste, jamais du
   dossier partagé ; seuls des fichiers ordinaires d'un type pris en charge (50 Mo au plus) sont proposés, chacun autorisé
   individuellement ; un faux PDF est écarté ; les noms de classe, d'élève et de fichier sont réduits aux caractères sûrs
@@ -142,6 +146,8 @@ mais un administrateur du PC peut le supprimer en entier.
   liens `file:` et `javascript:`, dossier cloud arbitraire, nouvelle fenêtre, caméra, position, notifications ;
 - `intrusion-disque` : copies de récupération confinées et chiffrées, clé protégée par Windows, coût scrypt ;
 - `intrusion-classe` : nom d'élève piégé (`../`, `<script>`), nom de fichier piégé, jeton deviné ;
+- `epreuve-en-ligne` et `server/test-exam.js` : sujet et copies illisibles sans les clés, page sans contenu, sujet
+  immuable après ouverture, dépôt et relève réservés, refus après la date limite, effacements programmés, quota ;
 - `classe-a-distance` et `server/test-relay.js` : rien ne passe en clair par le relais, accès réservé à l'enseignant,
   limites de taille et de nombre, délais, salle supprimée à l'arrêt ;
 - `intrusion-environnement` : variables d'environnement modifiées au lancement (ProgramData, LOCALAPPDATA, USERPROFILE) —

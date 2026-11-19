@@ -6,7 +6,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createService, handle } from './core.js';
 import { createRoom, handleRoom, LIMITS, ROOM_RE } from './relay-core.js';
-import { remoteShell } from '../src/student-page.js';
+import { LIMITS as EXAM_LIMITS, ID_RE as EXAM_ID_RE, plan as examPlan, newMeta as examMeta, handleExam, examAlarm, copyLimiter } from './exam-core.js';
+import { remoteShell, examShell } from '../src/student-page.js';
 
 const pemToBytes = (pem) => Uint8Array.from(atob(pem.replace(/-----[^-]+-----|\s/g, '')), (c) => c.charCodeAt(0));
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -42,6 +43,23 @@ export class LicenceStore extends DurableObject {
     e.n++; this.rooms.set(ip, e);
     if (this.rooms.size > 5000) for (const [k, v] of this.rooms) if (t - v.since > 3600000) this.rooms.delete(k);
     return e.n <= 40;
+  }
+  /** Épreuves en ligne : au plus 30 créations par heure et par adresse. */
+  allowExam(ip) {
+    const t = Date.now(); this.exams = this.exams || new Map(); const e = this.exams.get(ip) || { n: 0, since: t };
+    if (t - e.since > 3600000) { e.n = 0; e.since = t; }
+    e.n++; this.exams.set(ip, e);
+    if (this.exams.size > 5000) for (const [k, v] of this.exams) if (t - v.since > 3600000) this.exams.delete(k);
+    return e.n <= 30;
+  }
+  /**
+   * Place occupée par toutes les épreuves en ligne (octets) : au plus 3 Go, pour que le stockage de l'offre gratuite (5 Go)
+   * ne puisse jamais être rempli au point de bloquer l'activation des licences.
+   */
+  async examQuota(delta) {
+    const d = Math.trunc(Number(delta) || 0); const used = (await this.ctx.storage.get('quota:epreuves')) || 0;
+    if (d > 0 && used + d > 3 * 1024 ** 3) { console.warn(JSON.stringify({ evenement: 'epreuves_quota_atteint' })); return false; }
+    await this.ctx.storage.put('quota:epreuves', Math.max(0, used + d)); return true;
   }
   /** Appel depuis le Worker : traité seul, sans entrelacement avec une autre demande. */
   async process(method, pathname, body, ip) {
@@ -100,11 +118,56 @@ async function relay(request, env, url) {
   return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(request);
 }
 
+// ---------- Épreuve en ligne (voir exam-core.js) : une épreuve = un Durable Object qui garde des morceaux chiffrés ----------
+export class Exam extends DurableObject {
+  ctxOf() {
+    const s = this.ctx.storage; const store = this.env.STORE.get(this.env.STORE.idFromName('licences'));
+    if (!this.allowCopy) this.allowCopy = copyLimiter(() => Date.now());
+    return { st: { get: (k) => s.get(k), put: (k, v) => s.put(k, v), delete: (k) => s.delete(k), deleteAll: () => s.deleteAll(), setAlarm: (t) => s.setAlarm(t) },
+      now: () => Date.now(), quota: (d) => store.examQuota(d), allowCopy: this.allowCopy };
+  }
+  async init(hostHash, p) {
+    if (await this.ctx.storage.get('meta')) throw new Error('épreuve existante');
+    await this.ctx.storage.put('meta', examMeta(hostHash, p, Date.now())); await this.ctx.storage.setAlarm(p.contentUntil); return true;
+  }
+  async alarm() { await examAlarm(this.ctxOf()); }
+  async fetch(request) {
+    const ip = request.headers.get('cf-connecting-ip') || 'inconnu'; const t = Date.now(); this.rl = this.rl || new Map(); const e = this.rl.get(ip) || { n: 0, since: t };
+    if (t - e.since > 60000) { e.n = 0; e.since = t; }
+    e.n++; this.rl.set(ip, e); if (this.rl.size > 3000) for (const [k, v] of this.rl) if (t - v.since > 60000) this.rl.delete(k);
+    if (e.n > 900) { if (e.n === 901) console.warn(JSON.stringify({ evenement: 'epreuve_limite' })); return new Response(null, { status: 429, headers: { ...RELAY_HEADERS, 'Retry-After': '60' } }); }
+    const sub = new URL(request.url).pathname.replace(/^\/e\/[^/]+/, '');
+    const r = await handleExam(this.ctxOf(), { method: request.method, sub, ip, header: (n) => request.headers.get(n), body: async () => new Uint8Array(await request.arrayBuffer()), hash: sha256hex });
+    if (r.status === 401 || r.status === 413 || r.status === 507) console.warn(JSON.stringify({ evenement: 'epreuve_refus', statut: r.status, action: request.method + ' ' + sub.replace(/[0-9a-f]{16,}/, '…') })); // ni adresse ni contenu
+    if (r.json) return new Response(JSON.stringify(r.json), { status: r.status, headers: { ...RELAY_HEADERS, 'Content-Type': 'application/json; charset=utf-8' } });
+    // morceaux de l'épreuve : immuables une fois ouverte, gardés par le navigateur de l'élève (ils restent chiffrés)
+    return new Response(r.body || null, { status: r.status, headers: { ...RELAY_HEADERS, ...(r.body ? { 'Content-Type': 'application/octet-stream' } : {}), ...(r.cache ? { 'Cache-Control': 'private, max-age=86400, immutable' } : {}) } });
+  }
+}
+async function exam(request, env, url) {
+  if (request.method === 'POST' && url.pathname === '/e/new') { // création : nombre limité par adresse
+    const ip = request.headers.get('cf-connecting-ip') || 'inconnu';
+    if (!(await env.STORE.get(env.STORE.idFromName('licences')).allowExam(ip))) return (console.warn(JSON.stringify({ evenement: 'epreuves_creation_limite' })), json(429, { ok: false, code: 'RATE_LIMIT', error: 'Trop d\'épreuves créées depuis ce réseau : réessayez plus tard.' }));
+    const raw = await request.text(); if (raw.length > 1024) return json(413, { ok: false, code: 'TOO_LARGE', error: 'Demande trop volumineuse.' });
+    let b = null; try { b = JSON.parse(raw); } catch { b = null; }
+    const p = b && typeof b === 'object' ? examPlan(Date.now(), b.deadline) : null;
+    if (!p) return json(400, { ok: false, code: 'DEADLINE', error: 'Date limite refusée : entre 10 minutes et 31 jours.' });
+    const id = rnd(16); const hostKey = rnd(32);
+    await env.EXAMS.get(env.EXAMS.idFromName(id)).init(await sha256hex(hostKey), p);
+    return json(200, { ok: true, id, hostKey, deadline: p.deadline, contentUntil: p.contentUntil, keepUntil: p.keepUntil, limits: { blob: EXAM_LIMITS.blob, copy: EXAM_LIMITS.copy } });
+  }
+  const m = /^\/e\/([^/]+)(\/.*)?$/.exec(url.pathname);
+  if (!m || !EXAM_ID_RE.test(m[1])) return json(404, { ok: false, code: 'NOT_FOUND', error: 'Adresse inconnue.' });
+  if (request.method === 'GET' && !m[2]) return new Response(examShell(), { status: 200, headers: SHELL_HEADERS }); // aucun contenu de l'épreuve dans la page
+  return env.EXAMS.get(env.EXAMS.idFromName(m[1])).fetch(request);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.protocol !== 'https:') return json(400, { ok: false, code: 'HTTPS', error: 'HTTPS obligatoire.' });
     if (url.pathname === '/r' || url.pathname.startsWith('/r/')) return relay(request, env, url);
+    if (url.pathname === '/e' || url.pathname.startsWith('/e/')) return exam(request, env, url);
     if (request.method === 'GET' && url.pathname === '/') return json(200, { service: 'SknEDU-studio licences', ok: true });
     if (request.method === 'POST' && !/^application\/json\b/i.test(request.headers.get('content-type') || '')) return json(415, { ok: false, code: 'TYPE', error: 'JSON attendu.' });
     const raw = await request.text(); if (raw.length > MAX_BODY) return json(413, { ok: false, code: 'TOO_LARGE', error: 'Demande trop volumineuse.' });

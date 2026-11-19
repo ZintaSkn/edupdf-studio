@@ -136,20 +136,79 @@ async function convertToPdf(bytes, fileName) {
   } finally { doc.destroy && doc.destroy(); }
 }
 
+// ---------- Zones de réponse (champs de formulaire du PDF) ----------
+const FIELD_TYPES = { text: 'text', checkbox: 'checkbox', radiobutton: 'radio', combobox: 'choice', listbox: 'choice' };
+/**
+ * Parcourt les zones modifiables dans un ordre fixe (pages, puis ordre du PDF) : le numéro k désigne la même zone pour
+ * l'élève (page web) et pour l'enseignant (remplissage de la copie). Zones masquées ou en lecture seule : imprimées telles quelles.
+ */
+function eachField(pdf, fn) {
+  let k = 0;
+  for (let i = 0, n = pdf.countPages(); i < n && k < 500; i++) {
+    const page = pdf.loadPage(i);
+    for (const w of page.getWidgets()) {
+      const t = FIELD_TYPES[w.getFieldType()];
+      if (!t || w.isReadOnly() || (w.getFlags() & (2 | 32))) continue;
+      fn(w, t, k++, i, page); if (k >= 500) break;
+    }
+  }
+}
+/** Zones de réponse d'un PDF : [{ k, p, t, x, y, w, h, … }] en fractions de la page (origine en haut à gauche). */
+async function formFields(bytes) {
+  const m = await mu(); const doc = m.Document.openDocument(new Uint8Array(bytes), 'application/pdf');
+  try {
+    const pdf = doc.asPDF && doc.asPDF(); if (!pdf) return [];
+    const out = []; const groups = new Map();
+    eachField(pdf, (w, t, k, i, page) => {
+      const b = page.getBounds(); const W = b[2] - b[0], H = b[3] - b[1]; const r = w.getRect();
+      const f = { k, p: i, t, x: (r[0] - b[0]) / W, y: (r[1] - b[1]) / H, w: (r[2] - r[0]) / W, h: (r[3] - r[1]) / H };
+      if (!(f.w > 0 && f.h > 0 && f.x > -0.01 && f.y > -0.01 && f.x + f.w < 1.01 && f.y + f.h < 1.01)) return; // hors de la page
+      if (t === 'text') { f.ml = !!w.isMultiline(); f.max = w.getMaxLen() || 0; f.v = String(w.getValue() || '').slice(0, 5000); f.fs = (f.ml ? 11 : Math.min(12, (r[3] - r[1]) * 0.7)) / W; }
+      if (t === 'checkbox') { const v = w.getValue(); f.on = !!v && v !== 'Off'; }
+      if (t === 'radio') { const name = w.getName(); if (!groups.has(name)) groups.set(name, groups.size); f.g = groups.get(name); }
+      if (t === 'choice') { f.o = w.getOptions().slice(0, 200).map((o) => String(o).slice(0, 200)); f.v = String(w.getValue() || ''); }
+      out.push(f);
+    });
+    return out;
+  } finally { doc.destroy && doc.destroy(); }
+}
+/** Remplit les zones avec les réponses vérifiées ({ k: valeur }) ; taille du texte adaptée à la zone. */
+function fillFields(pdf, answers) {
+  eachField(pdf, (w, t, k) => {
+    if (!Object.prototype.hasOwnProperty.call(answers, k)) return;
+    const v = answers[k];
+    if (t === 'text') {
+      const r = w.getRect(); const wd = r[2] - r[0], h = r[3] - r[1]; const ml = w.isMultiline();
+      let da = null; try { da = w.getDefaultAppearance(); } catch { da = null; }
+      let s = da && da.size > 0 ? da.size : 11; s = ml ? Math.min(s, 12) : Math.min(s, 14, h * 0.75);
+      if (!ml) { const len = String(v).length || 1; s = Math.min(s, wd / (0.52 * len)); } // une seule ligne : le texte doit tenir en largeur
+      s = Math.max(6, Math.round(s * 2) / 2);
+      try { w.setDefaultAppearance((da && da.font) || 'Helv', s, da && Array.isArray(da.color) && da.color.length ? da.color : [0]); } catch { /* police imposée par le PDF */ }
+      w.setTextValue(String(v));
+    } else if (t === 'checkbox') { const on = !!w.getValue() && w.getValue() !== 'Off'; if (!!v !== on) w.toggle(); }
+    else if (t === 'radio') { if (v === true) { w.toggle(); if (!w.getValue() || w.getValue() === 'Off') w.toggle(); } } // déjà coché : le second basculement le remet
+    else if (t === 'choice') w.setChoiceValue(String(v));
+    w.update();
+  });
+  eachField(pdf, (w) => { try { w.update(); } catch { /* */ } }); // apparence des boutons radio du même groupe
+}
+
 // ---------- Copies d'élèves : document figé et verrouillé ----------
 /**
  * Fige un document (PDF ou image) : chaque page est réécrite, si bien que les champs de formulaire, les annotations
  * et les notes ajoutées sont fondus dans la page et ne peuvent plus être modifiés. Le texte reste du texte.
  * notes (PDF seulement) : [{ p, x, y, w, h, fs, text }] en fractions de la page (origine en haut à gauche), fs en fraction de la largeur.
+ * answers (PDF seulement) : réponses aux zones { k: valeur }, déjà vérifiées (copies.cleanAnswers).
  */
-async function flattenToPdf(bytes, name = 'application/pdf', notes = []) {
+async function flattenToPdf(bytes, name = 'application/pdf', notes = [], answers = null) {
   const m = await mu();
   let doc = m.Document.openDocument(new Uint8Array(bytes), name);
   try {
     if (doc.needsPassword()) throw new Error('Ce document est protégé par un mot de passe.');
     const n = doc.countPages(); if (!n) throw new Error('Document vide.'); if (n > 300) throw new Error('Document trop long (300 pages maximum).');
     const pdf = doc.asPDF && doc.asPDF();
-    if (pdf && notes.length) {
+    if (pdf && (notes.length || answers)) {
+      if (answers) fillFields(pdf, answers);
       for (const t of notes) {
         if (!(t.p >= 0 && t.p < n)) continue;
         const page = pdf.loadPage(t.p); const b = page.getBounds(); const W = b[2] - b[0], H = b[3] - b[1];
@@ -201,4 +260,4 @@ async function describePdf(bytes) {
   } finally { doc.destroy && doc.destroy(); }
 }
 
-module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue, redactPdf, compressPdf, flattenToPdf, sealPdf, pageSizes, pageJpeg, describePdf };
+module.exports = { inspectPdf, decryptPdf, repairPdf, encryptPdf, convertToPdf, permissionsValue, redactPdf, compressPdf, flattenToPdf, sealPdf, pageSizes, pageJpeg, describePdf, formFields };

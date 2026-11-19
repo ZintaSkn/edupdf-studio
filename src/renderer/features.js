@@ -615,6 +615,131 @@ function exchangeTag() {
 window.api.onExchange((s) => { EX = { ...EX, ...s }; exchangeTag(); if (EX_PANEL && !$('#modal').hidden) { $('#mBody').innerHTML = exchangeHtml(); exchangeBind(); } });
 window.api.exchangeList().then((s) => { EX = s; exchangeTag(); }).catch(() => {});
 
+// ================================================================ 6 ter. Épreuve en ligne (lien valable jusqu'à une date limite)
+// Le sujet est déposé, chiffré, sur le service de l'éditeur : les élèves répondent à toute heure dans tout navigateur, même ce
+// PC éteint. Les copies, chiffrées pour l'enseignant seul, sont relevées dès que le logiciel est ouvert, en PDF verrouillé.
+let EP = { items: [], nouvelles: 0 }; let EP_CUR = null; let EP_PANEL = false; let EP_PICK = null; let EP_LINK = null;
+const epCur = () => EP.items.find((x) => x.id === EP_CUR) || EP.items[0] || null;
+const epWhen = (ms) => new Date(ms).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+async function epreuveReload() { EP = await window.api.epreuveList(); epreuveTag(); return EP; }
+function epreuveRender() {
+  const e = epCur(); if (!e || !EP_PANEL || $('#modal').hidden) return;
+  $('#mTitle').textContent = 'Épreuve en ligne — ' + e.title; $('#mBody').innerHTML = epreuveHtml(); epreuveBind();
+}
+/** Relève en arrière-plan (sans bloquer la fenêtre). */
+function epreuveRefresh(id) { window.api.epreuveCollect({ id }).then((s) => { EP = { ...EP, ...s }; epreuveTag(); epreuveRender(); }).catch(() => {}); }
+async function epreuveDialog() {
+  try { await epreuveReload(); } catch (e) { return alert('Épreuve en ligne indisponible : ' + errMsg(e)); }
+  if (!EP.items.length) return epreuveNew();
+  epreuveRefresh();
+  return epreuvePanel();
+}
+async function epreuveNew() {
+  if (!S.pages.length) return alert('Ouvrez d\'abord le sujet à envoyer (évaluation, devoir, fiche à compléter…).');
+  const d = new Date(); d.setDate(d.getDate() + 7); const p2 = (n) => String(n).padStart(2, '0');
+  const r = await modal('Épreuve en ligne', `<p>Les élèves reçoivent un <b>lien</b> qui s'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) <b>jusqu'à la date limite</b>, même quand ce PC est éteint. Ils répondent en ligne ou envoient leur copie ; vous la recevez en <b>PDF verrouillé</b>.</p>
+    <label class="blk">Titre affiché aux élèves <input type="text" id="epT" maxlength="120" value="${esc(baseName())}"></label>
+    <label class="blk">Consigne <input type="text" id="epM" maxlength="400" value="Répondez aux questions, puis envoyez votre copie avant la date limite."></label>
+    <div class="eprow"><label class="blk">Date limite <input type="date" id="epD" value="${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}"></label><label class="blk">Heure <input type="time" id="epH" value="23:59"></label></div>
+    <label class="ck"><input type="checkbox" id="epF" checked> Répondre en ligne, directement sur le sujet</label>
+    <label class="ck"><input type="checkbox" id="epP" checked> Accepter les photos d'une copie papier (converties en PDF)</label>
+    <label class="ck"><input type="checkbox" id="epW"> Proposer aussi le sujet en Word (.docx)</label>
+    <p class="muted">💡 Pour des réponses bien placées, ajoutez des zones de réponse avant de publier : onglet Modifier › Champ texte ou Case à cocher.</p>
+    <p class="muted">🔐 Sujet et copies chiffrés de bout en bout : le service en ligne ne peut pas les lire, et seul ce logiciel ouvre les copies.</p>`,
+  [['Annuler', null], ['Publier l\'épreuve', () => {
+    const t = new Date(`${$('#epD').value}T${$('#epH').value || '23:59'}`).getTime();
+    if (!(t > Date.now() + 10 * 60000)) { alert('Choisissez une date limite au moins 10 minutes plus tard.'); return false; }
+    if (t > Date.now() + 31 * 86400000) { alert('La date limite ne peut pas dépasser 31 jours.'); return false; }
+    return { title: $('#epT').value.trim() || baseName(), message: $('#epM').value.trim(), deadline: t, fill: $('#epF').checked, photos: $('#epP').checked, word: $('#epW').checked };
+  }, true]]);
+  if (!r) return;
+  busy('Préparation de l\'épreuve…');
+  try {
+    const bytes = await buildPdf(); let layout = null;
+    if (r.word) { busy('Préparation de la version Word…'); layout = await layoutOfDocument(); }
+    const res = await window.api.epreuvePublish({ bytes, layout, fileName: S.fileName, title: r.title, message: r.message, deadline: r.deadline, fill: r.fill, photos: r.photos });
+    done(); EP_CUR = res.id; EP_LINK = { id: res.id, link: res.link, qr: res.qr }; await epreuveReload();
+    if (res.fillOff) alert('Ce sujet est trop long pour être rempli en ligne (40 pages au plus) : les élèves le téléchargent et envoient leur copie en fichier.');
+    if (res.wordOff) alert('La version Word n\'a pas pu être créée : les élèves reçoivent le PDF.');
+    msg(`Épreuve publiée jusqu'au ${epWhen(r.deadline)} : copiez le lien et envoyez-le aux élèves.`);
+    return epreuvePanel();
+  } catch (e) { done(); alert('Publication impossible : ' + errMsg(e)); }
+}
+function epreuveHtml() {
+  const e = epCur(); if (!e) return '';
+  const state = e.state === 'ouverte' ? (e.closed ? '⏳ Date limite passée : dernières copies en cours de relève' : '🟢 Ouverte aux élèves') : e.state === 'close' ? '⏹ Close' : '✅ Terminée';
+  const L = EP_LINK && EP_LINK.id === e.id ? EP_LINK : null;
+  const left = e.state !== 'ouverte' ? '<p class="muted">Le lien ne fonctionne plus : l\'épreuve est terminée.</p>'
+    : L ? `<img src="${L.qr}" alt="QR code" class="qr"><code class="url">${esc(L.link)}</code><p><button id="epCopy">📋 Copier le lien</button></p>
+      <p class="muted" id="epCopied">Ce lien contient la clé de l'épreuve : envoyez-le seulement à vos élèves (message, courriel, ENT).</p>` : '<p class="muted">Chargement du lien…</p>';
+  return `${EP.items.length > 1 ? `<label class="blk">Épreuve <select id="epSel">${EP.items.map((x) => `<option value="${esc(x.id)}"${x.id === e.id ? ' selected' : ''}>${esc(x.title)} — ${new Date(x.deadline).toLocaleDateString('fr-FR')}${x.nouvelles ? ` (${x.nouvelles})` : ''}</option>`).join('')}</select></label>` : ''}
+    <div class="clgrid"><div>${left}</div><div>
+    <p>${state}</p><p>⏰ Date limite : <b>${esc(epWhen(e.deadline))}</b></p>
+    <p>${e.fill ? `✏️ Réponses en ligne${e.fields ? ` (${e.fields} zone(s) de réponse)` : ''}` : '📄 Sujet à télécharger'}${e.photos ? ' · 📷 photos acceptées' : ' · PDF uniquement'}${e.word ? ' · Word' : ''}</p>
+    <p>📥 Copies reçues : <b>${e.copies}</b>${e.nouvelles ? ` <b class="exnew">${e.nouvelles} nouvelle(s)</b>` : ''}${e.refusees.length ? ` <span class="exign" title="${esc(e.refusees.map((x) => `${x.eleve} : ${x.error}`).join('\n'))}">⚠ ${e.refusees.length} copie(s) illisible(s)</span>` : ''}</p>
+    <ul class="cllist">${e.list.slice().reverse().map((c) => `<li>${esc(c.eleve)} <small>${new Date(c.at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })} · ${esc(c.how || '')}</small></li>`).join('') || '<li class="muted">Aucune copie pour l\'instant.</li>'}</ul>
+    <p class="muted">${e.lastCollect ? `Dernière relève : ${new Date(e.lastCollect).toLocaleTimeString('fr-FR')}. ` : ''}Les copies sont relevées toutes les 10 minutes tant que le logiciel est ouvert.</p>
+    <p>${e.state === 'ouverte' ? '<button id="epClose">⏹ Clore l\'épreuve</button> ' : ''}<button id="epDel">Retirer du logiciel</button></p></div></div>`;
+}
+function epreuveLoadLink() {
+  const e = epCur(); if (!e || e.state !== 'ouverte' || (EP_LINK && EP_LINK.id === e.id)) return;
+  window.api.epreuveLink({ id: e.id }).then((l) => { EP_LINK = { id: e.id, ...l }; epreuveRender(); }).catch(() => {});
+}
+function epreuveBind() {
+  const s = $('#epSel'); if (s) s.onchange = () => { EP_CUR = s.value; epreuveRender(); epreuveLoadLink(); };
+  const c = $('#epCopy'); if (c) c.onclick = async () => { const ok = EP_LINK && await copyText(EP_LINK.link); const t = $('#epCopied'); if (t) t.textContent = ok ? '✅ Lien copié : collez-le dans un message, un courriel ou l\'ENT.' : 'Copie impossible : sélectionnez l\'adresse ci-dessus.'; };
+  const pick = (v) => () => { EP_PICK = v; $('#mBtns button').click(); };
+  const cl = $('#epClose'); if (cl) cl.onclick = pick('close');
+  const de = $('#epDel'); if (de) de.onclick = pick('remove');
+}
+async function epreuvePanel() {
+  const e0 = epCur(); if (!e0) return epreuveNew();
+  EP_CUR = e0.id; EP_PICK = null; EP_PANEL = true;
+  const p = modal('Épreuve en ligne — ' + e0.title, epreuveHtml(), [['↗', 'pick'], ['Fermer', null], ['Nouvelle épreuve…', 'new'], ['Ouvrir le dossier', 'folder'], ['Relever maintenant', 'collect'], ['Corriger les copies', 'grade'], ['Ouvrir les nouvelles copies', 'open', true]]);
+  $('#mBtns button').style.display = 'none'; $('#modal .mbox').classList.add('wide'); epreuveBind(); epreuveLoadLink(); // 1er bouton : relais invisible des boutons du panneau
+  const r = await p; EP_PANEL = false; $('#modal .mbox').classList.remove('wide');
+  const e = epCur(); if (!r || !e) return;
+  if (r === 'new') return epreuveNew();
+  if (r === 'folder') { window.api.epreuveOpenFolder({ id: e.id }); return; }
+  if (r === 'collect') {
+    busy('Relève des copies…');
+    try { const s = await window.api.epreuveCollect({ id: e.id }); EP = { ...EP, ...s }; done(s.errors && s.errors.length ? s.errors[0] : `Relève terminée : ${s.added} nouvelle(s) copie(s).`); }
+    catch (er) { done(); alert('Relève impossible : ' + errMsg(er)); }
+    epreuveTag(); return epreuvePanel();
+  }
+  if (r === 'open' || r === 'grade') return epreuveOpen(e, r === 'open', r === 'grade');
+  if (r === 'pick' && EP_PICK === 'close') {
+    if (!confirm(`Clore l'épreuve « ${e.title} » maintenant ?\nLes élèves ne pourront plus l'ouvrir ni envoyer de copie. Les copies déjà déposées sont relevées avant la fermeture.`)) return epreuvePanel();
+    busy('Fermeture de l\'épreuve…');
+    try { EP = { ...EP, ...(await window.api.epreuveClose({ id: e.id })) }; done(`Épreuve « ${e.title} » close. Ses copies restent dans le logiciel.`); } catch (er) { done(); alert('Fermeture impossible : ' + errMsg(er)); }
+    epreuveTag(); return epreuvePanel();
+  }
+  if (r === 'pick' && EP_PICK === 'remove') {
+    if (!confirm(`Retirer l'épreuve « ${e.title} » du logiciel ?${e.state === 'ouverte' ? '\nElle sera aussi supprimée du service : le lien ne fonctionnera plus.' : ''}\nLes copies déjà reçues restent dans leur dossier.`)) return epreuvePanel();
+    EP = { ...EP, ...(await window.api.epreuveRemove({ id: e.id })) }; EP_CUR = null; EP_LINK = null; epreuveTag(); msg(`Épreuve « ${e.title} » retirée du logiciel.`);
+  }
+}
+async function epreuveOpen(e, onlyNew, grade) {
+  try {
+    const list = await window.api.epreuveCopies({ id: e.id, onlyNew });
+    if (!list.length) return alert(onlyNew ? 'Aucune nouvelle copie pour l\'instant.' : 'Aucune copie reçue pour l\'instant.');
+    busy('Ouverture des copies…'); const loaded = await window.api.loadPaths(list.map((x) => x.file));
+    if (S.pages.length) newTab(); else resetDoc(); await handleLoaded(loaded, 0); S.fileName = `Copies - ${e.title}.pdf`; S.filePath = null;
+    done(`${list.length} copie(s) ouverte(s) : ${[...new Set(list.map((x) => x.eleve))].join(', ')}`);
+    if (grade) { GR.ppc = Math.max(1, Math.round(S.pages.length / list.length)); gradingDialog(); }
+  } catch (er) { done(); alert('Ouverture impossible : ' + errMsg(er)); }
+  epreuveReload().catch(() => {});
+}
+function epreuveTag() {
+  let t = $('#epTag'); const n = EP.nouvelles || 0;
+  if (!n) { if (t) t.remove(); return; }
+  if (!t) { t = document.createElement('button'); t.id = 'epTag'; t.onclick = () => epreuveDialog(); $('footer').insertBefore(t, $('#update')); }
+  t.textContent = `📝 ${n} nouvelle(s) copie(s) d'épreuve`;
+}
+window.api.onEpreuve((s) => { EP = { ...EP, ...s }; epreuveTag(); epreuveRender(); });
+window.api.onEpreuveProgress((t) => { if (!$('#busy').hidden) $('#busyMsg').textContent = t; });
+window.api.epreuveList().then((s) => { EP = s; epreuveTag(); }).catch(() => {});
+
 // ================================================================ 7. IA locale intégrée (hors ligne, gratuite)
 async function aiLocalDialog() {
   const r = await modal('IA locale (hors ligne, gratuite)', `<p>Installe un moteur d'IA sur ce PC : les demandes ne quittent jamais l'ordinateur et fonctionnent sans Internet.</p>
@@ -752,6 +877,16 @@ const EN = {
   'Ouvrir les nouvelles copies': 'Open new papers', 'Créer les dossiers': 'Create folders', 'Distribuer': 'Hand out', 'Rendre le corrigé': 'Return graded work', 'Distribuer aux élèves': 'Hand out to students',
   'Rendre un corrigé': 'Return graded work', 'Nom de la classe': 'Class name', 'Nom du fichier': 'File name', 'Ouvrir le dossier de la classe': 'Open the class folder',
   'Retirer cette classe du logiciel': 'Remove this class from the app',
+  'Épreuve en ligne': 'Online test', 'Publier l\'épreuve': 'Publish the test', 'Titre affiché aux élèves': 'Title shown to students', 'Consigne': 'Instructions', 'Date limite': 'Deadline', 'Heure': 'Time',
+  'Répondre en ligne, directement sur le sujet': 'Answer online, directly on the test', 'Accepter les photos d\'une copie papier (converties en PDF)': 'Accept photos of a paper answer sheet (converted to PDF)',
+  'Proposer aussi le sujet en Word (.docx)': 'Also offer the test as a Word file (.docx)', 'Nouvelle épreuve…': 'New test…', 'Relever maintenant': 'Collect now', 'Corriger les copies': 'Grade papers',
+  '⏹ Clore l\'épreuve': '⏹ Close the test', 'Retirer du logiciel': 'Remove from the app', '🟢 Ouverte aux élèves': '🟢 Open to students', '✅ Terminée': '✅ Finished', '⏹ Close': '⏹ Closed',
+  'Aucune copie pour l\'instant.': 'No papers yet.', 'Chargement du lien…': 'Loading the link…', 'Relève des copies…': 'Collecting papers…', 'Préparation de l\'épreuve…': 'Preparing the test…',
+  'Les élèves reçoivent un lien qui s\'ouvre dans tout navigateur (Windows, Mac, iPad, iPhone, Android) jusqu\'à la date limite, même quand ce PC est éteint. Ils répondent en ligne ou envoient leur copie ; vous la recevez en PDF verrouillé.': 'Students get a link that opens in any browser (Windows, Mac, iPad, iPhone, Android) until the deadline, even when this PC is off. They answer online or send their paper; you receive it as a locked PDF.',
+  '💡 Pour des réponses bien placées, ajoutez des zones de réponse avant de publier : onglet Modifier › Champ texte ou Case à cocher.': '💡 For well-placed answers, add answer fields before publishing: Edit tab › Text field or Check box.',
+  '🔐 Sujet et copies chiffrés de bout en bout : le service en ligne ne peut pas les lire, et seul ce logiciel ouvre les copies.': '🔐 Test and papers are end-to-end encrypted: the online service cannot read them, and only this app opens the papers.',
+  'Ce lien contient la clé de l\'épreuve : envoyez-le seulement à vos élèves (message, courriel, ENT).': 'This link contains the test\'s key: send it only to your students (message, email, school platform).',
+  'Les copies sont relevées toutes les 10 minutes tant que le logiciel est ouvert.': 'Papers are collected every 10 minutes while the app is open.',
   '📋 Copier le lien': '📋 Copy link', '✅ Lien copié': '✅ Link copied', '📋 Copier le lien à distance': '📋 Copy remote link', '✅ Lien à distance copié': '✅ Remote link copied', 'en ligne': 'online',
   'Lien utilisable à distance (maison, 4G) — chiffré de bout en bout ; ce PC doit être connecté à Internet': 'Link usable remotely (home, mobile data) — end-to-end encrypted; this PC must be connected to the Internet',
   '🔐 Chiffré de bout en bout : le relais transporte le document et les copies sans pouvoir les lire. Gardez SknEDU-studio ouvert : le lien ne répond que pendant ce partage.': '🔐 End-to-end encrypted: the relay carries the document and the papers without being able to read them. Keep SknEDU-studio open: the link only answers during this sharing session.',
@@ -847,10 +982,10 @@ async function languageDialog() {
 
 // ================================================================ Branchement dans l'interface
 Object.assign(actions, {
-  grading: gradingDialog, diffEval: diffEvalDialog, mailMerge: mailMergeDialog, dys: dysDialog, speak: speakToggle, classroom: classroomDialog, exchange: exchangeDialog,
+  grading: gradingDialog, diffEval: diffEvalDialog, mailMerge: mailMergeDialog, dys: dysDialog, speak: speakToggle, classroom: classroomDialog, exchange: exchangeDialog, epreuve: epreuveDialog,
   aiLocal: aiLocalDialog, equation: equationDialog, bilingual: bilingualDialog, language: languageDialog
 });
-Object.assign(FEATURE_OF.act, { grading: 'edit', diffEval: 'ai', mailMerge: 'save', dys: 'convert', classroom: 'save', exchange: 'cloud', aiLocal: 'ai', equation: 'edit', bilingual: 'ai' });
+Object.assign(FEATURE_OF.act, { grading: 'edit', diffEval: 'ai', mailMerge: 'save', dys: 'convert', classroom: 'save', exchange: 'cloud', epreuve: 'save', aiLocal: 'ai', equation: 'edit', bilingual: 'ai' });
 (function initFeatures() {
   LANG = store.get('edupdf.lang') || ((navigator.language || 'fr').startsWith('fr') ? 'fr' : 'en');
   document.documentElement.lang = LANG;

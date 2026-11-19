@@ -525,6 +525,69 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
           } finally { delete process.env.EDUPDF_RELAY; try { await js('window.api.classroomStop()'); } catch { /* déjà arrêté */ } await relay.close(); }
         }
       } catch (e) { log('FAIL classe-a-distance', e.stack); results.distance = { error: e.message }; }
+      // ---------- Épreuve en ligne : sujet déposé chiffré, copies d'« élèves », relève en PDF verrouillé, clôture ----------
+      try {
+        let local = null; try { local = require('../tools/relais-local'); } catch { /* application installée : le service d'essai n'est pas fourni */ }
+        if (!local) log('SKIP epreuve-en-ligne (service d\'essai absent)');
+        else {
+          const svc = await local.start(0); process.env.EDUPDF_RELAY = svc.url;
+          try {
+            const pub = await js(`(async () => {
+              const { PDFDocument, StandardFonts } = PDFLib; const d = await PDFDocument.create(); const f = await d.embedFont(StandardFonts.Helvetica);
+              const p = d.addPage([595, 842]); p.drawText('Evaluation secrete', { x: 60, y: 780, size: 20, font: f }); p.drawText('1. Calcule 6 x 7 :', { x: 60, y: 707, size: 13, font: f });
+              const form = d.getForm(); form.createTextField('r1').addToPage(p, { x: 200, y: 700, width: 150, height: 22 });
+              const b = form.createTextField('r2'); b.enableMultiline(); b.addToPage(p, { x: 60, y: 500, width: 450, height: 90 });
+              form.createCheckBox('c1').addToPage(p, { x: 60, y: 450, width: 14, height: 14 });
+              const g = form.createRadioGroup('g'); g.addOptionToPage('A', p, { x: 60, y: 400, width: 14, height: 14 }); g.addOptionToPage('B', p, { x: 120, y: 400, width: 14, height: 14 });
+              const dd = form.createDropdown('liste'); dd.addOptions(['Rouge', 'Vert']); dd.addToPage(p, { x: 60, y: 350, width: 120, height: 20 });
+              const res = await window.api.epreuvePublish({ bytes: await d.save(), title: 'Evaluation secrete', message: 'Bon courage', fileName: 'eval.pdf', deadline: Date.now() + 3600000, fill: true, photos: true, layout: null });
+              return { id: res.id, link: res.link, qr: !!res.qr, fields: res.fields };
+            })()`);
+            const E = require('./e2e'); const crypto = require('crypto'); const id = pub.id;
+            const link = new URL(pub.link); const key = Buffer.from(link.hash.slice(1), 'base64url'); const api = link.origin + link.pathname;
+            const get = async (sub) => { const r = await fetch(api + sub); return { status: r.status, body: Buffer.from(await r.arrayBuffer()), cache: r.headers.get('cache-control') || '' }; };
+            const blob = async (name) => { const r = await get('/b/' + name); return r.status === 200 ? E.unseal(key, `e:${id}:${name}`, r.body) : null; };
+            const shell = await (await fetch(api)).text();
+            const st = JSON.parse((await get('/s')).body.toString());
+            const info = JSON.parse((await blob('info')).toString('utf8')); const p0 = await blob('p0'); const pdf0 = await blob('pdf.0'); const cacheP0 = (await get('/b/p0')).cache;
+            const submit = async (head, body, raw) => {
+              const cid = crypto.randomBytes(16).toString('hex'); const env = raw || E.sealCopy(Buffer.from(info.pub, 'base64url'), `c:${id}:${cid}`, E.frame(head, body));
+              const r = await fetch(api + '/c', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Id': cid }, body: env }); return r.status;
+            };
+            const depots = [
+              await submit({ kind: 'fill', eleve: 'Awa En Ligne', items: [{ p: 0, x: 0.1, y: 0.9, w: 0.5, h: 0.03, fs: 0.024, text: 'Note libre de Awa' }], answers: { 0: 'Quarante-deux', 1: 'Ligne une\nLigne deux', 2: true, 4: true, 5: 'Vert' } }),
+              await submit({ kind: 'files', eleve: 'Yao Photo', files: [{ name: 'copie.jpg', size: p0.length }] }, p0),
+              await submit({ kind: 'files', eleve: 'Koffi Word', files: [{ name: 'copie.docx', size: 44 }] }, Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.alloc(40)])),
+              await submit(null, null, crypto.randomBytes(300))].join(',');
+            // un curieux, sans la clé de gestion de l'épreuve
+            const spy = [await fetch(api + '/c'), await fetch(api + '/c/' + '0'.repeat(32)), await fetch(api, { method: 'DELETE' }), await fetch(api + '/b/info', { method: 'PUT', body: 'x' })].map((r) => r.status).join('/');
+            const sec = require('./epreuve')._test.secretOf(id);
+            const immuable = (await fetch(api + '/b/info', { method: 'PUT', headers: { Authorization: 'Bearer ' + sec.host }, body: Buffer.from('x') })).status;
+            // le logiciel relève les copies, les enregistre en PDF verrouillé et les efface du service
+            const got = await js(`window.api.epreuveCollect({ id: '${id}' }).then((s) => { const e = s.items.find((x) => x.id === '${id}'); return { added: s.added, refused: s.refused, copies: e.copies, nouvelles: e.nouvelles, illisibles: e.refusees.map((r) => r.eleve + ' : ' + r.error.slice(0, 50)), liste: e.list.map((c) => c.eleve + ' (' + c.how + ')') }; })`);
+            const ex = svc.exams.get(id); const pending = ex ? Object.keys((await ex.st.get('meta')).pending).length : -1;
+            const files = await js(`window.api.epreuveCopies({ id: '${id}', onlyNew: true }).then((l) => l.map((x) => x.file))`);
+            const mu = require('./mu'); const desc = [];
+            for (const f of files) { const d = await mu.describePdf(fs.readFileSync(f)); desc.push({ verrouille: d.encrypted && !d.needsPassword && d.editable === 0, texte: d.text }); }
+            const txt = desc.map((d) => d.texte).join(' ');
+            // fenêtre de l'enseignant : lien, QR code, copies reçues
+            const ui = await js(`(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); const q = (x) => document.querySelector(x);
+              window.__edupdf.actions.epreuve(); for (let i = 0; i < 40 && !q('#epCopy'); i++) await wait(250);
+              const out = { titre: q('#mTitle').textContent, lien: ((q('#mBody code.url') || {}).textContent || '').length > 40, qr: !!q('#mBody img.qr'), copier: !!q('#epCopy'), clore: !!q('#epClose'), liste: ((q('#mBody .cllist') || {}).textContent || '').slice(0, 200) };
+              q('#mBtns button:nth-child(2)').click(); await wait(300); return out; })()`);
+            const cloture = await js(`window.api.epreuveClose({ id: '${id}' }).then((s) => s.items.find((x) => x.id === '${id}').state)`);
+            const apres = (await get('/s')).status;
+            const out = { lien: /^http:\/\/localhost:\d+\/e\/[\w-]{22}#[\w-]{43}$/.test(pub.link), qr: pub.qr, zones: info.fields.length + '/' + pub.fields, pageSansContenu: !/Evaluation secrete|%PDF/.test(shell), ouverte: st.open && !st.closed,
+              image: p0 && p0.subarray(0, 3).toString('hex'), sujet: pdf0 && pdf0.subarray(0, 5).toString(), cacheImmuable: /immutable/.test(cacheP0),
+              depots, curieux: spy, immuable, releve: got, enAttenteSurLeService: pending, verrouillees: desc.length === 2 && desc.every((d) => d.verrouille),
+              reponsesDansLaCopie: ['Quarante-deux', 'Ligne deux', 'Vert', 'Note libre de Awa'].every((t) => txt.includes(t)), fenetre: ui, cloture, serviceApresCloture: apres };
+            const ok = out.lien && out.qr && out.zones === '6/6' && out.pageSansContenu && out.ouverte && out.image === 'ffd8ff' && out.sujet === '%PDF-' && out.cacheImmuable && depots === '200,200,200,200'
+              && spy === '401/401/401/401' && immuable === 409 && got.added === 2 && got.refused === 2 && got.copies === 2 && pending === 0 && out.verrouillees && out.reponsesDansLaCopie
+              && ui.lien && ui.qr && ui.copier && ui.clore && /Awa En Ligne/.test(ui.liste) && cloture === 'close' && apres === 404;
+            log((ok ? 'OK   ' : 'FAIL ') + 'epreuve-en-ligne', JSON.stringify(out)); if (!ok) results.epreuve = { error: 'résultat inattendu' };
+          } finally { delete process.env.EDUPDF_RELAY; await svc.close(); }
+        }
+      } catch (e) { log('FAIL epreuve-en-ligne', e.stack); results.epreuve = { error: e.message }; }
       // ---------- Abonnement IA : demande préparée, copiée, site ouvert ; réponse rapportée ----------
       try {
         const clip = require('electron').clipboard; await clip.writeText('ancien contenu');
@@ -787,7 +850,7 @@ $x = New-Object System.Windows.Xps.Packaging.XpsDocument('${path.join(outDir, 't
         const A0 = window.alert, C0 = window.confirm; const alerts = []; window.alert = (m) => alerts.push(String(m).slice(0, 60)); window.confirm = () => false;
         // ouvrent une fenêtre du système (fichier, impression, navigateur), quittent l'affichage normal, ou sont testés à part
         const SKIP = new Set(['open', 'new', 'save', 'saveAs', 'cloudSave', 'cloudOpen', 'fromImages', 'insertFiles', 'scan', 'convertOffice', 'print', 'admin', 'language', 'close', 'certSign',
-          'slideshow', 'slideshowHere', 'speak', 'classroom', 'exchange', 'exportOrigin', 'toWord', 'toExcel', 'toPpt', 'exportAs', 'toImages', 'toText', 'split', 'extract', 'commentLocked',
+          'slideshow', 'slideshowHere', 'speak', 'classroom', 'exchange', 'epreuve', 'exportOrigin', 'toWord', 'toExcel', 'toPpt', 'exportAs', 'toImages', 'toText', 'split', 'extract', 'commentLocked',
           'aiSubscription', 'ocrAll', 'ocrPage', 'scanCopy', 'compress', 'protect', 'checkUpdate']);
         const fresh = async () => {
           for (let i = 0; i < 12 && (T.S.pages.length || document.querySelectorAll('#docTabs .dtab').length > 1); i++) { T.S.dirty = false; T.actions.close(); }
